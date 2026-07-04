@@ -30,3 +30,6 @@ __pycache__/
 
 # Scan caches
 .font_index.json
+
+# Generated review reports
+REVIEW.html
