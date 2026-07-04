@@ -2,6 +2,7 @@ import { PDFDocument } from "pdf-lib";
 import { renderSpread } from "./renderSpread";
 import { getTemplate } from "./templates";
 import { writeExport, type ExportFile } from "../ipc/export";
+import { readLayoutBg, savedLayoutFolder } from "../ipc/layouts";
 import type { Spread } from "../store/album";
 import type { ImageMeta } from "../ipc/import";
 
@@ -47,13 +48,20 @@ export async function exportAlbum(
   onProgress: (done: number, total: number) => void,
   cancel: CancelRef
 ): Promise<string> {
+  const layoutFolder = savedLayoutFolder();
   const pages: { dataUrl: string; w: number; h: number }[] = [];
   for (let i = 0; i < spreads.length; i++) {
     if (cancel.cancelled) throw new Error("cancelled");
     onProgress(i, spreads.length);
     const tpl = getTemplate(spreads[i].templateId);
     if (!tpl) continue;
-    pages.push(await renderSpread(spreads[i], tpl, images, bgColor, opts.dpi, opts.quality));
+    // Hi-res text-free plate from the imported layout pack, if available.
+    let hiresBg: string | null = null;
+    if (layoutFolder) {
+      const name = tpl.id.split("/").pop()!;
+      hiresBg = await readLayoutBg(layoutFolder, name).catch(() => null);
+    }
+    pages.push(await renderSpread(spreads[i], tpl, images, bgColor, opts.dpi, opts.quality, hiresBg));
   }
   onProgress(spreads.length, spreads.length);
 

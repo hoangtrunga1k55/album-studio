@@ -23,14 +23,20 @@ export interface RenderResult {
   h: number;
 }
 
-/** Render one spread at print resolution to a JPEG data URL. */
+/** Render one spread at print resolution to a JPEG data URL.
+ *
+ *  When `hiresBg` (a full-res, text-free layout-pack background) is provided,
+ *  it replaces the bundled preview plate AND every template text is redrawn as
+ *  sharp vector — that is the print-quality path. Without it, the baked preview
+ *  plate is used and only user-edited texts get a vector overlay. */
 export async function renderSpread(
   spread: Spread,
   tpl: Template,
   images: ImageMeta[],
   bgColor: string,
   dpi: number,
-  quality: number
+  quality: number,
+  hiresBg?: string | null
 ): Promise<RenderResult> {
   // Spread long edge ≈ 50cm (landscape) / 35cm (portrait single page).
   const longCm = tpl.ratioWH >= 1 ? 50 : 35;
@@ -46,10 +52,13 @@ export async function renderSpread(
   stage.add(layer);
 
   try {
+    // Hi-res text-free plate → clean-background print path (render all text vector).
+    const cleanBg = !!hiresBg;
+    const bgSrc = hiresBg || tpl.bg;
     layer.add(new Konva.Rect({ x: 0, y: 0, width: W, height: H, fill: bgColor }));
-    if (tpl.bg) {
+    if (bgSrc) {
       try {
-        const bg = await loadImg(tpl.bg);
+        const bg = await loadImg(bgSrc);
         layer.add(new Konva.Image({ image: bg, x: 0, y: 0, width: W, height: H }));
       } catch {
         /* ignore missing bg */
@@ -98,25 +107,31 @@ export async function renderSpread(
       layer.add(g);
     }
 
-    // Template text: original is baked into the bg plate. Only edited/deleted
-    // ones need a cover + (for edited) an overlay in the chosen font.
+    // Template text. On a clean (text-free) hi-res plate every text is redrawn
+    // as vector. On the baked preview plate the original text is already there,
+    // so only edited texts need a cover + overlay, and deleted ones a cover.
     for (let i = 0; i < tpl.texts.length; i++) {
       const ed = spread.textEdits[i];
-      if (!ed) continue;
+      if (!cleanBg && !ed) continue;
       const tx = tpl.texts[i];
-      const nx = tx.x + (ed.dx ?? 0);
-      const ny = tx.y + (ed.dy ?? 0);
+      const nx = tx.x + (ed?.dx ?? 0);
+      const ny = tx.y + (ed?.dy ?? 0);
       const px = { x: nx * W, y: ny * H, w: tx.w * W, h: tx.h * H };
-      const content = (ed.content ?? tx.content ?? "").replace(/\r/g, "\n");
+      const content = (ed?.content ?? tx.content ?? "").replace(/\r/g, "\n");
       const lines = Math.max(1, content.split("\n").length);
-      const fs = Math.max(7, ((tx.h * H) / lines) * 0.86 * (ed.sizeScale ?? 1));
-      const cover = tpl.bg ? await sampleBgColor(tpl.bg, nx, ny, tx.w, tx.h).catch(() => bgColor) : bgColor;
-      const padX = px.w * 0.04 + fs * 0.12;
-      const padY = px.h * 0.22;
-      layer.add(
-        new Konva.Rect({ x: px.x - padX, y: px.y - padY / 2, width: px.w + padX * 2, height: px.h + padY, fill: cover })
-      );
-      if (ed.deleted) continue;
+      const fs = Math.max(7, ((tx.h * H) / lines) * 0.86 * (ed?.sizeScale ?? 1));
+
+      // Cover the baked raster only when it exists (preview plate) and this text
+      // is edited or deleted. The clean hi-res plate has nothing to cover.
+      if (!cleanBg && ed) {
+        const cover = tpl.bg ? await sampleBgColor(tpl.bg, nx, ny, tx.w, tx.h).catch(() => bgColor) : bgColor;
+        const padX = px.w * 0.04 + fs * 0.12;
+        const padY = px.h * 0.22;
+        layer.add(
+          new Konva.Rect({ x: px.x - padX, y: px.y - padY / 2, width: px.w + padX * 2, height: px.h + padY, fill: cover })
+        );
+      }
+      if (ed?.deleted) continue;
       layer.add(
         new Konva.Text({
           x: px.x,
@@ -124,8 +139,8 @@ export async function renderSpread(
           width: Math.max(px.w, fs),
           text: content,
           fontSize: fs,
-          fontFamily: fam(ed.font ?? tx.font ?? ""),
-          fill: ed.color ?? tx.color ?? "#222222",
+          fontFamily: fam(ed?.font ?? tx.font ?? ""),
+          fill: ed?.color ?? tx.color ?? "#222222",
           align: "center",
           lineHeight: 1.12,
         })

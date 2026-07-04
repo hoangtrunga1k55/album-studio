@@ -1,13 +1,58 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAlbum } from "../store/album";
+import { useFonts } from "../store/fonts";
 import { exportAlbum, type CancelRef, type ExportFormat } from "../engine/exportAlbum";
+import { getTemplate } from "../engine/templates";
+import { fontAliases } from "../ipc/fonts";
+import {
+  pickLayoutFolder,
+  saveLayoutFolder,
+  savedLayoutFolder,
+  scanLayoutPack,
+} from "../ipc/layouts";
 import { IconClose } from "../icons";
 
 export function ExportDialog({ onClose }: { onClose: () => void }) {
   const spreads = useAlbum((s) => s.spreads);
   const images = useAlbum((s) => s.images);
   const bgColor = useAlbum((s) => s.bgColor);
+  const fonts = useFonts((s) => s.fonts);
+
+  const [layoutFolder, setLayoutFolder] = useState<string | null>(savedLayoutFolder());
+  const [layoutCount, setLayoutCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (layoutFolder) scanLayoutPack(layoutFolder).then(setLayoutCount).catch(() => setLayoutCount(0));
+  }, [layoutFolder]);
+
+  async function importLayoutPack() {
+    const path = await pickLayoutFolder();
+    if (!path) return;
+    try {
+      const n = await scanLayoutPack(path);
+      if (n === 0) {
+        alert("Thư mục không có nền layout (lay-*.bg.jpg). Chọn đúng folder layout pack.");
+        return;
+      }
+      saveLayoutFolder(path);
+      setLayoutFolder(path);
+      setLayoutCount(n);
+    } catch (e) {
+      alert("Nạp layout pack lỗi: " + String(e));
+    }
+  }
+
+  // Template fonts referenced but not loaded — vector text would fall back.
+  const loadedSet = new Set(fonts.flatMap((f) => fontAliases(f)));
+  const missingFonts = new Set<string>();
+  for (const sp of spreads) {
+    const t = getTemplate(sp.templateId);
+    t?.texts.forEach((tx, i) => {
+      const f = sp.textEdits[i]?.font ?? tx.font;
+      if (f && !loadedSet.has(f)) missingFonts.add(f);
+    });
+  }
 
   const [format, setFormat] = useState<ExportFormat>("both");
   const [dpi, setDpi] = useState(300);
@@ -106,6 +151,29 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
               <button className="btn" onClick={pickFolder} disabled={running}>Chọn…</button>
             </div>
             <div className="hint-sm">Sẽ tạo thư mục con Export_YYYY-MM-DD/ · màu sRGB</div>
+          </div>
+
+          <div>
+            <div className="prop-label">Layout in nét cao (tuỳ chọn)</div>
+            <div className="prop-row">
+              <input
+                className="input"
+                value={layoutFolder ? `${layoutFolder}${layoutCount != null ? `  ·  ${layoutCount} nền` : ""}` : ""}
+                placeholder="Chưa nạp — sẽ dùng nền preview (kém nét khi in to)"
+                readOnly
+              />
+              <button className="btn" onClick={importLayoutPack} disabled={running}>
+                {layoutFolder ? "Đổi…" : "Nạp…"}
+              </button>
+            </div>
+            <div className="hint-sm">
+              Nạp layout pack (nền full-res) → nền + chữ in sắc nét. Chữ render vector từ font kho.
+            </div>
+            {layoutFolder && missingFonts.size > 0 && (
+              <div className="font-warn-sm">
+                ⚠ {missingFonts.size} font layout chưa nạp → chữ sẽ dùng font thay thế khi in. Nạp kho font để đúng kiểu.
+              </div>
+            )}
           </div>
 
           {running && (
