@@ -1,0 +1,69 @@
+{
+  "source": "1 (25).psd",
+  "canvas": {
+    "w": 5906,
+    "h": 4134,
+    "ratioWH": 1.4286
+  },
+  "photoSlots": [
+    {
+      "x": 0.5122,
+      "y": 0.0,
+      "w": 0.4878,
+      "h": 1.0,
+      "ratioWH": 0.697
+    },
+    {
+      "x": 0.0117,
+      "y": 0.1115,
+      "w": 0.1901,
+      "h": 0.3703,
+      "ratioWH": 0.734
+    },
+    {
+      "x": 0.0117,
+      "y": 0.1115,
+      "w": 0.4052,
+      "h": 0.3703,
+      "ratioWH": 1.563
+    }
+  ],
+  "texts": [
+    {
+      "x": 0.349,
+      "y": 0.4879,
+      "w": 0.0659,
+      "h": 0.0123,
+      "content": "tizino design",
+      "fontSizeRaw": 794.33,
+      "font": "'SegoeUIEmoji'"
+    },
+    {
+      "x": 0.1327,
+      "y": 0.4879,
+      "w": 0.0686,
+      "h": 0.0123,
+      "content": "fashion Folio",
+      "fontSizeRaw": 794.33,
+      "font": "'SegoeUIEmoji'"
+    },
+    {
+      "x": 0.0799,
+      "y": 0.5631,
+      "w": 0.0816,
+      "h": 0.0394,
+      "content": "@DECEMBER 15 2024\rminh quan\rNgoc huyen\r",
+      "fontSizeRaw": 794.33,
+      "font": "'ArialNarrow'"
+    },
+    {
+      "x": 0.2481,
+      "y": 0.725,
+      "w": 0.0989,
+      "h": 0.0382,
+      "content": "Coming soon\rThe wedding photobook\rwww.tizino.com\r",
+      "fontSizeRaw": 794.33,
+      "font": "'MyriadPro-Regular'"
+    }
+  ]
+}

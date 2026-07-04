@@ -1,0 +1,74 @@
+.canvas-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    radial-gradient(1100px 700px at 50% 0%, #181429 0%, transparent 65%),
+    radial-gradient(900px 600px at 50% 120%, #14182a 0%, transparent 60%),
+    var(--bg-0);
+}
+
+.stage-host {
+  position: relative;
+  border-radius: 3px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04),
+    0 30px 70px rgba(0, 0, 0, 0.62);
+  background: #fff;
+}
+
+.canvas-hint {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.swap-hint {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 20px;
+  box-shadow: var(--sh-2);
+}
+
+.ctx-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 150px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  box-shadow: var(--sh-pop);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+}
+.ctx-menu button {
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ctx-menu button:hover {
+  background: var(--bg-3);
+}
+.ctx-menu button.danger {
+  color: #ff8585;
+}
+.ctx-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
+}

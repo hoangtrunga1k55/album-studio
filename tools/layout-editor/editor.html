@@ -1,0 +1,310 @@
+
+cl<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Album Studio — Layout Editor</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#2a2f3a; --txt:#e6e8eb; --mut:#9aa3b2;
+          --photo:#ff2d2d; --text:#2f86ff; --accent:#16a34a; }
+  * { box-sizing:border-box; }
+  body { margin:0; height:100vh; display:grid; grid-template-columns:240px 1fr 260px;
+         font:13px/1.5 -apple-system,system-ui,sans-serif; background:var(--bg); color:var(--txt); overflow:hidden; }
+  .col { height:100vh; overflow:auto; }
+  /* sidebar */
+  #list { border-right:1px solid var(--line); padding:8px; }
+  #list h2 { font-size:12px; color:var(--mut); margin:14px 6px 6px; text-transform:uppercase; letter-spacing:.04em; }
+  .item { padding:7px 9px; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between; gap:6px; }
+  .item:hover { background:#1e222b; }
+  .item.active { background:#243043; }
+  .item .nm { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .item .ct { color:var(--mut); font-size:11px; white-space:nowrap; }
+  .item .ct.flat { color:var(--photo); }
+  .item .ct.edited { color:var(--accent); }
+  /* center */
+  #stage { display:flex; flex-direction:column; }
+  #bar { display:flex; gap:8px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  #bar .title { font-weight:600; margin-right:auto; }
+  button { background:#222732; color:var(--txt); border:1px solid var(--line); border-radius:7px;
+           padding:6px 11px; cursor:pointer; font-size:12px; }
+  button:hover { background:#2c333f; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button.photo { border-color:var(--photo); color:#ff8c8c; }
+  button.text  { border-color:var(--text);  color:#9cc2ff; }
+  #canvasWrap { flex:1; position:relative; overflow:hidden; background:#0a0c10;
+                background-image:linear-gradient(45deg,#13161c 25%,transparent 25%),linear-gradient(-45deg,#13161c 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#13161c 75%),linear-gradient(-45deg,transparent 75%,#13161c 75%);
+                background-size:24px 24px; background-position:0 0,0 12px,12px -12px,-12px 0; }
+  canvas { position:absolute; left:0; top:0; }
+  /* props */
+  #props { border-left:1px solid var(--line); padding:14px; }
+  #props h2 { font-size:12px; color:var(--mut); text-transform:uppercase; letter-spacing:.04em; margin:0 0 10px; }
+  .field { margin-bottom:10px; }
+  .field label { display:block; color:var(--mut); font-size:11px; margin-bottom:3px; }
+  .field input, .field textarea, .field select { width:100%; background:#0e1116; color:var(--txt);
+            border:1px solid var(--line); border-radius:6px; padding:6px 8px; font:inherit; }
+  textarea { resize:vertical; min-height:54px; }
+  .row { display:flex; gap:6px; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; color:#fff; }
+  .hint { color:var(--mut); font-size:11px; margin-top:14px; line-height:1.6; }
+  kbd { background:#222732; border:1px solid var(--line); border-radius:4px; padding:0 5px; font-size:11px; }
+  #status { color:var(--mut); font-size:12px; }
+</style>
+</head>
+<body>
+  <div id="list" class="col"></div>
+
+  <div id="stage">
+    <div id="bar">
+      <span class="title" id="tplTitle">— chọn template —</span>
+      <button class="photo" onclick="addBox('photo')">+ Ô ảnh</button>
+      <button class="text" onclick="addBox('text')">+ Text</button>
+      <button onclick="deleteSel()">Xoá (Del)</button>
+      <button onclick="prevNext(-1)">‹ Trước</button>
+      <button onclick="prevNext(1)">Sau ›</button>
+      <button class="primary" onclick="save()">Lưu (⌘S)</button>
+    </div>
+    <div id="canvasWrap"><canvas id="cv"></canvas></div>
+  </div>
+
+  <div id="props" class="col">
+    <h2>Thuộc tính</h2>
+    <div id="propBody"><div class="hint">Chưa chọn ô nào.</div></div>
+    <div class="hint">
+      <b>Mẹo</b><br>
+      • Kéo ô để di chuyển, kéo góc/cạnh để resize.<br>
+      • <kbd>Del</kbd> xoá ô đang chọn.<br>
+      • Phím mũi tên: nhích 1px.<br>
+      • <span style="color:var(--photo)">đỏ</span> = ô ảnh, <span style="color:var(--text)">xanh</span> = text.<br>
+      • <kbd>⌘S</kbd> lưu lại JSON.
+    </div>
+    <div id="status"></div>
+  </div>
+
+<script>
+const HANDLE = 8;                 // handle hit radius (display px)
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let S = {                         // editor state
+  list: [], idx: -1, id: null,
+  tpl: null, img: null,
+  boxes: [],                      // {type, x,y,w,h, ...textProps}  (normalized 0..1)
+  view: { scale:1, ox:0, oy:0, iw:0, ih:0 },  // image fit in viewport
+  sel: -1, drag: null, dirty: false,
+};
+
+// ---------- coordinate helpers (normalized <-> display px) ----------
+function n2p(b) {
+  const v = S.view;
+  return { x: v.ox + b.x*v.iw, y: v.oy + b.y*v.ih, w: b.w*v.iw, h: b.h*v.ih };
+}
+function p2n(px, py) {
+  const v = S.view;
+  return { x: (px - v.ox)/v.iw, y: (py - v.oy)/v.ih };
+}
+
+// ---------- data load ----------
+async function loadList() {
+  S.list = await (await fetch('/api/list')).json();
+  renderList();
+}
+function renderList() {
+  const el = document.getElementById('list');
+  let html = '', curSize = null;
+  S.list.forEach((t, i) => {
+    if (t.size !== curSize) { curSize = t.size; html += `<h2>${curSize}</h2>`; }
+    const cls = t.slots === 0 ? 'ct flat' : (t.edited ? 'ct edited' : 'ct');
+    const tag = t.slots === 0 ? 'PHẲNG' : `${t.slots} ô`;
+    html += `<div class="item ${i===S.idx?'active':''}" onclick="loadTpl(${i})">
+      <span class="nm">${t.base}</span><span class="${cls}">${t.edited?'✎ ':''}${tag}</span></div>`;
+  });
+  el.innerHTML = html;
+}
+async function loadTpl(i) {
+  if (S.dirty && !confirm('Chưa lưu. Bỏ thay đổi?')) return;
+  S.idx = i; S.id = S.list[i].id;
+  const d = await (await fetch('/api/template?id=' + encodeURIComponent(S.id))).json();
+  S.tpl = d; S.sel = -1; S.dirty = false;
+  S.boxes = [];
+  (d.photoSlots||[]).forEach(s => S.boxes.push({type:'photo', x:s.x, y:s.y, w:s.w, h:s.h}));
+  (d.texts||[]).forEach(t => S.boxes.push({type:'text', x:t.x, y:t.y, w:t.w, h:t.h,
+     content:t.content||'', font:t.font||'', fontSizeRaw:t.fontSizeRaw||null, color:t.color||null}));
+  const img = new Image();
+  img.onload = () => { S.img = img; fitView(); render(); };
+  img.src = d._preview;
+  document.getElementById('tplTitle').textContent = S.id;
+  renderList(); renderProps(); setStatus();
+}
+
+// ---------- viewport fit ----------
+function fitView() {
+  const wrap = document.getElementById('canvasWrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  cv.width = W; cv.height = H;
+  if (!S.img) return;
+  const s = Math.min(W/S.img.width, H/S.img.height) * 0.96;
+  S.view = { scale:s, iw:S.img.width*s, ih:S.img.height*s,
+             ox:(W - S.img.width*s)/2, oy:(H - S.img.height*s)/2 };
+}
+
+// ---------- render ----------
+function render() {
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if (!S.img) return;
+  const v = S.view;
+  ctx.drawImage(S.img, v.ox, v.oy, v.iw, v.ih);
+  S.boxes.forEach((b,i) => {
+    const r = n2p(b), on = i===S.sel;
+    ctx.lineWidth = on ? 3 : 2;
+    ctx.strokeStyle = b.type==='photo' ? '#ff2d2d' : '#2f86ff';
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    if (on) {
+      ctx.fillStyle = '#fff';
+      handlePts(r).forEach(p => { ctx.fillRect(p.x-4,p.y-4,8,8);
+        ctx.strokeRect(p.x-4,p.y-4,8,8); });
+    } else {
+      ctx.fillStyle = b.type==='photo' ? 'rgba(255,45,45,.10)' : 'rgba(47,134,255,.10)';
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+    }
+  });
+}
+function handlePts(r) {
+  const mx = r.x+r.w/2, my = r.y+r.h/2;
+  return [
+    {k:'nw',x:r.x,y:r.y},{k:'n',x:mx,y:r.y},{k:'ne',x:r.x+r.w,y:r.y},
+    {k:'e',x:r.x+r.w,y:my},{k:'se',x:r.x+r.w,y:r.y+r.h},{k:'s',x:mx,y:r.y+r.h},
+    {k:'sw',x:r.x,y:r.y+r.h},{k:'w',x:r.x,y:my},
+  ];
+}
+
+// ---------- hit testing ----------
+function hitHandle(r, px, py) {
+  for (const p of handlePts(r)) if (Math.abs(px-p.x)<=HANDLE && Math.abs(py-p.y)<=HANDLE) return p.k;
+  return null;
+}
+function pick(px, py) {
+  // selected box handles first
+  if (S.sel>=0) { const k = hitHandle(n2p(S.boxes[S.sel]), px, py); if (k) return {i:S.sel, mode:k}; }
+  for (let i=S.boxes.length-1; i>=0; i--) {
+    const r = n2p(S.boxes[i]);
+    if (px>=r.x && px<=r.x+r.w && py>=r.y && py<=r.y+r.h) return {i, mode:'move'};
+  }
+  return null;
+}
+
+// ---------- mouse ----------
+cv.addEventListener('mousedown', e => {
+  const {px,py} = evtPos(e);
+  const hit = pick(px,py);
+  if (!hit) { S.sel=-1; renderProps(); render(); return; }
+  S.sel = hit.i;
+  const b = S.boxes[hit.i];
+  S.drag = { mode:hit.mode, sx:px, sy:py, box:{...b} };
+  renderProps(); render();
+});
+window.addEventListener('mousemove', e => {
+  if (!S.drag) return;
+  const {px,py} = evtPos(e);
+  const v = S.view, d = S.drag, o = d.box;
+  const dx = (px-d.sx)/v.iw, dy = (py-d.sy)/v.ih;
+  let b = {...o};
+  if (d.mode==='move') { b.x = o.x+dx; b.y = o.y+dy; }
+  else {
+    if (d.mode.includes('e')) b.w = o.w+dx;
+    if (d.mode.includes('s')) b.h = o.h+dy;
+    if (d.mode.includes('w')) { b.x = o.x+dx; b.w = o.w-dx; }
+    if (d.mode.includes('n')) { b.y = o.y+dy; b.h = o.h-dy; }
+    if (b.w<0.01) b.w=0.01; if (b.h<0.01) b.h=0.01;
+  }
+  S.boxes[S.sel] = {...S.boxes[S.sel], ...b};
+  S.dirty = true; render(); renderProps();
+});
+window.addEventListener('mouseup', () => { if(S.drag){S.drag=null; setStatus();} });
+function evtPos(e){ const r=cv.getBoundingClientRect(); return {px:e.clientX-r.left, py:e.clientY-r.top}; }
+
+// ---------- toolbar actions ----------
+function addBox(type) {
+  if (!S.img) return;
+  const b = {type, x:0.4, y:0.4, w:0.2, h:0.2};
+  if (type==='text') Object.assign(b, {content:'Text', font:'', fontSizeRaw:null, color:'#000000'});
+  S.boxes.push(b); S.sel = S.boxes.length-1; S.dirty=true;
+  render(); renderProps(); setStatus();
+}
+function deleteSel() {
+  if (S.sel<0) return;
+  S.boxes.splice(S.sel,1); S.sel=-1; S.dirty=true;
+  render(); renderProps(); setStatus();
+}
+function prevNext(d){ const n=S.idx+d; if(n>=0 && n<S.list.length) loadTpl(n); }
+
+async function save() {
+  if (!S.id) return;
+  const payload = {
+    ...S.tpl,
+    photoSlots: S.boxes.filter(b=>b.type==='photo').map(b=>({
+      x:round(b.x), y:round(b.y), w:round(b.w), h:round(b.h),
+      ratioWH: round((b.w*S.img.width)/(b.h*S.img.height),3) })),
+    texts: S.boxes.filter(b=>b.type==='text').map(b=>({
+      x:round(b.x), y:round(b.y), w:round(b.w), h:round(b.h),
+      content:b.content, font:b.font, fontSizeRaw:b.fontSizeRaw, color:b.color })),
+  };
+  delete payload._preview;
+  await fetch('/api/save?id='+encodeURIComponent(S.id), {method:'POST',
+    headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  S.dirty=false;
+  S.list[S.idx].edited=true; S.list[S.idx].slots=payload.photoSlots.length;
+  renderList(); setStatus('Đã lưu ✓');
+}
+function round(v,p=4){ const m=10**p; return Math.round(v*m)/m; }
+
+// ---------- properties panel ----------
+function renderProps() {
+  const el = document.getElementById('propBody');
+  if (S.sel<0) { el.innerHTML = '<div class="hint">Chưa chọn ô nào.</div>'; return; }
+  const b = S.boxes[S.sel];
+  const pill = `<span class="pill" style="background:${b.type==='photo'?'#ff2d2d':'#2f86ff'}">${b.type==='photo'?'Ô ẢNH':'TEXT'}</span>`;
+  let h = `<div class="field">${pill}</div>`;
+  h += coordFields(b);
+  if (b.type==='photo') {
+    const ar = ((b.w*S.img.width)/(b.h*S.img.height)).toFixed(3);
+    h += `<div class="field"><label>Tỉ lệ W/H</label><input value="${ar}" disabled></div>`;
+  } else {
+    h += `<div class="field"><label>Nội dung</label><textarea oninput="setProp('content',this.value)">${escapeHtml(b.content||'')}</textarea></div>`;
+    h += `<div class="field"><label>Font</label><input value="${escapeHtml(b.font||'')}" oninput="setProp('font',this.value)"></div>`;
+    h += `<div class="row"><div class="field" style="flex:1"><label>Cỡ (raw)</label><input value="${b.fontSizeRaw??''}" oninput="setProp('fontSizeRaw',parseFloat(this.value)||null)"></div>`;
+    h += `<div class="field" style="flex:1"><label>Màu</label><input type="color" value="${b.color||'#000000'}" oninput="setProp('color',this.value)"></div></div>`;
+  }
+  el.innerHTML = h;
+}
+function coordFields(b){
+  const f=(k,l)=>`<div class="field" style="flex:1"><label>${l}</label><input value="${(b[k]*100).toFixed(1)}" oninput="setCoord('${k}',this.value)"></div>`;
+  return `<div class="row">${f('x','X %')}${f('y','Y %')}</div><div class="row">${f('w','W %')}${f('h','H %')}</div>`;
+}
+function setProp(k,v){ S.boxes[S.sel]={...S.boxes[S.sel],[k]:v}; S.dirty=true; render(); setStatus(); }
+function setCoord(k,v){ const n=parseFloat(v)/100; if(!isNaN(n)){ S.boxes[S.sel]={...S.boxes[S.sel],[k]:n}; S.dirty=true; render(); setStatus(); } }
+function escapeHtml(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function setStatus(msg){
+  const n = S.boxes.filter(b=>b.type==='photo').length, t = S.boxes.filter(b=>b.type==='text').length;
+  document.getElementById('status').textContent =
+    (msg?msg+' · ':'') + `${n} ô ảnh, ${t} text` + (S.dirty?' · chưa lưu*':'');
+}
+
+// ---------- keyboard ----------
+window.addEventListener('keydown', e => {
+  if (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  if ((e.metaKey||e.ctrlKey) && e.key==='s') { e.preventDefault(); save(); return; }
+  if (e.key==='Delete'||e.key==='Backspace') { e.preventDefault(); deleteSel(); return; }
+  if (S.sel>=0 && e.key.startsWith('Arrow')) {
+    e.preventDefault();
+    const step = 1/(S.img?S.img.width:1000);
+    const b = {...S.boxes[S.sel]};
+    if (e.key==='ArrowLeft') b.x-=step; if (e.key==='ArrowRight') b.x+=step;
+    if (e.key==='ArrowUp') b.y-=step; if (e.key==='ArrowDown') b.y+=step;
+    S.boxes[S.sel]=b; S.dirty=true; render(); renderProps();
+  }
+});
+window.addEventListener('resize', () => { fitView(); render(); });
+loadList();
+</script>
+</body>
+</html>

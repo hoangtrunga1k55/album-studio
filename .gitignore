@@ -1,0 +1,32 @@
+# === OS / IDE ===
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# === Node / Vite build ===
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.log
+
+# === Rust / Tauri build ===
+target/
+gen/schemas/
+
+# === Python (typo-pack tool) ===
+.venv/
+__pycache__/
+*.pyc
+
+# === Large local data — delivered separately, NOT in git ===
+# Font kho (user imports at runtime), source layout PSDs, typo PSDs + packs.
+/fonts-lib/
+/source-layouts-25x35/
+/typo/
+/test-photos/
+*.zip
+
+# Scan caches
+.font_index.json

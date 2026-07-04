@@ -1,0 +1,61 @@
+{
+  "source": "1 (24).psd",
+  "canvas": {
+    "w": 1477,
+    "h": 2068,
+    "ratioWH": 0.7142
+  },
+  "photoSlots": [],
+  "texts": [
+    {
+      "x": 0.1767,
+      "y": 0.074,
+      "w": 0.6303,
+      "h": 0.0986,
+      "content": "Happy ",
+      "fontSizeRaw": 138.3,
+      "font": "'MADESAONARA'",
+      "color": "#ffffff"
+    },
+    {
+      "x": 0.1605,
+      "y": 0.0822,
+      "w": 0.6283,
+      "h": 0.1978,
+      "content": "Together",
+      "fontSizeRaw": 72.67,
+      "font": "'DesirableCalligraphy'",
+      "color": "#7c763a"
+    },
+    {
+      "x": 0.8517,
+      "y": 0.9487,
+      "w": 0.0948,
+      "h": 0.0208,
+      "content": "FASHION\rmoodboard",
+      "fontSizeRaw": 10.45,
+      "font": "'Gilroy-Regular'",
+      "color": "#ffffff"
+    },
+    {
+      "x": 0.0535,
+      "y": 0.9487,
+      "w": 0.1063,
+      "h": 0.0208,
+      "content": "WEDDING \rphotography",
+      "fontSizeRaw": 10.45,
+      "font": "'Gilroy-Regular'",
+      "color": "#ffffff"
+    },
+    {
+      "x": 0.4462,
+      "y": 0.957,
+      "w": 0.1117,
+      "h": 0.0082,
+      "content": "NOVEMBER 2024",
+      "fontSizeRaw": 10.45,
+      "font": "'Gilroy-Regular'",
+      "color": "#ffffff"
+    }
+  ]
+}

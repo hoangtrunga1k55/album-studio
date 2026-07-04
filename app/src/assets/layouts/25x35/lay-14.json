@@ -1,0 +1,86 @@
+{
+  "source": "1 (14).psd",
+  "canvas": {
+    "w": 2363,
+    "h": 3544,
+    "ratioWH": 0.6668
+  },
+  "photoSlots": [
+    {
+      "x": -0.019,
+      "y": 0.4836,
+      "w": 1.0423,
+      "h": 0.4117,
+      "ratioWH": 1.688
+    },
+    {
+      "x": 0.2328,
+      "y": 0.1419,
+      "w": 0.5506,
+      "h": 0.0971,
+      "ratioWH": 3.782
+    }
+  ],
+  "texts": [
+    {
+      "x": 0.3123,
+      "y": 0.0824,
+      "w": 0.3906,
+      "h": 0.0243,
+      "content": "“ Love is not finding someone to \rlive with, it’s finding someone you can’t live without.” ",
+      "fontSizeRaw": 11.2,
+      "font": "'PlayfairDisplay-Regular'",
+      "color": "#863d1e"
+    },
+    {
+      "x": 0.4092,
+      "y": 0.2698,
+      "w": 0.5417,
+      "h": 0.1639,
+      "content": "Symphony",
+      "fontSizeRaw": 47.21,
+      "font": "'DesirableCalligraphy'",
+      "color": "#704831"
+    },
+    {
+      "x": 0.0927,
+      "y": 0.3016,
+      "w": 0.3682,
+      "h": 0.0677,
+      "content": "dreams",
+      "fontSizeRaw": 73.58,
+      "font": "'Soligant'",
+      "color": "#704831"
+    },
+    {
+      "x": 0.1413,
+      "y": 0.9588,
+      "w": 0.1629,
+      "h": 0.0093,
+      "content": "(CREATING PRODUCTS)",
+      "fontSizeRaw": 8.71,
+      "font": "'Gilroy-Regular'",
+      "color": "#0d0d0f"
+    },
+    {
+      "x": 0.7101,
+      "y": 0.9588,
+      "w": 0.1528,
+      "h": 0.0093,
+      "content": "(TRUST AND RESPECT)",
+      "fontSizeRaw": 8.71,
+      "font": "'Gilroy-Regular'",
+      "color": "#0d0d0f"
+    },
+    {
+      "x": 0.0999,
+      "y": 0.3784,
+      "w": 0.3081,
+      "h": 0.0169,
+      "content": "THANH HIỀN & MINH HIẾU.",
+      "fontSizeRaw": 8.71,
+      "font": "'Gilroy-Regular'",
+      "color": "#0d0d0f"
+    }
+  ]
+}
