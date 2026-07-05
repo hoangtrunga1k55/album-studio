@@ -30,7 +30,8 @@
       "content": "ROCO.",
       "fontSizeRaw": 138.24,
       "font": "'DryhtenRegular'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.1393
     },
     {
       "x": 0.787,
@@ -40,7 +41,8 @@
       "content": "C",
       "fontSizeRaw": 77.17,
       "font": "'DesirableCalligraphy'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.07776
     },
     {
       "x": 0.9153,
@@ -50,7 +52,8 @@
       "content": "o",
       "fontSizeRaw": 88.52,
       "font": "'DesirableCalligraphy'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.0892
     },
     {
       "x": 0.5549,
@@ -60,7 +63,8 @@
       "content": "WEDDING photography",
       "fontSizeRaw": 11.66,
       "font": "'Gilroy-Regular'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.01175
     },
     {
       "x": 0.7137,
@@ -70,7 +74,8 @@
       "content": "NOVEMBER 2024",
       "fontSizeRaw": 14.16,
       "font": "'Gilroy-Regular'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.01426
     },
     {
       "x": 0.6581,
@@ -80,7 +85,8 @@
       "content": "Love  is  finding  perfection \rin each  others  imperfections.",
       "fontSizeRaw": 17.11,
       "font": "'Soligant'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.01724
     },
     {
       "x": 0.0298,
@@ -90,7 +96,8 @@
       "content": "Love is the patience to listen, the kindness to understand, and the strength to stay through the hardest times. It’s knowing that, together, we are unstoppable. Marriage is a partnership of equals, built on respect, love, and shared dreams. We lift each other higher, celebrate each other’s successes, and create a life we both love.",
       "fontSizeRaw": 13.0,
       "font": "'AireBoldStd'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.0131
     }
   ]
 }

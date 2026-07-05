@@ -37,7 +37,8 @@
       "content": "WEDDING",
       "fontSizeRaw": 16.41,
       "font": "'Gilroy-Light'",
-      "color": "#231f20"
+      "color": "#231f20",
+      "fontSizeFrac": 0.01127
     },
     {
       "x": 0.4393,
@@ -47,7 +48,8 @@
       "content": "PHOTOGRAPHY",
       "fontSizeRaw": 16.41,
       "font": "'Gilroy-Light'",
-      "color": "#231f20"
+      "color": "#231f20",
+      "fontSizeFrac": 0.01127
     },
     {
       "x": 0.4393,
@@ -57,7 +59,8 @@
       "content": "FASHION",
       "fontSizeRaw": 16.41,
       "font": "'Gilroy-Light'",
-      "color": "#231f20"
+      "color": "#231f20",
+      "fontSizeFrac": 0.01127
     },
     {
       "x": 0.4395,
@@ -67,7 +70,8 @@
       "content": "LUXURY",
       "fontSizeRaw": 16.41,
       "font": "'Gilroy-Light'",
-      "color": "#231f20"
+      "color": "#231f20",
+      "fontSizeFrac": 0.01127
     },
     {
       "x": 0.1434,
@@ -76,7 +80,8 @@
       "h": 0.0448,
       "content": "/WEDDING/\rCONLECTION\rPHOTOGRAPHY",
       "fontSizeRaw": 17.59,
-      "font": "'Gilroy-Regular'"
+      "font": "'Gilroy-Regular'",
+      "fontSizeFrac": 0.01448
     },
     {
       "x": 0.1396,
@@ -86,7 +91,8 @@
       "content": "Amoureux(se)",
       "fontSizeRaw": 108.87,
       "font": "'Karlotte'",
-      "color": "#000000"
+      "color": "#000000",
+      "fontSizeFrac": 0.05063
     },
     {
       "x": 0.3663,
@@ -95,7 +101,8 @@
       "h": 0.0049,
       "content": "My Beloved One",
       "fontSizeRaw": 14.03,
-      "font": "'Gilroy-Regular'"
+      "font": "'Gilroy-Regular'",
+      "fontSizeFrac": 0.00652
     }
   ]
 }

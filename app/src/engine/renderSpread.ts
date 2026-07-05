@@ -119,7 +119,8 @@ export async function renderSpread(
       const px = { x: nx * W, y: ny * H, w: tx.w * W, h: tx.h * H };
       const content = (ed?.content ?? tx.content ?? "").replace(/\r/g, "\n");
       const lines = Math.max(1, content.split("\n").length);
-      const fs = Math.max(7, ((tx.h * H) / lines) * 0.86 * (ed?.sizeScale ?? 1));
+      const baseFs = tx.fontSizeFrac ? tx.fontSizeFrac * H : ((tx.h * H) / lines) * 0.86;
+      const fs = Math.max(7, baseFs * (ed?.sizeScale ?? 1));
 
       // Cover the baked raster only when it exists (preview plate) and this text
       // is edited or deleted. The clean hi-res plate has nothing to cover.

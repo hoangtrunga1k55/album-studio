@@ -515,7 +515,8 @@ export function SpreadCanvas() {
               const ed = spread.textEdits[i];
               const content = ((ed?.content ?? tx.content) ?? "").replace(/\r/g, "\n");
               const lines = Math.max(1, content.split("\n").length);
-              const fs = Math.max(7, ((tx.h * stageH) / lines) * 0.86 * (ed?.sizeScale ?? 1));
+              const baseFs = tx.fontSizeFrac ? tx.fontSizeFrac * stageH : ((tx.h * stageH) / lines) * 0.86;
+              const fs = Math.max(7, baseFs * (ed?.sizeScale ?? 1));
               const dx = ed?.dx ?? 0;
               const dy = ed?.dy ?? 0;
               return (

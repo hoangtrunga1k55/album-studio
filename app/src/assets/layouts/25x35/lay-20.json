@@ -30,7 +30,8 @@
       "content": "Street Style",
       "fontSizeRaw": 400.0,
       "font": "'MonasGrotesk-Bold'",
-      "color": "#fffffe"
+      "color": "#fffffe",
+      "fontSizeFrac": 0.07396
     },
     {
       "x": 0.3406,
@@ -40,7 +41,8 @@
       "content": "new concept",
       "fontSizeRaw": 400.0,
       "font": "'MonasGrotesk-Bold'",
-      "color": "#a43b26"
+      "color": "#a43b26",
+      "fontSizeFrac": 0.01898
     },
     {
       "x": 0.0454,
@@ -50,7 +52,8 @@
       "content": "WEDDING \rphotography\r\rFASHION MOODBOARD\r2025",
       "fontSizeRaw": 15.03,
       "font": "'CenturyGothic'",
-      "color": "#231f20"
+      "color": "#231f20",
+      "fontSizeFrac": 0.01306
     },
     {
       "x": -0.2348,
@@ -60,7 +63,8 @@
       "content": "Lorem Ipsum",
       "fontSizeRaw": 400.0,
       "font": "'MonasGrotesk-Bold'",
-      "color": "#f8f6f2"
+      "color": "#f8f6f2",
+      "fontSizeFrac": 0.04209
     },
     {
       "x": 0.5446,
@@ -70,7 +74,8 @@
       "content": "NEW CONCEPT \r2025",
       "fontSizeRaw": 17.86,
       "font": "'BerlinSansFB-Reg'",
-      "color": "#231f20"
+      "color": "#231f20",
+      "fontSizeFrac": 0.01173
     },
     {
       "x": 0.5806,
@@ -80,7 +85,8 @@
       "content": "With you, even the simplest days become extraordinary. A walk in the park, a shared meal, or a quiet evening together – these moments become treasures that I hold close to my heart.\rLove is the patience to listen, the kindness to understand, and the strength to stay through the hardest times. It’s knowing that, together, we are un stoppable.",
       "fontSizeRaw": 21.0,
       "font": "'ThrohandW01-Roman'",
-      "color": "#231f20"
+      "color": "#231f20",
+      "fontSizeFrac": 0.01332
     }
   ]
 }

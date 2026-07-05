@@ -29,7 +29,8 @@
       "h": 0.0249,
       "content": "LUXURY CONCEPT\r2025",
       "fontSizeRaw": 13.63,
-      "font": "'Gangitem-Regular'"
+      "font": "'Gangitem-Regular'",
+      "fontSizeFrac": 0.01374
     },
     {
       "x": 0.5816,
@@ -38,7 +39,8 @@
       "h": 0.0936,
       "content": "Gentle",
       "fontSizeRaw": 100.22,
-      "font": "'CeremoniousOne'"
+      "font": "'CeremoniousOne'",
+      "fontSizeFrac": 0.10099
     },
     {
       "x": 0.7843,
@@ -47,7 +49,8 @@
       "h": 0.0716,
       "content": "Love",
       "fontSizeRaw": 100.22,
-      "font": "'Gangitem-Regular'"
+      "font": "'Gangitem-Regular'",
+      "fontSizeFrac": 0.10099
     },
     {
       "x": 0.6141,
@@ -56,7 +59,8 @@
       "h": 0.0097,
       "content": "wedding",
       "fontSizeRaw": 9.87,
-      "font": "'Erangle-Regular'"
+      "font": "'Erangle-Regular'",
+      "fontSizeFrac": 0.00994
     },
     {
       "x": 0.712,
@@ -65,7 +69,8 @@
       "h": 0.0099,
       "content": "photography",
       "fontSizeRaw": 9.87,
-      "font": "'Erangle-Regular'"
+      "font": "'Erangle-Regular'",
+      "fontSizeFrac": 0.00994
     },
     {
       "x": 0.8173,
@@ -74,7 +79,8 @@
       "h": 0.0073,
       "content": "moodboard",
       "fontSizeRaw": 9.87,
-      "font": "'Erangle-Regular'"
+      "font": "'Erangle-Regular'",
+      "fontSizeFrac": 0.00994
     },
     {
       "x": 0.9446,
@@ -83,7 +89,8 @@
       "h": 0.0073,
       "content": "classic",
       "fontSizeRaw": 9.87,
-      "font": "'Erangle-Regular'"
+      "font": "'Erangle-Regular'",
+      "fontSizeFrac": 0.00994
     }
   ]
 }

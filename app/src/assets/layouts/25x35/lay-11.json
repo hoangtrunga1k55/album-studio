@@ -29,7 +29,8 @@
       "h": 0.0178,
       "content": "THANH HIỀN & MINH HIẾU",
       "fontSizeRaw": 12.34,
-      "font": "'Gilroy-Regular'"
+      "font": "'Gilroy-Regular'",
+      "fontSizeFrac": 0.01785
     },
     {
       "x": -0.0838,
@@ -39,7 +40,8 @@
       "content": "a world filled with endless joy and love",
       "fontSizeRaw": 53.57,
       "font": "'MTD-Royal-Touch'",
-      "color": "#cd8381"
+      "color": "#cd8381",
+      "fontSizeFrac": 0.05654
     },
     {
       "x": 0.2154,
@@ -48,7 +50,8 @@
       "h": 0.1919,
       "content": "Love is not just a feeling; it’s a choice you make every day. It’s about supporting each other through thick and thin, celebrating each other's victories, and finding joy in the smallest moments together.Marriage is a partnership where two people stand side by side, facing the world togetherIt’s about building a life filled with love, laughter, and countless memories that will last a lifetime. In you, I’ve found not just a partner, \rbut a true friend. Someone who understands \rme like no one else, knows my flaws loves me anyway. Together, we create an unbreakable bond.\rHappiness in life comes from sharing it with \rsomeone you love. It’s about finding that \rone person who makes every day brighter, who turns ordinary moments into extraordinary memories.",
       "fontSizeRaw": 15.0,
-      "font": "'ScotchDisplayComp-Lt'"
+      "font": "'ScotchDisplayComp-Lt'",
+      "fontSizeFrac": 0.01583
     },
     {
       "x": 0.1756,
@@ -57,7 +60,8 @@
       "h": 0.0683,
       "content": "Together we create \ra world filled with endless joy and love.",
       "fontSizeRaw": 12.34,
-      "font": "'Gilroy-Regular'"
+      "font": "'Gilroy-Regular'",
+      "fontSizeFrac": 0.01518
     }
   ]
 }

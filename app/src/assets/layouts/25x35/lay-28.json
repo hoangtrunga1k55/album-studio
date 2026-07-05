@@ -23,7 +23,8 @@
       "content": "Love Story",
       "fontSizeRaw": 600.0,
       "font": "'Griffiths-Regular'",
-      "color": "#231f20"
+      "color": "#231f20",
+      "fontSizeFrac": 0.03914
     },
     {
       "x": 0.5461,
@@ -33,7 +34,8 @@
       "content": "/love",
       "fontSizeRaw": 46.67,
       "font": "'PalatinoLinotype-Roman'",
-      "color": "#49515c"
+      "color": "#49515c",
+      "fontSizeFrac": 0.01396
     },
     {
       "x": 0.5451,
@@ -43,7 +45,8 @@
       "content": "/mood",
       "fontSizeRaw": 46.67,
       "font": "'PalatinoLinotype-Roman'",
-      "color": "#49515c"
+      "color": "#49515c",
+      "fontSizeFrac": 0.01396
     },
     {
       "x": 0.5465,
@@ -53,7 +56,8 @@
       "content": "/wedding  Studio\r",
       "fontSizeRaw": 46.67,
       "font": "'PalatinoLinotype-Roman'",
-      "color": "#49515c"
+      "color": "#49515c",
+      "fontSizeFrac": 0.01396
     },
     {
       "x": 0.5472,
@@ -63,7 +67,8 @@
       "content": "/2024",
       "fontSizeRaw": 46.67,
       "font": "'PalatinoLinotype-Roman'",
-      "color": "#49515c"
+      "color": "#49515c",
+      "fontSizeFrac": 0.01396
     }
   ]
 }

@@ -37,7 +37,8 @@
       "content": "Cualquier cosa que me recuerde,\rtrato de conservarla porque vale la pena.\rEres la inspiración.\rGracias por venir a mi vida.\r",
       "fontSizeRaw": 145.83,
       "font": "'TwCenMT-Regular'",
-      "color": "#000000"
+      "color": "#000000",
+      "fontSizeFrac": 0.00836
     },
     {
       "x": 0.6023,
@@ -47,7 +48,8 @@
       "content": "Sweet Heart",
       "fontSizeRaw": 186.23,
       "font": "'Griffiths-Regular'",
-      "color": "#000000"
+      "color": "#000000",
+      "fontSizeFrac": 0.0999
     },
     {
       "x": 0.5943,
@@ -57,7 +59,8 @@
       "content": "wedding day",
       "fontSizeRaw": 2128.74,
       "font": "'TwCenMT-Regular'",
-      "color": "#b29f88"
+      "color": "#b29f88",
+      "fontSizeFrac": 0.01145
     },
     {
       "x": 0.5941,
@@ -67,7 +70,8 @@
       "content": "Tzino design",
       "fontSizeRaw": 2128.74,
       "font": "'ArialNarrow'",
-      "color": "#4a3d25"
+      "color": "#4a3d25",
+      "fontSizeFrac": 0.01145
     },
     {
       "x": 0.8503,
@@ -77,7 +81,8 @@
       "content": "Vu gradien",
       "fontSizeRaw": 2128.74,
       "font": "'ArialNarrow'",
-      "color": "#4a3d25"
+      "color": "#4a3d25",
+      "fontSizeFrac": 0.01145
     }
   ]
 }

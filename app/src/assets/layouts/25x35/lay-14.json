@@ -30,7 +30,8 @@
       "content": "“ Love is not finding someone to \rlive with, it’s finding someone you can’t live without.” ",
       "fontSizeRaw": 11.2,
       "font": "'PlayfairDisplay-Regular'",
-      "color": "#863d1e"
+      "color": "#863d1e",
+      "fontSizeFrac": 0.01096
     },
     {
       "x": 0.4092,
@@ -40,7 +41,8 @@
       "content": "Symphony",
       "fontSizeRaw": 47.21,
       "font": "'DesirableCalligraphy'",
-      "color": "#704831"
+      "color": "#704831",
+      "fontSizeFrac": 0.05551
     },
     {
       "x": 0.0927,
@@ -50,7 +52,8 @@
       "content": "dreams",
       "fontSizeRaw": 73.58,
       "font": "'Soligant'",
-      "color": "#704831"
+      "color": "#704831",
+      "fontSizeFrac": 0.08651
     },
     {
       "x": 0.1413,
@@ -60,7 +63,8 @@
       "content": "(CREATING PRODUCTS)",
       "fontSizeRaw": 8.71,
       "font": "'Gilroy-Regular'",
-      "color": "#0d0d0f"
+      "color": "#0d0d0f",
+      "fontSizeFrac": 0.01024
     },
     {
       "x": 0.7101,
@@ -70,7 +74,8 @@
       "content": "(TRUST AND RESPECT)",
       "fontSizeRaw": 8.71,
       "font": "'Gilroy-Regular'",
-      "color": "#0d0d0f"
+      "color": "#0d0d0f",
+      "fontSizeFrac": 0.01024
     },
     {
       "x": 0.0999,
@@ -80,7 +85,8 @@
       "content": "THANH HIỀN & MINH HIẾU.",
       "fontSizeRaw": 8.71,
       "font": "'Gilroy-Regular'",
-      "color": "#0d0d0f"
+      "color": "#0d0d0f",
+      "fontSizeFrac": 0.01679
     }
   ]
 }

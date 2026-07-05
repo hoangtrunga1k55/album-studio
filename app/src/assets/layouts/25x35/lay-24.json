@@ -15,7 +15,8 @@
       "content": "Happy ",
       "fontSizeRaw": 138.3,
       "font": "'MADESAONARA'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.13932
     },
     {
       "x": 0.1605,
@@ -25,7 +26,8 @@
       "content": "Together",
       "fontSizeRaw": 72.67,
       "font": "'DesirableCalligraphy'",
-      "color": "#7c763a"
+      "color": "#7c763a",
+      "fontSizeFrac": 0.07321
     },
     {
       "x": 0.8517,
@@ -35,7 +37,8 @@
       "content": "FASHION\rmoodboard",
       "fontSizeRaw": 10.45,
       "font": "'Gilroy-Regular'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.01052
     },
     {
       "x": 0.0535,
@@ -45,7 +48,8 @@
       "content": "WEDDING \rphotography",
       "fontSizeRaw": 10.45,
       "font": "'Gilroy-Regular'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.01052
     },
     {
       "x": 0.4462,
@@ -55,7 +59,8 @@
       "content": "NOVEMBER 2024",
       "fontSizeRaw": 10.45,
       "font": "'Gilroy-Regular'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.01052
     }
   ]
 }

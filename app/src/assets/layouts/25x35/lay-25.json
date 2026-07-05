@@ -36,7 +36,8 @@
       "h": 0.0123,
       "content": "tizino design",
       "fontSizeRaw": 794.33,
-      "font": "'SegoeUIEmoji'"
+      "font": "'SegoeUIEmoji'",
+      "fontSizeFrac": 0.01702
     },
     {
       "x": 0.1327,
@@ -45,7 +46,8 @@
       "h": 0.0123,
       "content": "fashion Folio",
       "fontSizeRaw": 794.33,
-      "font": "'SegoeUIEmoji'"
+      "font": "'SegoeUIEmoji'",
+      "fontSizeFrac": 0.01702
     },
     {
       "x": 0.0799,
@@ -54,7 +56,8 @@
       "h": 0.0394,
       "content": "@DECEMBER 15 2024\rminh quan\rNgoc huyen\r",
       "fontSizeRaw": 794.33,
-      "font": "'ArialNarrow'"
+      "font": "'ArialNarrow'",
+      "fontSizeFrac": 0.01242
     },
     {
       "x": 0.2481,
@@ -63,7 +66,8 @@
       "h": 0.0382,
       "content": "Coming soon\rThe wedding photobook\rwww.tizino.com\r",
       "fontSizeRaw": 794.33,
-      "font": "'MyriadPro-Regular'"
+      "font": "'MyriadPro-Regular'",
+      "fontSizeFrac": 0.01242
     }
   ]
 }

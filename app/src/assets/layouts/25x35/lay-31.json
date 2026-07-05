@@ -37,7 +37,8 @@
       "content": "In the arithmetic of love, one plus one equals everything, and two minus one equals nothing. Marriage is a journey, not a destination, and every day is a new adventure. Love is not just something you feel, it’s something you do every day. The happiest marriages are built on a foundation of trust, love, and endless laughter.",
       "fontSizeRaw": 11.97,
       "font": "'DarkerGrotesque-Light'",
-      "color": "#231f20"
+      "color": "#231f20",
+      "fontSizeFrac": 0.01206
     },
     {
       "x": 0.2123,
@@ -46,7 +47,8 @@
       "h": 0.1243,
       "content": "Symphony",
       "fontSizeRaw": 107.39,
-      "font": "'Welliams'"
+      "font": "'Welliams'",
+      "fontSizeFrac": 0.10824
     },
     {
       "x": 0.5037,
@@ -56,7 +58,8 @@
       "content": "FASHION MOODBOARD",
       "fontSizeRaw": 15.11,
       "font": "'Gilroy-Bold'",
-      "color": "#231f20"
+      "color": "#231f20",
+      "fontSizeFrac": 0.01523
     },
     {
       "x": 0.5003,
@@ -66,7 +69,8 @@
       "content": "WEDDING  photography",
       "fontSizeRaw": 14.01,
       "font": "'MyriadPro-Regular'",
-      "color": "#231f20"
+      "color": "#231f20",
+      "fontSizeFrac": 0.01492
     }
   ]
 }

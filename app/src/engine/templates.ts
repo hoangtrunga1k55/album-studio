@@ -22,6 +22,9 @@ export interface TemplateText {
   content?: string;
   font?: string;
   fontSizeRaw?: number | null;
+  /** True font size as a fraction of canvas height (fontSizeRaw × transform
+   *  scale ÷ canvasH). Multiply by render height for the exact display size. */
+  fontSizeFrac?: number;
   color?: string | null;
 }
 

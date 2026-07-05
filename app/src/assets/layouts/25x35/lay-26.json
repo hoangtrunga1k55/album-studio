@@ -20,10 +20,11 @@
       "y": 0.2427,
       "w": 0.3478,
       "h": 0.1208,
-      "content": "éternel",
+      "content": "Éternel",
       "fontSizeRaw": 141.24,
       "font": "'MADESAONARA2'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.12893
     },
     {
       "x": 0.1596,
@@ -33,7 +34,8 @@
       "content": "“ You are my guiding star in the sky of endless possibilities.\rLove is being with you, now and for every tomorrow to come.”",
       "fontSizeRaw": 24.42,
       "font": "'Komrile-CondensedItalic'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.01606
     },
     {
       "x": 0.1969,
@@ -43,7 +45,8 @@
       "content": "The Beginning of Us",
       "fontSizeRaw": 24.42,
       "font": "'Komrile-CondensedItalic'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.04009
     },
     {
       "x": 0.2257,
@@ -53,7 +56,8 @@
       "content": "Xinjiang",
       "fontSizeRaw": 24.42,
       "font": "'Komrile-CondensedItalic'",
-      "color": "#ffffff"
+      "color": "#ffffff",
+      "fontSizeFrac": 0.06292
     },
     {
       "x": 0.8641,
@@ -63,7 +67,8 @@
       "content": "WEDDING \rphotography",
       "fontSizeRaw": 10.63,
       "font": "'MyriadPro-Regular'",
-      "color": "#1b353c"
+      "color": "#1b353c",
+      "fontSizeFrac": 0.0113
     }
   ]
 }
