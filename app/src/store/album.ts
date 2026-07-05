@@ -25,6 +25,8 @@ export interface TextEdit {
   font?: string;
   color?: string;
   sizeScale?: number;
+  scaleX?: number; // free horizontal stretch (resize handles), default 1
+  scaleY?: number; // free vertical stretch, default 1
   deleted?: boolean;
   dx?: number; // normalized position offset
   dy?: number;
@@ -37,6 +39,8 @@ export interface AddedText {
   font: string;
   color: string;
   sizeFrac: number; // font size as fraction of stage height
+  scaleX?: number; // free horizontal stretch, default 1
+  scaleY?: number; // free vertical stretch, default 1
   x: number; // normalized top-left
   y: number;
 }
@@ -53,6 +57,8 @@ export interface PlacedTypo {
   x: number; // normalized top-left
   y: number;
   w: number; // normalized width (height derived from typo ratio)
+  scaleX?: number; // free horizontal stretch (resize handles), default 1
+  scaleY?: number; // free vertical stretch, default 1
   color: string | null; // null = original per-text colors; hex = flood recolor
 }
 

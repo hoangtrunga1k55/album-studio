@@ -1,11 +1,14 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
-import { Group, Image as KonvaImage, Layer, Rect, Stage, Text } from "react-konva";
+import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
+import type Konva from "konva";
 import useImage from "use-image";
 import { getDisplayImage, type ImageMeta } from "../ipc/import";
-import { getTemplate, type PhotoSlot } from "../engine/templates";
+import { getTemplate, type PhotoSlot, type TemplateText } from "../engine/templates";
 import { getTypo, type Typo } from "../engine/typos";
 import { useAlbum, type SlotTransform, type TextEdit, type PlacedTypo } from "../store/album";
+import { useFonts } from "../store/fonts";
 import { sampleBgColor } from "../engine/sampleBg";
+import { fitFontSizeToWidth, isSingleLine } from "../engine/fitText";
 import { IMAGE_DND_KEY, TYPO_DND_KEY } from "../constants";
 import "./SpreadCanvas.css";
 
@@ -19,6 +22,27 @@ interface Px {
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const DEFAULT_T: SlotTransform = { zoom: 1, panX: 0, panY: 0, fit: "cover" };
 
+/** Base font size (px) for a template text, sized to match the original design:
+ *  single-line texts are width-fit to the ORIGINAL content (so editing letters
+ *  never rescales them); others fall back to the true size / bbox estimate.
+ *  `_fontsVersion` only forces a re-measure when the loaded font set changes. */
+function textBaseFs(
+  tx: TemplateText,
+  font: string,
+  stageW: number,
+  stageH: number,
+  _fontsVersion: number
+): number {
+  const orig = tx.content ?? "";
+  if (orig.trim() && isSingleLine(orig)) {
+    const fit = fitFontSizeToWidth(orig, font, tx.w * stageW);
+    if (fit > 0) return fit;
+  }
+  if (tx.fontSizeFrac) return tx.fontSizeFrac * stageH;
+  const lines = Math.max(1, orig.replace(/\r/g, "\n").split("\n").length);
+  return ((tx.h * stageH) / lines) * 0.86;
+}
+
 const BgImage = memo(function BgImage(props: { url: string; w: number; h: number }) {
   const [image] = useImage(props.url);
   if (!image) return null;
@@ -27,7 +51,8 @@ const BgImage = memo(function BgImage(props: { url: string; w: number; h: number
   );
 });
 
-/** An editable text element (template typo or user-added), draggable. */
+/** An editable text element (template typo or user-added): draggable, and when
+ *  selected shows a resize box (corner handles) that scales the font size. */
 function EditableText(props: {
   x: number;
   y: number;
@@ -37,30 +62,36 @@ function EditableText(props: {
   content: string;
   font: string;
   color: string;
+  scaleX: number;
+  scaleY: number;
   selected: boolean;
   onSelect: () => void;
   onMoved: (xPx: number, yPx: number) => void;
+  /** New absolute horizontal/vertical scale after a handle drag. */
+  onResize: (scaleX: number, scaleY: number) => void;
 }) {
-  const { x, y, w, fs, lines, content, font, color, selected, onSelect, onMoved } = props;
+  const { x, y, w, fs, lines, content, font, color, scaleX, scaleY, selected, onSelect, onMoved, onResize } = props;
+  void lines;
   const width = Math.max(w, fs);
+  const textRef = useRef<Konva.Text>(null);
+  const trRef = useRef<Konva.Transformer>(null);
+
+  useEffect(() => {
+    if (selected && trRef.current && textRef.current) {
+      trRef.current.nodes([textRef.current]);
+      trRef.current.getLayer()?.batchDraw();
+    }
+  }, [selected, content, fs, font, x, y, scaleX, scaleY]);
+
   return (
     <>
-      {selected && (
-        <Rect
-          x={x - 4}
-          y={y - 4}
-          width={width + 8}
-          height={fs * lines * 1.12 + 8}
-          stroke="#6e76ff"
-          strokeWidth={1.5}
-          dash={[5, 4]}
-          listening={false}
-        />
-      )}
       <Text
+        ref={textRef}
         x={x}
         y={y}
         width={width}
+        scaleX={scaleX}
+        scaleY={scaleY}
         text={content}
         fontSize={fs}
         fontFamily={`"${font}", "EB Garamond", Georgia, serif`}
@@ -71,7 +102,35 @@ function EditableText(props: {
         onClick={onSelect}
         onTap={onSelect}
         onDragEnd={(e) => onMoved(e.target.x(), e.target.y())}
+        onTransformEnd={() => {
+          const node = textRef.current;
+          if (!node) return;
+          onResize(node.scaleX(), node.scaleY());
+        }}
       />
+      {selected && (
+        <Transformer
+          ref={trRef}
+          rotateEnabled={false}
+          keepRatio
+          enabledAnchors={[
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+            "middle-left",
+            "middle-right",
+            "top-center",
+            "bottom-center",
+          ]}
+          anchorSize={9}
+          anchorCornerRadius={5}
+          anchorStroke="#6e76ff"
+          borderStroke="#6e76ff"
+          borderStrokeWidth={1.5}
+          boundBoxFunc={(oldBox, newBox) => (newBox.width < 8 || newBox.height < 6 ? oldBox : newBox)}
+        />
+      )}
     </>
   );
 }
@@ -82,23 +141,36 @@ function TplText(props: {
   bgUrl?: string;
   nbox: { x: number; y: number; w: number; h: number };
   px: Px;
+  /** Original (un-moved) box — the cover stays here so the raster stays hidden
+   *  even after the editable text is dragged away. */
+  coverPx: Px;
   ed?: TextEdit;
   content: string;
   font: string;
   color: string;
   fs: number;
   lines: number;
+  scaleX: number;
+  scaleY: number;
   selected: boolean;
   onEnter: () => void;
   onSelect: () => void;
   onMoved: (xPx: number, yPx: number) => void;
+  onResize: (scaleX: number, scaleY: number) => void;
 }) {
-  const { bgUrl, nbox, px, ed, content, font, color, fs, lines, selected, onEnter, onSelect, onMoved } = props;
+  const {
+    bgUrl, nbox, px, coverPx, ed, content, font, color, fs, lines, scaleX, scaleY,
+    selected, onEnter, onSelect, onMoved, onResize,
+  } = props;
   const editing = ed !== undefined;
+  // Show the editable vector overlay (with move/resize handles) whenever the
+  // text is edited OR just selected — so the raster stays only until the user
+  // interacts, and clicking a text immediately gives handles.
+  const showOverlay = editing || selected;
   const [cover, setCover] = useState("#ffffff");
 
   useEffect(() => {
-    if (!editing || !bgUrl) return;
+    if (!showOverlay || !bgUrl) return;
     let live = true;
     sampleBgColor(bgUrl, nbox.x, nbox.y, nbox.w, nbox.h)
       .then((c) => live && setCover(c))
@@ -106,35 +178,26 @@ function TplText(props: {
     return () => {
       live = false;
     };
-  }, [editing, bgUrl, nbox.x, nbox.y, nbox.w, nbox.h]);
+  }, [showOverlay, bgUrl, nbox.x, nbox.y, nbox.w, nbox.h]);
 
-  if (!editing) {
-    // invisible hotspot over the rasterized original; click only SELECTS (no
-    // visual change) — editing in the panel converts it to an overlay.
-    return (
-      <>
-        <Rect x={px.x} y={px.y} width={px.w} height={px.h} fill="#000" opacity={0} onClick={onEnter} onTap={onEnter} />
-        {selected && (
-          <Rect
-            x={px.x - 3}
-            y={px.y - 3}
-            width={px.w + 6}
-            height={px.h + 6}
-            stroke="#6e76ff"
-            strokeWidth={1.5}
-            dash={[5, 4]}
-            listening={false}
-          />
-        )}
-      </>
-    );
+  if (!showOverlay) {
+    // invisible hotspot over the rasterized original; click SELECTS it (which
+    // then reveals the editable overlay above).
+    return <Rect x={px.x} y={px.y} width={px.w} height={px.h} fill="#000" opacity={0} onClick={onEnter} onTap={onEnter} />;
   }
 
-  const padX = px.w * 0.04 + fs * 0.12;
-  const padY = px.h * 0.22;
+  const padX = coverPx.w * 0.04 + fs * 0.12;
+  const padY = coverPx.h * 0.22;
   return (
     <>
-      <Rect x={px.x - padX} y={px.y - padY / 2} width={px.w + padX * 2} height={px.h + padY} fill={cover} listening={false} />
+      <Rect
+        x={coverPx.x - padX}
+        y={coverPx.y - padY / 2}
+        width={coverPx.w + padX * 2}
+        height={coverPx.h + padY}
+        fill={cover}
+        listening={false}
+      />
       {!ed?.deleted && (
         <EditableText
           x={px.x}
@@ -145,9 +208,12 @@ function TplText(props: {
           content={content}
           font={font}
           color={color}
+          scaleX={scaleX}
+          scaleY={scaleY}
           selected={selected}
           onSelect={onSelect}
           onMoved={onMoved}
+          onResize={onResize}
         />
       )}
     </>
@@ -164,53 +230,92 @@ function TypoNode(props: {
   onSelect: () => void;
   onMoved: (nx: number, ny: number) => void;
   onResize: (w: number) => void;
+  onScale: (scaleX: number, scaleY: number) => void;
 }) {
-  const { typo, pt, stageW, stageH, selected, onSelect, onMoved, onResize } = props;
+  const { typo, pt, stageW, stageH, selected, onSelect, onMoved, onResize, onScale } = props;
   const [deco] = useImage(typo.deco ?? "");
   const W = pt.w * stageW;
   const H = W / (typo.ratioWH || 1);
+  const groupRef = useRef<Konva.Group>(null);
+  const trRef = useRef<Konva.Transformer>(null);
+
+  useEffect(() => {
+    if (selected && trRef.current && groupRef.current) {
+      trRef.current.nodes([groupRef.current]);
+      trRef.current.getLayer()?.batchDraw();
+    }
+  }, [selected, W, H, pt.scaleX, pt.scaleY]);
 
   return (
-    <Group
-      x={pt.x * stageW}
-      y={pt.y * stageH}
-      draggable
-      onClick={onSelect}
-      onTap={onSelect}
-      onDragEnd={(e) => onMoved(e.target.x() / stageW, e.target.y() / stageH)}
-      onWheel={(e) => {
-        e.evt.preventDefault();
-        onResize(clamp(pt.w * (e.evt.deltaY > 0 ? 0.94 : 1.06), 0.05, 1.2));
-      }}
-    >
-      {typo.deco && deco && (
-        <KonvaImage image={deco} x={0} y={0} width={W} height={H} listening={false} perfectDrawEnabled={false} />
-      )}
-      {typo.texts.map((tx, i) => {
-        const content = (tx.content ?? "").replace(/\r/g, "\n");
-        const lines = Math.max(1, content.split("\n").length);
-        const fs = Math.max(6, ((tx.h * H) / lines) * 0.86);
-        return (
-          <Text
-            key={i}
-            x={tx.x * W}
-            y={tx.y * H}
-            width={Math.max(tx.w * W, fs)}
-            text={content}
-            fontSize={fs}
-            fontFamily={`"${tx.font ?? ""}", "EB Garamond", serif`}
-            fill={pt.color ?? tx.color ?? "#ffffff"}
-            align="center"
-            lineHeight={1.1}
-            listening={false}
-          />
-        );
-      })}
-      <Rect x={0} y={0} width={W} height={H} fill="#fff" opacity={0} />
+    <>
+      <Group
+        ref={groupRef}
+        x={pt.x * stageW}
+        y={pt.y * stageH}
+        scaleX={pt.scaleX ?? 1}
+        scaleY={pt.scaleY ?? 1}
+        draggable
+        onClick={onSelect}
+        onTap={onSelect}
+        onDragEnd={(e) => onMoved(e.target.x() / stageW, e.target.y() / stageH)}
+        onWheel={(e) => {
+          e.evt.preventDefault();
+          onResize(clamp(pt.w * (e.evt.deltaY > 0 ? 0.94 : 1.06), 0.05, 1.2));
+        }}
+        onTransformEnd={() => {
+          const g = groupRef.current;
+          if (g) onScale(g.scaleX(), g.scaleY());
+        }}
+      >
+        {typo.deco && deco && (
+          <KonvaImage image={deco} x={0} y={0} width={W} height={H} listening={false} perfectDrawEnabled={false} />
+        )}
+        {typo.texts.map((tx, i) => {
+          const content = (tx.content ?? "").replace(/\r/g, "\n");
+          const lines = Math.max(1, content.split("\n").length);
+          const fs = Math.max(6, ((tx.h * H) / lines) * 0.86);
+          return (
+            <Text
+              key={i}
+              x={tx.x * W}
+              y={tx.y * H}
+              width={Math.max(tx.w * W, fs)}
+              text={content}
+              fontSize={fs}
+              fontFamily={`"${tx.font ?? ""}", "EB Garamond", serif`}
+              fill={pt.color ?? tx.color ?? "#ffffff"}
+              align="center"
+              lineHeight={1.1}
+              listening={false}
+            />
+          );
+        })}
+        <Rect x={0} y={0} width={W} height={H} fill="#fff" opacity={0} />
+      </Group>
       {selected && (
-        <Rect x={-2} y={-2} width={W + 4} height={H + 4} stroke="#6e76ff" strokeWidth={1.5} dash={[6, 4]} listening={false} />
+        <Transformer
+          ref={trRef}
+          rotateEnabled={false}
+          keepRatio
+          enabledAnchors={[
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+            "middle-left",
+            "middle-right",
+            "top-center",
+            "bottom-center",
+          ]}
+          anchorSize={9}
+          anchorCornerRadius={5}
+          anchorStroke="#6e76ff"
+          borderStroke="#6e76ff"
+          borderStrokeWidth={1.5}
+          boundBoxFunc={(oldBox, newBox) => (newBox.width < 12 || newBox.height < 10 ? oldBox : newBox)}
+        />
       )}
-    </Group>
+    </>
   );
 }
 
@@ -372,6 +477,8 @@ export function SpreadCanvas() {
   const updateTypo = useAlbum((s) => s.updateTypo);
   const swapSource = useAlbum((s) => s.swapSource);
   const swapImages = useAlbum((s) => s.swapImages);
+  // Re-render (and re-measure text fit) whenever the loaded font set changes.
+  const fontsVersion = useFonts((s) => s.fonts.length);
 
   const [menu, setMenu] = useState<{ slot: number; x: number; y: number } | null>(null);
 
@@ -515,7 +622,8 @@ export function SpreadCanvas() {
               const ed = spread.textEdits[i];
               const content = ((ed?.content ?? tx.content) ?? "").replace(/\r/g, "\n");
               const lines = Math.max(1, content.split("\n").length);
-              const baseFs = tx.fontSizeFrac ? tx.fontSizeFrac * stageH : ((tx.h * stageH) / lines) * 0.86;
+              const font = ed?.font ?? tx.font ?? "";
+              const baseFs = textBaseFs(tx, font, stageW, stageH, fontsVersion);
               const fs = Math.max(7, baseFs * (ed?.sizeScale ?? 1));
               const dx = ed?.dx ?? 0;
               const dy = ed?.dy ?? 0;
@@ -523,7 +631,8 @@ export function SpreadCanvas() {
                 <TplText
                   key={`t${i}`}
                   bgUrl={tpl.bg}
-                  nbox={{ x: tx.x + dx, y: tx.y + dy, w: tx.w, h: tx.h }}
+                  nbox={{ x: tx.x, y: tx.y, w: tx.w, h: tx.h }}
+                  coverPx={{ x: tx.x * stageW, y: tx.y * stageH, w: tx.w * stageW, h: tx.h * stageH }}
                   px={{ x: (tx.x + dx) * stageW, y: (tx.y + dy) * stageH, w: tx.w * stageW, h: tx.h * stageH }}
                   ed={ed}
                   content={content}
@@ -531,10 +640,13 @@ export function SpreadCanvas() {
                   color={ed?.color ?? tx.color ?? "#222222"}
                   fs={fs}
                   lines={lines}
+                  scaleX={ed?.scaleX ?? 1}
+                  scaleY={ed?.scaleY ?? 1}
                   selected={selectedText?.kind === "tpl" && selectedText.index === i}
                   onEnter={() => selectText({ kind: "tpl", index: i })}
                   onSelect={() => selectText({ kind: "tpl", index: i })}
                   onMoved={(xp, yp) => editTplText(i, { dx: xp / stageW - tx.x, dy: yp / stageH - tx.y })}
+                  onResize={(sx, sy) => editTplText(i, { scaleX: sx, scaleY: sy })}
                 />
               );
             })}
@@ -555,9 +667,12 @@ export function SpreadCanvas() {
                   content={content}
                   font={a.font}
                   color={a.color}
+                  scaleX={a.scaleX ?? 1}
+                  scaleY={a.scaleY ?? 1}
                   selected={selectedText?.kind === "added" && selectedText.id === a.id}
                   onSelect={() => selectText({ kind: "added", id: a.id })}
                   onMoved={(xp, yp) => updateAddedText(a.id, { x: xp / stageW, y: yp / stageH })}
+                  onResize={(sx, sy) => updateAddedText(a.id, { scaleX: sx, scaleY: sy })}
                 />
               );
             })}
@@ -577,6 +692,7 @@ export function SpreadCanvas() {
                   onSelect={() => selectTypo(pt.id)}
                   onMoved={(nx, ny) => updateTypo(pt.id, { x: nx, y: ny })}
                   onResize={(w) => updateTypo(pt.id, { w })}
+                  onScale={(sx, sy) => updateTypo(pt.id, { scaleX: sx, scaleY: sy })}
                 />
               );
             })}

@@ -5,6 +5,7 @@ import type { ImageMeta } from "../ipc/import";
 import { getExportImage } from "../ipc/export";
 import { getTypo } from "./typos";
 import { sampleBgColor } from "./sampleBg";
+import { fitFontSizeToWidth, isSingleLine } from "./fitText";
 
 function loadImg(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -107,6 +108,9 @@ export async function renderSpread(
       layer.add(g);
     }
 
+    // Ensure imported fonts are ready before measuring/drawing text.
+    await document.fonts.ready;
+
     // Template text. On a clean (text-free) hi-res plate every text is redrawn
     // as vector. On the baked preview plate the original text is already there,
     // so only edited texts need a cover + overlay, and deleted ones a cover.
@@ -119,17 +123,25 @@ export async function renderSpread(
       const px = { x: nx * W, y: ny * H, w: tx.w * W, h: tx.h * H };
       const content = (ed?.content ?? tx.content ?? "").replace(/\r/g, "\n");
       const lines = Math.max(1, content.split("\n").length);
-      const baseFs = tx.fontSizeFrac ? tx.fontSizeFrac * H : ((tx.h * H) / lines) * 0.86;
+      const fontName = ed?.font ?? tx.font ?? "";
+      const orig = tx.content ?? "";
+      const fit = orig.trim() && isSingleLine(orig) ? fitFontSizeToWidth(orig, fontName, tx.w * W) : 0;
+      const baseFs = fit > 0 ? fit : tx.fontSizeFrac ? tx.fontSizeFrac * H : ((tx.h * H) / lines) * 0.86;
       const fs = Math.max(7, baseFs * (ed?.sizeScale ?? 1));
 
       // Cover the baked raster only when it exists (preview plate) and this text
-      // is edited or deleted. The clean hi-res plate has nothing to cover.
+      // is edited or deleted. The cover stays at the ORIGINAL position (so moving
+      // the text doesn't reveal the raster). The clean hi-res plate needs none.
       if (!cleanBg && ed) {
-        const cover = tpl.bg ? await sampleBgColor(tpl.bg, nx, ny, tx.w, tx.h).catch(() => bgColor) : bgColor;
-        const padX = px.w * 0.04 + fs * 0.12;
-        const padY = px.h * 0.22;
+        const cover = tpl.bg ? await sampleBgColor(tpl.bg, tx.x, tx.y, tx.w, tx.h).catch(() => bgColor) : bgColor;
+        const ox = tx.x * W;
+        const oy = tx.y * H;
+        const ow = tx.w * W;
+        const oh = tx.h * H;
+        const padX = ow * 0.04 + fs * 0.12;
+        const padY = oh * 0.22;
         layer.add(
-          new Konva.Rect({ x: px.x - padX, y: px.y - padY / 2, width: px.w + padX * 2, height: px.h + padY, fill: cover })
+          new Konva.Rect({ x: ox - padX, y: oy - padY / 2, width: ow + padX * 2, height: oh + padY, fill: cover })
         );
       }
       if (ed?.deleted) continue;
@@ -138,6 +150,8 @@ export async function renderSpread(
           x: px.x,
           y: px.y,
           width: Math.max(px.w, fs),
+          scaleX: ed?.scaleX ?? 1,
+          scaleY: ed?.scaleY ?? 1,
           text: content,
           fontSize: fs,
           fontFamily: fam(ed?.font ?? tx.font ?? ""),
@@ -155,6 +169,8 @@ export async function renderSpread(
           x: a.x * W,
           y: a.y * H,
           width: W * 0.5,
+          scaleX: a.scaleX ?? 1,
+          scaleY: a.scaleY ?? 1,
           text: content,
           fontSize: fs,
           fontFamily: fam(a.font),
@@ -171,12 +187,16 @@ export async function renderSpread(
       if (!typo) continue;
       const tw = pt.w * W;
       const th = tw / (typo.ratioWH || 1);
-      const gx = pt.x * W;
-      const gy = pt.y * H;
+      const g = new Konva.Group({
+        x: pt.x * W,
+        y: pt.y * H,
+        scaleX: pt.scaleX ?? 1,
+        scaleY: pt.scaleY ?? 1,
+      });
       if (typo.deco) {
         try {
           const d = await loadImg(typo.deco);
-          layer.add(new Konva.Image({ image: d, x: gx, y: gy, width: tw, height: th }));
+          g.add(new Konva.Image({ image: d, x: 0, y: 0, width: tw, height: th }));
         } catch {
           /* ignore */
         }
@@ -185,10 +205,10 @@ export async function renderSpread(
         const content = (tx.content ?? "").replace(/\r/g, "\n");
         const lines = Math.max(1, content.split("\n").length);
         const fs = Math.max(6, ((tx.h * th) / lines) * 0.86);
-        layer.add(
+        g.add(
           new Konva.Text({
-            x: gx + tx.x * tw,
-            y: gy + tx.y * th,
+            x: tx.x * tw,
+            y: tx.y * th,
             width: Math.max(tx.w * tw, fs),
             text: content,
             fontSize: fs,
@@ -199,6 +219,7 @@ export async function renderSpread(
           })
         );
       }
+      layer.add(g);
     }
 
     await document.fonts.ready;
