@@ -31,6 +31,7 @@ export function PropertiesPanel() {
   const setMargin = useAlbum((s) => s.setMargin);
   const editTplText = useAlbum((s) => s.editTplText);
   const deleteTplText = useAlbum((s) => s.deleteTplText);
+  const resetTplText = useAlbum((s) => s.resetTplText);
   const updateAddedText = useAlbum((s) => s.updateAddedText);
   const removeAddedText = useAlbum((s) => s.removeAddedText);
   const addText = useAlbum((s) => s.addText);
@@ -145,6 +146,15 @@ export function PropertiesPanel() {
             <input type="color" className="swatch" value={color}
               onChange={(e) => editTplText(i, { color: e.target.value })} />
           </div>
+          {Object.keys(ed).length > 0 && (
+            <button
+              className="btn"
+              style={{ width: "100%", justifyContent: "center", marginBottom: 8 }}
+              onClick={() => resetTplText(i)}
+            >
+              ↺ Khôi phục chữ gốc
+            </button>
+          )}
           <button className="danger" onClick={() => deleteTplText(i)}>
             <IconTrash width={15} height={15} /> Xoá chữ này
           </button>

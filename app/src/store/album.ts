@@ -157,6 +157,8 @@ interface AlbumState {
   selectText: (sel: TextSel) => void;
   editTplText: (index: number, patch: TextEdit) => void;
   deleteTplText: (index: number) => void;
+  /** Drop all edits for a template text → restore the original baked look. */
+  resetTplText: (index: number) => void;
   addText: (t: Omit<AddedText, "id">) => void;
   updateAddedText: (id: string, patch: Partial<AddedText>) => void;
   removeAddedText: (id: string) => void;
@@ -438,6 +440,17 @@ export const useAlbum = create<AlbumState>((set) => ({
       cur.textEdits = { ...cur.textEdits, [index]: { ...cur.textEdits[index], deleted: true } };
       spreads[s.currentIndex] = cur;
       return { spreads, selectedText: null };
+    }),
+
+  resetTplText: (index) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const next = { ...cur.textEdits };
+      delete next[index];
+      cur.textEdits = next;
+      spreads[s.currentIndex] = cur;
+      return { spreads };
     }),
 
   addText: (t) =>
