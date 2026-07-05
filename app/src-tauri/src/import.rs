@@ -140,7 +140,15 @@ fn decode_image(fp: &str) -> Result<DynamicImage, String> {
 
     if ext == "heic" || ext == "heif" {
         // libheif already applies orientation transforms.
-        decode_heic(fp)
+        #[cfg(not(target_os = "windows"))]
+        {
+            decode_heic(fp)
+        }
+        // libheif (a C library) isn't available on the Windows build yet.
+        #[cfg(target_os = "windows")]
+        {
+            Err("Định dạng HEIC/HEIF chưa hỗ trợ trên Windows (dùng JPG/PNG).".to_string())
+        }
     } else {
         let img = image::open(path).map_err(|e| e.to_string())?;
         let (_, orientation) = read_exif(path);
@@ -175,6 +183,7 @@ fn process_one(fp: &str) -> Result<ImageMeta, String> {
 }
 
 /// Decode a HEIC/HEIF file to an RGB image via the system libheif.
+#[cfg(not(target_os = "windows"))]
 fn decode_heic(fp: &str) -> Result<DynamicImage, String> {
     use libheif_rs::{ColorSpace, HeifContext, LibHeif, RgbChroma};
 
