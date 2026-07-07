@@ -1,0 +1,108 @@
+{
+  "source": "1 (15).psd",
+  "canvas": {
+    "w": 6890,
+    "h": 5315,
+    "ratioWH": 1.2963
+  },
+  "photoSlots": [
+    {
+      "x": 0.0887,
+      "y": 0.0636,
+      "w": 0.6566,
+      "h": 0.8728,
+      "ratioWH": 0.975
+    },
+    {
+      "x": 0.4877,
+      "y": 0.0636,
+      "w": 0.4489,
+      "h": 0.8728,
+      "ratioWH": 0.667
+    },
+    {
+      "x": 0.1464,
+      "y": 0.3791,
+      "w": 0.2598,
+      "h": 0.4781,
+      "ratioWH": 0.704
+    }
+  ],
+  "texts": [
+    {
+      "x": 0.4393,
+      "y": 0.8049,
+      "w": 0.0064,
+      "h": 0.0523,
+      "content": "WEDDING",
+      "fontSizeRaw": 16.41,
+      "font": "'Gilroy-Light'",
+      "color": "#231f20",
+      "fontSizeFrac": 0.01127
+    },
+    {
+      "x": 0.4393,
+      "y": 0.651,
+      "w": 0.0064,
+      "h": 0.0822,
+      "content": "PHOTOGRAPHY",
+      "fontSizeRaw": 16.41,
+      "font": "'Gilroy-Light'",
+      "color": "#231f20",
+      "fontSizeFrac": 0.01127
+    },
+    {
+      "x": 0.4393,
+      "y": 0.5089,
+      "w": 0.0064,
+      "h": 0.0448,
+      "content": "FASHION",
+      "fontSizeRaw": 16.41,
+      "font": "'Gilroy-Light'",
+      "color": "#231f20",
+      "fontSizeFrac": 0.01127
+    },
+    {
+      "x": 0.4395,
+      "y": 0.3904,
+      "w": 0.0062,
+      "h": 0.0397,
+      "content": "LUXURY",
+      "fontSizeRaw": 16.41,
+      "font": "'Gilroy-Light'",
+      "color": "#231f20",
+      "fontSizeFrac": 0.01127
+    },
+    {
+      "x": 0.1434,
+      "y": 0.2728,
+      "w": 0.0695,
+      "h": 0.0448,
+      "content": "/WEDDING/\rCONLECTION\rPHOTOGRAPHY",
+      "fontSizeRaw": 17.59,
+      "font": "'Gilroy-Regular'",
+      "fontSizeFrac": 0.01448
+    },
+    {
+      "x": 0.1396,
+      "y": 0.174,
+      "w": 0.2734,
+      "h": 0.0499,
+      "content": "Amoureux(se)",
+      "fontSizeRaw": 108.87,
+      "font": "'Karlotte'",
+      "color": "#000000",
+      "fontSizeFrac": 0.05063
+    },
+    {
+      "x": 0.3663,
+      "y": 0.2275,
+      "w": 0.0405,
+      "h": 0.0049,
+      "content": "My Beloved One",
+      "fontSizeRaw": 14.03,
+      "font": "'Gilroy-Regular'",
+      "fontSizeFrac": 0.00652
+    }
+  ]
+}

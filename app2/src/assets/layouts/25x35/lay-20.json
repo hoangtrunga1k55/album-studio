@@ -1,0 +1,92 @@
+{
+  "source": "1 (20).psd",
+  "canvas": {
+    "w": 5000,
+    "h": 3874,
+    "ratioWH": 1.2907
+  },
+  "photoSlots": [
+    {
+      "x": 0.0,
+      "y": 0.0,
+      "w": 0.493,
+      "h": 1.0,
+      "ratioWH": 0.636
+    },
+    {
+      "x": 0.5446,
+      "y": 0.3036,
+      "w": 0.4092,
+      "h": 0.3521,
+      "ratioWH": 1.5
+    }
+  ],
+  "texts": [
+    {
+      "x": 0.0378,
+      "y": 0.1652,
+      "w": 0.417,
+      "h": 0.0581,
+      "content": "Street Style",
+      "fontSizeRaw": 400.0,
+      "font": "'MonasGrotesk-Bold'",
+      "color": "#fffffe",
+      "fontSizeFrac": 0.07396
+    },
+    {
+      "x": 0.3406,
+      "y": 0.2447,
+      "w": 0.1136,
+      "h": 0.0145,
+      "content": "new concept",
+      "fontSizeRaw": 400.0,
+      "font": "'MonasGrotesk-Bold'",
+      "color": "#a43b26",
+      "fontSizeFrac": 0.01898
+    },
+    {
+      "x": 0.0454,
+      "y": 0.0883,
+      "w": 0.1282,
+      "h": 0.0669,
+      "content": "WEDDING \rphotography\r\rFASHION MOODBOARD\r2025",
+      "fontSizeRaw": 15.03,
+      "font": "'CenturyGothic'",
+      "color": "#231f20",
+      "fontSizeFrac": 0.01306
+    },
+    {
+      "x": -0.2348,
+      "y": -0.1487,
+      "w": 0.236,
+      "h": 0.0315,
+      "content": "Lorem Ipsum",
+      "fontSizeRaw": 400.0,
+      "font": "'MonasGrotesk-Bold'",
+      "color": "#f8f6f2",
+      "fontSizeFrac": 0.04209
+    },
+    {
+      "x": 0.5446,
+      "y": 0.0749,
+      "w": 0.0628,
+      "h": 0.0214,
+      "content": "NEW CONCEPT \r2025",
+      "fontSizeRaw": 17.86,
+      "font": "'BerlinSansFB-Reg'",
+      "color": "#231f20",
+      "fontSizeFrac": 0.01173
+    },
+    {
+      "x": 0.5806,
+      "y": 0.7543,
+      "w": 0.3458,
+      "h": 0.07,
+      "content": "With you, even the simplest days become extraordinary. A walk in the park, a shared meal, or a quiet evening together – these moments become treasures that I hold close to my heart.\rLove is the patience to listen, the kindness to understand, and the strength to stay through the hardest times. It’s knowing that, together, we are un stoppable.",
+      "fontSizeRaw": 21.0,
+      "font": "'ThrohandW01-Roman'",
+      "color": "#231f20",
+      "fontSizeFrac": 0.01332
+    }
+  ]
+}

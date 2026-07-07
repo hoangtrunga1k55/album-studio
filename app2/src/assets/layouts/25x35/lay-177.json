@@ -1,0 +1,103 @@
+{
+  "source": "1 (177).psd",
+  "canvas": {
+    "w": 5906,
+    "h": 4135,
+    "ratioWH": 1.4283
+  },
+  "photoSlots": [
+    {
+      "x": 0.4995,
+      "y": 0.0,
+      "w": 0.5005,
+      "h": 1.0,
+      "ratioWH": 0.715
+    },
+    {
+      "x": 0.0,
+      "y": 0.0,
+      "w": 0.5,
+      "h": 1.0,
+      "ratioWH": 0.714
+    }
+  ],
+  "texts": [
+    {
+      "x": 0.5532,
+      "y": 0.1064,
+      "w": 0.2701,
+      "h": 0.0953,
+      "content": "ROCO.",
+      "fontSizeRaw": 138.24,
+      "font": "'DryhtenRegular'",
+      "color": "#ffffff",
+      "fontSizeFrac": 0.1393
+    },
+    {
+      "x": 0.787,
+      "y": 0.0629,
+      "w": 0.1517,
+      "h": 0.1678,
+      "content": "C",
+      "fontSizeRaw": 77.17,
+      "font": "'DesirableCalligraphy'",
+      "color": "#ffffff",
+      "fontSizeFrac": 0.07776
+    },
+    {
+      "x": 0.9153,
+      "y": 0.1642,
+      "w": 0.0356,
+      "h": 0.044,
+      "content": "o",
+      "fontSizeRaw": 88.52,
+      "font": "'DesirableCalligraphy'",
+      "color": "#ffffff",
+      "fontSizeFrac": 0.0892
+    },
+    {
+      "x": 0.5549,
+      "y": 0.2155,
+      "w": 0.0997,
+      "h": 0.0087,
+      "content": "WEDDING photography",
+      "fontSizeRaw": 11.66,
+      "font": "'Gilroy-Regular'",
+      "color": "#ffffff",
+      "fontSizeFrac": 0.01175
+    },
+    {
+      "x": 0.7137,
+      "y": 0.0438,
+      "w": 0.0753,
+      "h": 0.0104,
+      "content": "NOVEMBER 2024",
+      "fontSizeRaw": 14.16,
+      "font": "'Gilroy-Regular'",
+      "color": "#ffffff",
+      "fontSizeFrac": 0.01426
+    },
+    {
+      "x": 0.6581,
+      "y": 0.8817,
+      "w": 0.1724,
+      "h": 0.0372,
+      "content": "Love  is  finding  perfection \rin each  others  imperfections.",
+      "fontSizeRaw": 17.11,
+      "font": "'Soligant'",
+      "color": "#ffffff",
+      "fontSizeFrac": 0.01724
+    },
+    {
+      "x": 0.0298,
+      "y": 0.7553,
+      "w": 0.1524,
+      "h": 0.1422,
+      "content": "Love is the patience to listen, the kindness to understand, and the strength to stay through the hardest times. It’s knowing that, together, we are unstoppable. Marriage is a partnership of equals, built on respect, love, and shared dreams. We lift each other higher, celebrate each other’s successes, and create a life we both love.",
+      "fontSizeRaw": 13.0,
+      "font": "'AireBoldStd'",
+      "color": "#ffffff",
+      "fontSizeFrac": 0.0131
+    }
+  ]
+}

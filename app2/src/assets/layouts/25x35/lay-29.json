@@ -1,0 +1,88 @@
+{
+  "source": "1 (29).psd",
+  "canvas": {
+    "w": 5906,
+    "h": 4134,
+    "ratioWH": 1.4286
+  },
+  "photoSlots": [
+    {
+      "x": 0.0,
+      "y": 0.0,
+      "w": 0.5005,
+      "h": 1.0,
+      "ratioWH": 0.715
+    },
+    {
+      "x": 0.5938,
+      "y": 0.3435,
+      "w": 0.15,
+      "h": 0.3002,
+      "ratioWH": 0.714
+    },
+    {
+      "x": 0.7438,
+      "y": 0.3435,
+      "w": 0.15,
+      "h": 0.3002,
+      "ratioWH": 0.714
+    }
+  ],
+  "texts": [
+    {
+      "x": 0.7633,
+      "y": 0.6531,
+      "w": 0.1309,
+      "h": 0.0358,
+      "content": "Cualquier cosa que me recuerde,\rtrato de conservarla porque vale la pena.\rEres la inspiración.\rGracias por venir a mi vida.\r",
+      "fontSizeRaw": 145.83,
+      "font": "'TwCenMT-Regular'",
+      "color": "#000000",
+      "fontSizeFrac": 0.00836
+    },
+    {
+      "x": 0.6023,
+      "y": 0.2107,
+      "w": 0.29,
+      "h": 0.0733,
+      "content": "Sweet Heart",
+      "fontSizeRaw": 186.23,
+      "font": "'Griffiths-Regular'",
+      "color": "#000000",
+      "fontSizeFrac": 0.0999
+    },
+    {
+      "x": 0.5943,
+      "y": 0.6526,
+      "w": 0.0537,
+      "h": 0.0075,
+      "content": "wedding day",
+      "fontSizeRaw": 2128.74,
+      "font": "'TwCenMT-Regular'",
+      "color": "#b29f88",
+      "fontSizeFrac": 0.01145
+    },
+    {
+      "x": 0.5941,
+      "y": 0.8157,
+      "w": 0.0506,
+      "h": 0.0082,
+      "content": "Tzino design",
+      "fontSizeRaw": 2128.74,
+      "font": "'ArialNarrow'",
+      "color": "#4a3d25",
+      "fontSizeFrac": 0.01145
+    },
+    {
+      "x": 0.8503,
+      "y": 0.8157,
+      "w": 0.0439,
+      "h": 0.0082,
+      "content": "Vu gradien",
+      "fontSizeRaw": 2128.74,
+      "font": "'ArialNarrow'",
+      "color": "#4a3d25",
+      "fontSizeFrac": 0.01145
+    }
+  ]
+}

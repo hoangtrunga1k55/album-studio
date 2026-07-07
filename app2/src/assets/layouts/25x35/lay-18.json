@@ -1,0 +1,63 @@
+{
+  "source": "1 (18).psd",
+  "canvas": {
+    "w": 13209,
+    "h": 9246,
+    "ratioWH": 1.4286
+  },
+  "photoSlots": [
+    {
+      "x": -0.0407,
+      "y": 0.5753,
+      "w": 0.5433,
+      "h": 0.509,
+      "ratioWH": 1.525
+    },
+    {
+      "x": 0.4995,
+      "y": 0.0,
+      "w": 0.5005,
+      "h": 1.0,
+      "ratioWH": 0.715
+    },
+    {
+      "x": 0.125,
+      "y": 0.252,
+      "w": 0.2453,
+      "h": 0.5094,
+      "ratioWH": 0.688
+    }
+  ],
+  "texts": [
+    {
+      "x": 0.0809,
+      "y": 0.1714,
+      "w": 0.3367,
+      "h": 0.0415,
+      "content": "Notre lien d'amour",
+      "fontSizeRaw": 117.93,
+      "font": "'Gallient-Regular'",
+      "fontSizeFrac": 0.04231
+    },
+    {
+      "x": 0.1306,
+      "y": 0.8089,
+      "w": 0.2387,
+      "h": 0.0182,
+      "content": "MInh Quan & Hoai Thuong",
+      "fontSizeRaw": 114.49,
+      "font": "'Centaur'",
+      "fontSizeFrac": 0.02339
+    },
+    {
+      "x": 0.1437,
+      "y": 0.85,
+      "w": 0.2012,
+      "h": 0.032,
+      "content": "Love is the key that opens\r the heart to the happiness of life.",
+      "fontSizeRaw": 117.93,
+      "font": "'SegoeUIHistoric'",
+      "fontSizeFrac": 0.01375
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "source": "1 (26).psd",
+  "canvas": {
+    "w": 4724,
+    "h": 3543,
+    "ratioWH": 1.3333
+  },
+  "photoSlots": [
+    {
+      "x": 0.5891,
+      "y": 0.2329,
+      "w": 0.3281,
+      "h": 0.5885,
+      "ratioWH": 0.743
+    }
+  ],
+  "texts": [
+    {
+      "x": 0.1192,
+      "y": 0.2427,
+      "w": 0.3478,
+      "h": 0.1208,
+      "content": "Éternel",
+      "fontSizeRaw": 141.24,
+      "font": "'MADESAONARA2'",
+      "color": "#ffffff",
+      "fontSizeFrac": 0.12893
+    },
+    {
+      "x": 0.1596,
+      "y": 0.8848,
+      "w": 0.2098,
+      "h": 0.0319,
+      "content": "“ You are my guiding star in the sky of endless possibilities.\rLove is being with you, now and for every tomorrow to come.”",
+      "fontSizeRaw": 24.42,
+      "font": "'Komrile-CondensedItalic'",
+      "color": "#ffffff",
+      "fontSizeFrac": 0.01606
+    },
+    {
+      "x": 0.1969,
+      "y": 0.2024,
+      "w": 0.1664,
+      "h": 0.0398,
+      "content": "The Beginning of Us",
+      "fontSizeRaw": 24.42,
+      "font": "'Komrile-CondensedItalic'",
+      "color": "#ffffff",
+      "fontSizeFrac": 0.04009
+    },
+    {
+      "x": 0.2257,
+      "y": 0.5346,
+      "w": 0.1077,
+      "h": 0.061,
+      "content": "Xinjiang",
+      "fontSizeRaw": 24.42,
+      "font": "'Komrile-CondensedItalic'",
+      "color": "#ffffff",
+      "fontSizeFrac": 0.06292
+    },
+    {
+      "x": 0.8641,
+      "y": 0.8634,
+      "w": 0.0548,
+      "h": 0.0212,
+      "content": "WEDDING \rphotography",
+      "fontSizeRaw": 10.63,
+      "font": "'MyriadPro-Regular'",
+      "color": "#1b353c",
+      "fontSizeFrac": 0.0113
+    }
+  ]
+}
