@@ -17,6 +17,18 @@ export interface SlotTransform {
   panY: number;
   /** cover = fill slot (crop); contain = whole image visible (letterbox). */
   fit?: "cover" | "contain";
+  /** rotate the photo inside the slot (file untouched). */
+  rot?: 0 | 90 | 180 | 270;
+  flipH?: boolean;
+  flipV?: boolean;
+}
+
+/** User-adjusted slot frame (normalized), overriding the template's rect. */
+export interface SlotRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 /** Per-template-text override (edit content/font/color/size/position or delete). */
@@ -77,6 +89,12 @@ export interface Spread {
   typos: PlacedTypo[];
   /** gap between photos, fraction of spread height (§4.1 Margin slider). */
   margin: number;
+  /** photo → edge padding, fraction of spread height (§6.6). */
+  padding?: number;
+  /** full-bleed background photo covering the whole spread (§6.5). */
+  bgImageId?: string | null;
+  /** slotIndex → user-moved/resized frame (normalized), overrides the template. */
+  slotRects?: Record<number, SlotRect>;
 }
 
 let counter = 0;
@@ -155,8 +173,26 @@ interface AlbumState {
   setSlotTransform: (slotIndex: number, t: SlotTransform) => void;
   /** Fill (cover) or Fit (contain) the image in a slot. */
   setSlotFit: (slotIndex: number, fit: "cover" | "contain") => void;
+  /** Move/resize a slot frame (8-handle editing, like text). */
+  setSlotRect: (slotIndex: number, rect: SlotRect) => void;
+  /** Restore a slot frame to the template's position. */
+  resetSlotRect: (slotIndex: number) => void;
+  /** Slot in crop mode (double-click a photo → pan/zoom it; Esc exits) §6.3. */
+  cropSlot: number | null;
+  setCropSlot: (slot: number | null) => void;
   /** Set gap between photos for the current spread. */
   setMargin: (margin: number) => void;
+  /** Set photo→edge padding for the current spread (§6.6). */
+  setPadding: (padding: number) => void;
+  /** Copy the current spread's margin + padding to every spread (§6.6). */
+  applySpacingAll: () => void;
+  /** Rotate the photo in a slot by +90° (§6.7). */
+  rotateSlot: (slotIndex: number) => void;
+  /** Flip the photo in a slot horizontally/vertically (§6.7). */
+  flipSlot: (slotIndex: number, axis: "h" | "v") => void;
+  /** Full bleed: move a slot's photo to the spread background (§6.5). */
+  setAsBackground: (slotIndex: number) => void;
+  removeBackground: () => void;
 
   /** Swap: pick a source slot, then swap with the next slot clicked. */
   swapSource: number | null;
@@ -167,7 +203,15 @@ interface AlbumState {
   shuffleImages: () => void;
 
   addSpread: () => void;
+  /** Insert a fresh spread right after `index` (§6.7). */
+  addSpreadAfter: (index: number) => void;
+  /** Duplicate a spread with all its edits (§6.7). */
+  duplicateSpread: (index: number) => void;
   removeSpread: (index: number) => void;
+  /** Auto redesign just the current spread: new random layout, same photos (§5.4). */
+  redesignSpread: () => void;
+  /** Change the current spread's slot count by ±1, keeping photos (§6.4). */
+  changeSlotCount: (delta: 1 | -1) => void;
   setCurrent: (index: number) => void;
 
   /** Density for Auto Design (§4.3). */
@@ -290,6 +334,7 @@ export const useAlbum = create<AlbumState>((set) => ({
         if (next) cur.templateId = next.id;
       }
       cur.transforms = {};
+      cur.slotRects = {};
       cur.textEdits = {};
       spreads[s.currentIndex] = cur;
       return { spreads, selectedSlot: null, selectedText: null };
@@ -313,6 +358,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       }
       cur.imageIds = merged.slice(0, targetCount || merged.length);
       cur.transforms = {};
+      cur.slotRects = {};
       spreads[s.currentIndex] = cur;
       return { spreads, selectedSlot: null, selectedText: null, selectedPhotos: [] };
     }),
@@ -334,6 +380,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       if (next) {
         cur.templateId = next.id;
         cur.transforms = {};
+      cur.slotRects = {};
         cur.textEdits = {};
         spreads[s.currentIndex] = cur;
       }
@@ -400,6 +447,69 @@ export const useAlbum = create<AlbumState>((set) => ({
       return { spreads };
     }),
 
+  setPadding: (padding) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      spreads[s.currentIndex] = { ...spreads[s.currentIndex], padding };
+      return { spreads };
+    }),
+
+  applySpacingAll: () =>
+    set((s) => {
+      const cur = s.spreads[s.currentIndex];
+      if (!cur) return s;
+      const spreads = s.spreads.map((sp) => ({ ...sp, margin: cur.margin, padding: cur.padding }));
+      return { spreads };
+    }),
+
+  rotateSlot: (slotIndex) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const t = cur.transforms[slotIndex] ?? { zoom: 1, panX: 0, panY: 0 };
+      const rot = ((((t.rot ?? 0) + 90) % 360) as 0 | 90 | 180 | 270);
+      cur.transforms = { ...cur.transforms, [slotIndex]: { ...t, rot, zoom: 1, panX: 0, panY: 0 } };
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
+
+  flipSlot: (slotIndex, axis) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const t = cur.transforms[slotIndex] ?? { zoom: 1, panX: 0, panY: 0 };
+      const patch = axis === "h" ? { flipH: !t.flipH } : { flipV: !t.flipV };
+      cur.transforms = { ...cur.transforms, [slotIndex]: { ...t, ...patch } };
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
+
+  setAsBackground: (slotIndex) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const id = cur.imageIds[slotIndex];
+      if (!id) return s;
+      // Photo moves from its slot to the spread background (slot empties in place).
+      cur.bgImageId = id;
+      cur.imageIds = cur.imageIds.map((x, i) => (i === slotIndex ? "" : x));
+      const nextTransforms = { ...cur.transforms };
+      delete nextTransforms[slotIndex];
+      cur.transforms = nextTransforms;
+      spreads[s.currentIndex] = cur;
+      return { spreads, selectedSlot: null };
+    }),
+
+  removeBackground: () =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      if (!cur.bgImageId) return s;
+      cur.bgImageId = null;
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
+
   beginSwap: (slotIndex) => set({ swapSource: slotIndex }),
   cancelSwap: () => set({ swapSource: null }),
   swapImages: (a, b) =>
@@ -440,6 +550,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       filled.forEach((f, k) => (ids[f.i] = perm[k]));
       cur.imageIds = ids;
       cur.transforms = {};
+      cur.slotRects = {};
       spreads[s.currentIndex] = cur;
       return { spreads, swapSource: null, selectedSlot: null, selectedText: null, selectedTypo: null };
     }),
@@ -451,6 +562,27 @@ export const useAlbum = create<AlbumState>((set) => ({
       return { spreads, currentIndex: spreads.length - 1, selectedSlot: null };
     }),
 
+  addSpreadAfter: (index) =>
+    set((s) => {
+      if (!s.size) return s;
+      const spreads = [...s.spreads];
+      spreads.splice(index + 1, 0, freshSpread(s.size));
+      return { spreads, currentIndex: index + 1, selectedSlot: null };
+    }),
+
+  duplicateSpread: (index) =>
+    set((s) => {
+      const src = s.spreads[index];
+      if (!src) return s;
+      const copy: Spread = {
+        ...structuredClone(src),
+        id: newId("sp"),
+      };
+      const spreads = [...s.spreads];
+      spreads.splice(index + 1, 0, copy);
+      return { spreads, currentIndex: index + 1, selectedSlot: null };
+    }),
+
   removeSpread: (index) =>
     set((s) => {
       if (s.spreads.length <= 1) return s;
@@ -459,7 +591,72 @@ export const useAlbum = create<AlbumState>((set) => ({
       return { spreads, currentIndex, selectedSlot: null };
     }),
 
-  setCurrent: (index) => set({ currentIndex: index, selectedSlot: null, swapSource: null }),
+  redesignSpread: () =>
+    set((s) => {
+      if (!s.size) return s;
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const tpl = getTemplate(cur.templateId);
+      const count = tpl?.slotCount ?? Math.max(1, cur.imageIds.filter(Boolean).length);
+      const next = randomTemplate(s.size, count, cur.templateId);
+      if (!next) return s;
+      // Same photos, fresh layout: refill in order, drop crop tweaks.
+      const photos = cur.imageIds.filter(Boolean);
+      cur.templateId = next.id;
+      cur.imageIds = next.slots.map((_, i) => photos[i] ?? "");
+      cur.transforms = {};
+      cur.slotRects = {};
+      cur.textEdits = {};
+      spreads[s.currentIndex] = cur;
+      return { spreads, selectedSlot: null, selectedText: null };
+    }),
+
+  changeSlotCount: (delta) =>
+    set((s) => {
+      if (!s.size) return s;
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const tpl = getTemplate(cur.templateId);
+      const count = tpl?.slotCount ?? 1;
+      const target = nearestSlotCount(s.size, count + delta);
+      if (target === count) return s;
+      const next = randomTemplate(s.size, target);
+      if (!next) return s;
+      const photos = cur.imageIds.filter(Boolean);
+      cur.templateId = next.id;
+      cur.imageIds = next.slots.map((_, i) => photos[i] ?? "");
+      cur.transforms = {};
+      cur.slotRects = {};
+      spreads[s.currentIndex] = cur;
+      return { spreads, selectedSlot: null };
+    }),
+
+  cropSlot: null,
+  setCropSlot: (cropSlot) => set({ cropSlot }),
+
+  setSlotRect: (slotIndex, rect) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      cur.slotRects = { ...cur.slotRects, [slotIndex]: rect };
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
+
+  resetSlotRect: (slotIndex) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      if (!cur.slotRects?.[slotIndex]) return s;
+      const next = { ...cur.slotRects };
+      delete next[slotIndex];
+      cur.slotRects = next;
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
+
+  setCurrent: (index) =>
+    set({ currentIndex: index, selectedSlot: null, swapSource: null, cropSlot: null }),
 
   density: "can",
   setDensity: (density) => set({ density }),

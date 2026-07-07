@@ -265,6 +265,37 @@ export function PropertiesPanel() {
           style={{ width: "100%" }}
         />
       </div>
+      <div className="prop-group">
+        <div className="prop-label">Lề mép spread ({Math.round((spread?.padding ?? 0) * 1000) / 10}%)</div>
+        <input
+          type="range"
+          min={0}
+          max={0.08}
+          step={0.002}
+          value={spread?.padding ?? 0}
+          onChange={(e) => useAlbum.getState().setPadding(parseFloat(e.target.value))}
+          style={{ width: "100%" }}
+        />
+        <button
+          className="btn"
+          style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+          onClick={() => useAlbum.getState().applySpacingAll()}
+        >
+          Áp dụng khoảng cách cho cả album
+        </button>
+      </div>
+      {spread?.bgImageId && (
+        <div className="prop-group">
+          <div className="prop-label">Ảnh nền (full-bleed)</div>
+          <button
+            className="btn"
+            style={{ width: "100%", justifyContent: "center" }}
+            onClick={() => useAlbum.getState().removeBackground()}
+          >
+            Gỡ ảnh nền
+          </button>
+        </div>
+      )}
 
       <div className="prop-group">
         <div className="prop-label">Thêm chữ</div>

@@ -90,7 +90,8 @@ function App() {
         setShowExport(true);
       } else if (k === "d") {
         e.preventDefault();
-        setShowDesign(true);
+        if (e.shiftKey) useAlbum.getState().redesignSpread();
+        else setShowDesign(true);
       }
     };
     window.addEventListener("keydown", onKey);

@@ -71,7 +71,23 @@ export async function renderSpread(
     const cleanBg = !!hiresBg;
     const bgSrc = hiresBg || tpl.bg;
     layer.add(new Konva.Rect({ x: 0, y: 0, width: W, height: H, fill: bgColor }));
-    if (bgSrc) {
+    if (spread.bgImageId) {
+      // Full-bleed background photo replaces the template plate (§6.5).
+      const meta = images.find((m) => m.id === spread.bgImageId);
+      if (meta) {
+        try {
+          const bg = await loadImg(await getExportImage(meta.path));
+          const scale = Math.max(W / bg.width, H / bg.height);
+          const dw = bg.width * scale;
+          const dh = bg.height * scale;
+          layer.add(
+            new Konva.Image({ image: bg, x: (W - dw) / 2, y: (H - dh) / 2, width: dw, height: dh })
+          );
+        } catch {
+          /* ignore */
+        }
+      }
+    } else if (bgSrc) {
       try {
         const bg = await loadImg(bgSrc);
         layer.add(new Konva.Image({ image: bg, x: 0, y: 0, width: W, height: H }));
@@ -80,18 +96,54 @@ export async function renderSpread(
       }
     }
 
+    // Fonts must be ready before any text measuring below.
+    await document.fonts.ready;
+
+    // Covers for edited/deleted template texts — UNDER the photos, so they only
+    // hide the raster text baked into the plate (never a photo dragged above).
+    if (!cleanBg && !spread.bgImageId) {
+      for (let i = 0; i < tpl.texts.length; i++) {
+        const ed = spread.textEdits[i];
+        if (!ed) continue;
+        const tx = tpl.texts[i];
+        const fontName = ed.font ?? tx.font ?? "";
+        const orig = tx.content ?? "";
+        const fit = orig.trim() && isSingleLine(orig) ? fitFontSizeToWidth(orig, fontName, tx.w * W) : 0;
+        const lines0 = Math.max(1, orig.replace(/\r/g, "\n").split("\n").length);
+        const baseFs = fit > 0 ? fit : tx.fontSizeFrac ? tx.fontSizeFrac * H : ((tx.h * H) / lines0) * 0.86;
+        const fs = Math.max(7, baseFs * (ed.sizeScale ?? 1));
+        const cover = tpl.bg
+          ? await sampleBgColor(tpl.bg, tx.x, tx.y, tx.w, tx.h).catch(() => bgColor)
+          : bgColor;
+        const ox = tx.x * W;
+        const oy = tx.y * H;
+        const ow = tx.w * W;
+        const oh = tx.h * H;
+        const padX = ow * 0.04 + fs * 0.12;
+        const padY = oh * 0.22;
+        layer.add(
+          new Konva.Rect({ x: ox - padX, y: oy - padY / 2, width: ow + padX * 2, height: oh + padY, fill: cover })
+        );
+      }
+    }
+
+    // Margin = photo↔photo gap; Padding = photo↔edge inset (§6.6).
     const gap = (spread.margin ?? 0) * H;
+    const padIn = (spread.padding ?? 0) * H;
+    const innerW = W - padIn * 2;
+    const innerH = H - padIn * 2;
     for (let i = 0; i < tpl.slots.length; i++) {
       const id = spread.imageIds[i];
       if (!id) continue;
       const meta = images.find((m) => m.id === id);
       if (!meta) continue;
-      const s = tpl.slots[i];
+      // User-moved/resized frames override the template rect.
+      const s = { ...tpl.slots[i], ...(spread.slotRects?.[i] ?? {}) };
       const px = {
-        x: s.x * W + gap / 2,
-        y: s.y * H + gap / 2,
-        w: Math.max(4, s.w * W - gap),
-        h: Math.max(4, s.h * H - gap),
+        x: padIn + s.x * innerW + gap / 2,
+        y: padIn + s.y * innerH + gap / 2,
+        w: Math.max(4, s.w * innerW - gap),
+        h: Math.max(4, s.h * innerH - gap),
       };
       let img: HTMLImageElement;
       try {
@@ -100,23 +152,33 @@ export async function renderSpread(
         continue;
       }
       const t = spread.transforms[i] ?? { zoom: 1, panX: 0, panY: 0, fit: "cover" as const };
+      // Rotation swaps the footprint; fit against rotated bounds (same as display).
+      const rot = t.rot ?? 0;
+      const swapped = rot === 90 || rot === 270;
+      const iw = swapped ? img.height : img.width;
+      const ih = swapped ? img.width : img.height;
       const fitScale =
-        t.fit === "contain"
-          ? Math.min(px.w / img.width, px.h / img.height)
-          : Math.max(px.w / img.width, px.h / img.height);
+        t.fit === "contain" ? Math.min(px.w / iw, px.h / ih) : Math.max(px.w / iw, px.h / ih);
       const scale = fitScale * (t.zoom ?? 1);
-      const dw = img.width * scale;
-      const dh = img.height * scale;
+      const dw = iw * scale;
+      const dh = ih * scale;
       const maxX = Math.max(0, (dw - px.w) / 2);
       const maxY = Math.max(0, (dh - px.h) / 2);
+      const nw = img.width * scale;
+      const nh = img.height * scale;
       const g = new Konva.Group({ clipX: px.x, clipY: px.y, clipWidth: px.w, clipHeight: px.h });
       g.add(
         new Konva.Image({
           image: img,
-          x: px.x + (px.w - dw) / 2 + (t.panX ?? 0) * maxX,
-          y: px.y + (px.h - dh) / 2 + (t.panY ?? 0) * maxY,
-          width: dw,
-          height: dh,
+          x: px.x + px.w / 2 + (t.panX ?? 0) * maxX,
+          y: px.y + px.h / 2 + (t.panY ?? 0) * maxY,
+          width: nw,
+          height: nh,
+          offsetX: nw / 2,
+          offsetY: nh / 2,
+          rotation: rot,
+          scaleX: t.flipH ? -1 : 1,
+          scaleY: t.flipV ? -1 : 1,
         })
       );
       layer.add(g);
@@ -143,21 +205,6 @@ export async function renderSpread(
       const baseFs = fit > 0 ? fit : tx.fontSizeFrac ? tx.fontSizeFrac * H : ((tx.h * H) / lines) * 0.86;
       const fs = Math.max(7, baseFs * (ed?.sizeScale ?? 1));
 
-      // Cover the baked raster only when it exists (preview plate) and this text
-      // is edited or deleted. The cover stays at the ORIGINAL position (so moving
-      // the text doesn't reveal the raster). The clean hi-res plate needs none.
-      if (!cleanBg && ed) {
-        const cover = tpl.bg ? await sampleBgColor(tpl.bg, tx.x, tx.y, tx.w, tx.h).catch(() => bgColor) : bgColor;
-        const ox = tx.x * W;
-        const oy = tx.y * H;
-        const ow = tx.w * W;
-        const oh = tx.h * H;
-        const padX = ow * 0.04 + fs * 0.12;
-        const padY = oh * 0.22;
-        layer.add(
-          new Konva.Rect({ x: ox - padX, y: oy - padY / 2, width: ow + padX * 2, height: oh + padY, fill: cover })
-        );
-      }
       if (ed?.deleted) continue;
       layer.add(
         new Konva.Text({

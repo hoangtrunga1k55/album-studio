@@ -51,6 +51,39 @@ const BgImage = memo(function BgImage(props: { url: string; w: number; h: number
   );
 });
 
+/** Full-bleed background photo covering the whole spread (§6.5). */
+const SpreadBgPhoto = memo(function SpreadBgPhoto(props: { img?: ImageMeta; w: number; h: number }) {
+  const { img, w, h } = props;
+  const [uri, setUri] = useState<string>();
+  useEffect(() => {
+    if (!img) {
+      setUri(undefined);
+      return;
+    }
+    let live = true;
+    getDisplayImage(img.path).then((u) => live && setUri(u)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [img?.path]);
+  const [image] = useImage(uri ?? "");
+  if (!img || !image) return null;
+  const scale = Math.max(w / image.width, h / image.height);
+  const dw = image.width * scale;
+  const dh = image.height * scale;
+  return (
+    <KonvaImage
+      image={image}
+      x={(w - dw) / 2}
+      y={(h - dh) / 2}
+      width={dw}
+      height={dh}
+      listening={false}
+      perfectDrawEnabled={false}
+    />
+  );
+});
+
 /** An editable text element (template typo or user-added): draggable, and when
  *  selected shows a resize box (corner handles) that scales the font size. */
 function EditableText(props: {
@@ -135,15 +168,48 @@ function EditableText(props: {
   );
 }
 
-/** A template text: rasterized in the bg plate by default (original fonts);
- *  click to enter edit mode → cover the original + show an editable overlay. */
-function TplText(props: {
+/** Covers the baked raster of a template text with the sampled background
+ *  color. Drawn UNDER the photos (right above the plate) so it only hides the
+ *  raster text, never a photo the user dragged over that area. */
+function TplTextCover(props: {
   bgUrl?: string;
   nbox: { x: number; y: number; w: number; h: number };
-  px: Px;
-  /** Original (un-moved) box — the cover stays here so the raster stays hidden
-   *  even after the editable text is dragged away. */
   coverPx: Px;
+  fs: number;
+}) {
+  const { bgUrl, nbox, coverPx, fs } = props;
+  const [cover, setCover] = useState("#ffffff");
+
+  useEffect(() => {
+    if (!bgUrl) return;
+    let live = true;
+    sampleBgColor(bgUrl, nbox.x, nbox.y, nbox.w, nbox.h)
+      .then((c) => live && setCover(c))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [bgUrl, nbox.x, nbox.y, nbox.w, nbox.h]);
+
+  const padX = coverPx.w * 0.04 + fs * 0.12;
+  const padY = coverPx.h * 0.22;
+  return (
+    <Rect
+      x={coverPx.x - padX}
+      y={coverPx.y - padY / 2}
+      width={coverPx.w + padX * 2}
+      height={coverPx.h + padY}
+      fill={cover}
+      listening={false}
+    />
+  );
+}
+
+/** A template text: rasterized in the bg plate by default (original fonts);
+ *  click to enter edit mode → show an editable overlay (its raster is hidden
+ *  by TplTextCover, rendered under the photos). */
+function TplText(props: {
+  px: Px;
   ed?: TextEdit;
   content: string;
   font: string;
@@ -159,7 +225,7 @@ function TplText(props: {
   onResize: (scaleX: number, scaleY: number) => void;
 }) {
   const {
-    bgUrl, nbox, px, coverPx, ed, content, font, color, fs, lines, scaleX, scaleY,
+    px, ed, content, font, color, fs, lines, scaleX, scaleY,
     selected, onEnter, onSelect, onMoved, onResize,
   } = props;
   const editing = ed !== undefined;
@@ -167,18 +233,6 @@ function TplText(props: {
   // text is edited OR just selected — so the raster stays only until the user
   // interacts, and clicking a text immediately gives handles.
   const showOverlay = editing || selected;
-  const [cover, setCover] = useState("#ffffff");
-
-  useEffect(() => {
-    if (!showOverlay || !bgUrl) return;
-    let live = true;
-    sampleBgColor(bgUrl, nbox.x, nbox.y, nbox.w, nbox.h)
-      .then((c) => live && setCover(c))
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [showOverlay, bgUrl, nbox.x, nbox.y, nbox.w, nbox.h]);
 
   if (!showOverlay) {
     // invisible hotspot over the rasterized original; click SELECTS it (which
@@ -186,18 +240,8 @@ function TplText(props: {
     return <Rect x={px.x} y={px.y} width={px.w} height={px.h} fill="#000" opacity={0} onClick={onEnter} onTap={onEnter} />;
   }
 
-  const padX = coverPx.w * 0.04 + fs * 0.12;
-  const padY = coverPx.h * 0.22;
   return (
     <>
-      <Rect
-        x={coverPx.x - padX}
-        y={coverPx.y - padY / 2}
-        width={coverPx.w + padX * 2}
-        height={coverPx.h + padY}
-        fill={cover}
-        listening={false}
-      />
       {!ed?.deleted && (
         <EditableText
           x={px.x}
@@ -319,18 +363,109 @@ function TypoNode(props: {
   );
 }
 
-/** One photo slot: holds a user image with pan/zoom, clipped to the slot rect. */
+/** 8-handle frame editor for the selected slot — move & resize like text:
+ *  corners scale both ways, edges stretch one axis, drag moves the frame. */
+function SlotFrame(props: {
+  px: Px;
+  onChange: (r: Px) => void;
+  onWheelZoom: (deltaY: number) => void;
+  onDblClick: () => void;
+  onContext: (x: number, y: number) => void;
+}) {
+  const { px, onChange, onWheelZoom, onDblClick, onContext } = props;
+  const ref = useRef<Konva.Rect>(null);
+  const trRef = useRef<Konva.Transformer>(null);
+
+  useEffect(() => {
+    if (trRef.current && ref.current) {
+      trRef.current.nodes([ref.current]);
+      trRef.current.getLayer()?.batchDraw();
+    }
+  }, [px.x, px.y, px.w, px.h]);
+
+  return (
+    <>
+      <Rect
+        ref={ref}
+        x={px.x}
+        y={px.y}
+        width={px.w}
+        height={px.h}
+        fill="#ffffff"
+        opacity={0.001}
+        draggable
+        onDragEnd={(e) => onChange({ x: e.target.x(), y: e.target.y(), w: px.w, h: px.h })}
+        onTransformEnd={() => {
+          const n = ref.current;
+          if (!n) return;
+          const r = {
+            x: n.x(),
+            y: n.y(),
+            w: Math.max(24, n.width() * n.scaleX()),
+            h: Math.max(24, n.height() * n.scaleY()),
+          };
+          n.scaleX(1);
+          n.scaleY(1);
+          onChange(r);
+        }}
+        onWheel={(e) => {
+          e.evt.preventDefault();
+          onWheelZoom(e.evt.deltaY);
+        }}
+        onDblClick={onDblClick}
+        onContextMenu={(e) => {
+          e.evt.preventDefault();
+          onContext(e.evt.clientX, e.evt.clientY);
+        }}
+      />
+      <Transformer
+        ref={trRef}
+        rotateEnabled={false}
+        keepRatio={false}
+        enabledAnchors={[
+          "top-left",
+          "top-right",
+          "bottom-left",
+          "bottom-right",
+          "middle-left",
+          "middle-right",
+          "top-center",
+          "bottom-center",
+        ]}
+        anchorSize={9}
+        anchorCornerRadius={5}
+        anchorStroke="#6e76ff"
+        borderStroke="#6e76ff"
+        borderStrokeWidth={1.5}
+        boundBoxFunc={(oldBox, newBox) => (newBox.width < 24 || newBox.height < 24 ? oldBox : newBox)}
+      />
+    </>
+  );
+}
+
+/** One photo slot. SmartAlbums behavior (§6.2–6.3): plain drag MOVES the photo
+ *  to another slot; double-click enters crop mode where drag pans / wheel zooms. */
 function Slot(props: {
   index: number;
   px: Px;
   img?: ImageMeta;
   selected: boolean;
+  /** crop mode: drag pans the photo inside the slot. */
+  crop: boolean;
+  /** another photo is being dragged and would land here. */
+  dropTarget: boolean;
   transform: SlotTransform;
   onSelect: () => void;
+  onEnterCrop: () => void;
+  /** mousedown on a photo outside crop mode → maybe start a move-drag. */
+  onBeginMove: (clientX: number, clientY: number) => void;
   onTransform: (t: SlotTransform) => void;
   onContext: (clientX: number, clientY: number) => void;
 }) {
-  const { index, px, img, selected, transform: t, onSelect, onTransform, onContext } = props;
+  const {
+    index, px, img, selected, crop, dropTarget, transform: t,
+    onSelect, onEnterCrop, onBeginMove, onTransform, onContext,
+  } = props;
   const [uri, setUri] = useState<string>();
   const drag = useRef<{ cx: number; cy: number; panX: number; panY: number } | null>(null);
 
@@ -352,22 +487,32 @@ function Slot(props: {
   let maxX = 0;
   let maxY = 0;
   if (img && image) {
+    // Rotation swaps the image's footprint; fit against the rotated bounds.
+    const rot = t.rot ?? 0;
+    const swapped = rot === 90 || rot === 270;
+    const iw = swapped ? image.height : image.width;
+    const ih = swapped ? image.width : image.height;
     const fitScale =
-      t.fit === "contain"
-        ? Math.min(px.w / image.width, px.h / image.height)
-        : Math.max(px.w / image.width, px.h / image.height);
+      t.fit === "contain" ? Math.min(px.w / iw, px.h / ih) : Math.max(px.w / iw, px.h / ih);
     const scale = fitScale * t.zoom;
-    const dw = image.width * scale;
-    const dh = image.height * scale;
+    const dw = iw * scale;
+    const dh = ih * scale;
     maxX = Math.max(0, (dw - px.w) / 2);
     maxY = Math.max(0, (dh - px.h) / 2);
+    const nw = image.width * scale;
+    const nh = image.height * scale;
     node = (
       <KonvaImage
         image={image}
-        x={px.x + (px.w - dw) / 2 + t.panX * maxX}
-        y={px.y + (px.h - dh) / 2 + t.panY * maxY}
-        width={dw}
-        height={dh}
+        x={px.x + px.w / 2 + t.panX * maxX}
+        y={px.y + px.h / 2 + t.panY * maxY}
+        width={nw}
+        height={nh}
+        offsetX={nw / 2}
+        offsetY={nh / 2}
+        rotation={rot}
+        scaleX={t.flipH ? -1 : 1}
+        scaleY={t.flipV ? -1 : 1}
         listening={false}
         perfectDrawEnabled={false}
       />
@@ -385,10 +530,16 @@ function Slot(props: {
   function onDown(e: { evt: MouseEvent }) {
     onSelect();
     if (!img) return;
-    drag.current = { cx: e.evt.clientX, cy: e.evt.clientY, panX: t.panX, panY: t.panY };
+    if (crop) {
+      // crop mode: drag = pan the photo inside the slot
+      drag.current = { cx: e.evt.clientX, cy: e.evt.clientY, panX: t.panX, panY: t.panY };
+    } else {
+      // normal mode: drag = move the photo to another slot (§6.2)
+      onBeginMove(e.evt.clientX, e.evt.clientY);
+    }
   }
   function onMove(e: { evt: MouseEvent }) {
-    if (!drag.current) return;
+    if (!crop || !drag.current) return;
     const dx = e.evt.clientX - drag.current.cx;
     const dy = e.evt.clientY - drag.current.cy;
     onTransform({
@@ -411,7 +562,7 @@ function Slot(props: {
       onMouseMove={onMove}
       onMouseUp={onUp}
       onMouseLeave={onUp}
-      onDblClick={() => img && onTransform(DEFAULT_T)}
+      onDblClick={() => img && onEnterCrop()}
       onContextMenu={(e) => {
         e.evt.preventDefault();
         if (img) {
@@ -435,17 +586,31 @@ function Slot(props: {
       )}
       {/* invisible hit area so the group catches wheel/drag/click over the whole slot */}
       <Rect x={px.x} y={px.y} width={px.w} height={px.h} fill="#fff" opacity={0} />
+      {dropTarget && (
+        <Rect
+          x={px.x}
+          y={px.y}
+          width={px.w}
+          height={px.h}
+          fill="#10b981"
+          opacity={0.25}
+          listening={false}
+        />
+      )}
       <Rect
         x={px.x}
         y={px.y}
         width={px.w}
         height={px.h}
         cornerRadius={2}
-        stroke={selected ? "#6e76ff" : "rgba(60,40,90,0.12)"}
-        strokeWidth={selected ? 2.5 : 1}
-        shadowColor="#6e76ff"
-        shadowBlur={selected ? 14 : 0}
-        shadowOpacity={selected ? 0.5 : 0}
+        stroke={
+          dropTarget ? "#10b981" : crop ? "#f59e0b" : selected ? "#6e76ff" : "rgba(60,40,90,0.12)"
+        }
+        strokeWidth={dropTarget ? 3 : crop ? 2.5 : selected ? 2.5 : 1}
+        dash={crop ? [7, 5] : undefined}
+        shadowColor={crop ? "#f59e0b" : "#6e76ff"}
+        shadowBlur={selected || crop ? 14 : 0}
+        shadowOpacity={selected || crop ? 0.5 : 0}
         listening={false}
         perfectDrawEnabled={false}
       />
@@ -480,7 +645,17 @@ export function SpreadCanvas() {
   // Re-render (and re-measure text fit) whenever the loaded font set changes.
   const fontsVersion = useFonts((s) => s.fonts.length);
 
-  const [menu, setMenu] = useState<{ slot: number; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<
+    { kind: "slot" | "spread"; slot: number; x: number; y: number } | null
+  >(null);
+
+  const cropSlot = useAlbum((s) => s.cropSlot);
+  const setCropSlot = useAlbum((s) => s.setCropSlot);
+  // Slot-to-slot photo move (§6.2): mousedown arms it, movement >6px starts it.
+  const movePending = useRef<{ from: number; sx: number; sy: number } | null>(null);
+  const [slotDrag, setSlotDrag] = useState<
+    { from: number; x: number; y: number; target: number } | null
+  >(null);
 
   const spread = spreads[currentIndex];
   const tpl = getTemplate(spread?.templateId ?? null);
@@ -512,13 +687,14 @@ export function SpreadCanvas() {
           if (st.selectedText.kind === "tpl") st.deleteTplText(st.selectedText.index);
           else st.removeAddedText(st.selectedText.id);
         } else if (st.selectedSlot !== null) st.clearSlot(st.selectedSlot);
-      } else if (e.key === "ArrowRight") {
+      } else if (e.key === "ArrowRight" || e.key === "PageDown") {
         if (st.currentIndex < st.spreads.length - 1) st.setCurrent(st.currentIndex + 1);
-      } else if (e.key === "ArrowLeft") {
+      } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
         if (st.currentIndex > 0) st.setCurrent(st.currentIndex - 1);
       } else if (e.key === "Escape") {
         st.cancelSwap();
         st.selectSlot(null);
+        st.setCropSlot(null);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -548,12 +724,28 @@ export function SpreadCanvas() {
     stageH = availW / ratio;
   }
 
+  // Margin = photo↔photo gap; Padding = photo↔spread-edge inset (§6.6).
   const gap = (spread.margin ?? 0) * stageH;
+  const padIn = (spread.padding ?? 0) * stageH;
+  const innerW = stageW - padIn * 2;
+  const innerH = stageH - padIn * 2;
   const toPx = (s: PhotoSlot): Px => ({
-    x: s.x * stageW + gap / 2,
-    y: s.y * stageH + gap / 2,
-    w: Math.max(4, s.w * stageW - gap),
-    h: Math.max(4, s.h * stageH - gap),
+    x: padIn + s.x * innerW + gap / 2,
+    y: padIn + s.y * innerH + gap / 2,
+    w: Math.max(4, s.w * innerW - gap),
+    h: Math.max(4, s.h * innerH - gap),
+  });
+  // Effective slot rects: user-moved/resized frames override the template.
+  const effSlots: PhotoSlot[] = tpl.slots.map((s, i) => ({
+    ...s,
+    ...(spread.slotRects?.[i] ?? {}),
+  }));
+  /** Gapless px rect — what the frame editor manipulates. */
+  const rawPx = (s: PhotoSlot): Px => ({
+    x: padIn + s.x * innerW,
+    y: padIn + s.y * innerH,
+    w: s.w * innerW,
+    h: s.h * innerH,
   });
 
   function handleDrop(e: React.DragEvent) {
@@ -576,7 +768,7 @@ export function SpreadCanvas() {
       useAlbum.getState().addToSpread(ids);
       return;
     }
-    const idx = tpl.slots.findIndex(
+    const idx = effSlots.findIndex(
       (s) => nx >= s.x && nx <= s.x + s.w && ny >= s.y && ny <= s.y + s.h
     );
     if (idx >= 0) setSlotImage(idx, ids[0]);
@@ -590,6 +782,51 @@ export function SpreadCanvas() {
         style={{ width: stageW, height: stageH }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          // Right-click on a FILLED slot opens the slot menu (handled in Konva);
+          // anywhere else opens the spread-level menu (§6.7).
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          const nx = (e.clientX - rect.left) / stageW;
+          const ny = (e.clientY - rect.top) / stageH;
+          const hit = effSlots.findIndex(
+            (s, i) =>
+              !!spread.imageIds[i] && nx >= s.x && nx <= s.x + s.w && ny >= s.y && ny <= s.y + s.h
+          );
+          if (hit < 0) setMenu({ kind: "spread", slot: -1, x: e.clientX, y: e.clientY });
+        }}
+        onMouseMove={(e) => {
+          const p = movePending.current;
+          if (!p) return;
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          const nx = (e.clientX - rect.left) / stageW;
+          const ny = (e.clientY - rect.top) / stageH;
+          const target = effSlots.findIndex(
+            (s) => nx >= s.x && nx <= s.x + s.w && ny >= s.y && ny <= s.y + s.h
+          );
+          if (!slotDrag && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 6) {
+            setSlotDrag({ from: p.from, x: e.clientX, y: e.clientY, target });
+          } else if (slotDrag) {
+            setSlotDrag({ from: slotDrag.from, x: e.clientX, y: e.clientY, target });
+          }
+        }}
+        onMouseUp={(e) => {
+          const dragging = slotDrag;
+          movePending.current = null;
+          if (!dragging) return;
+          setSlotDrag(null);
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          const nx = (e.clientX - rect.left) / stageW;
+          const ny = (e.clientY - rect.top) / stageH;
+          const target = effSlots.findIndex(
+            (s) => nx >= s.x && nx <= s.x + s.w && ny >= s.y && ny <= s.y + s.h
+          );
+          if (target >= 0 && target !== dragging.from) swapImages(dragging.from, target);
+        }}
+        onMouseLeave={() => {
+          movePending.current = null;
+          setSlotDrag(null);
+        }}
       >
         <Stage width={stageW} height={stageH}>
           <Layer>
@@ -599,12 +836,43 @@ export function SpreadCanvas() {
               width={stageW}
               height={stageH}
               fill={bgColor}
-              onClick={() => selectSlot(null)}
+              onClick={() => {
+                selectSlot(null);
+                setCropSlot(null);
+              }}
               onTap={() => selectSlot(null)}
             />
-            {tpl.bg && <BgImage url={tpl.bg} w={stageW} h={stageH} />}
+            {spread.bgImageId ? (
+              <SpreadBgPhoto
+                img={images.find((m) => m.id === spread.bgImageId)}
+                w={stageW}
+                h={stageH}
+              />
+            ) : (
+              tpl.bg && <BgImage url={tpl.bg} w={stageW} h={stageH} />
+            )}
 
-            {tpl.slots.map((slot, i) => {
+            {/* covers for edited/selected template texts — UNDER the photos so
+                they only hide the raster text baked into the plate */}
+            {tpl.texts.map((tx, i) => {
+              const ed = spread.textEdits[i];
+              const isSel = selectedText?.kind === "tpl" && selectedText.index === i;
+              if ((!ed && !isSel) || spread.bgImageId) return null;
+              const font = ed?.font ?? tx.font ?? "";
+              const baseFs = textBaseFs(tx, font, stageW, stageH, fontsVersion);
+              const fs = Math.max(7, baseFs * (ed?.sizeScale ?? 1));
+              return (
+                <TplTextCover
+                  key={`c${i}`}
+                  bgUrl={tpl.bg}
+                  nbox={{ x: tx.x, y: tx.y, w: tx.w, h: tx.h }}
+                  coverPx={{ x: tx.x * stageW, y: tx.y * stageH, w: tx.w * stageW, h: tx.h * stageH }}
+                  fs={fs}
+                />
+              );
+            })}
+
+            {effSlots.map((slot, i) => {
               const imgId = spread.imageIds[i];
               const img = imgId ? images.find((im) => im.id === imgId) : undefined;
               return (
@@ -614,17 +882,47 @@ export function SpreadCanvas() {
                   px={toPx(slot)}
                   img={img}
                   selected={selectedSlot === i}
+                  crop={cropSlot === i}
+                  dropTarget={!!slotDrag && slotDrag.target === i && slotDrag.from !== i}
                   transform={spread.transforms[i] ?? DEFAULT_T}
                   onSelect={() =>
                     swapSource !== null && swapSource !== i
                       ? swapImages(swapSource, i)
                       : selectSlot(i)
                   }
+                  onEnterCrop={() => setCropSlot(cropSlot === i ? null : i)}
+                  onBeginMove={(cx, cy) => {
+                    movePending.current = { from: i, sx: cx, sy: cy };
+                  }}
                   onTransform={(t) => setSlotTransform(i, t)}
-                  onContext={(cx, cy) => setMenu({ slot: i, x: cx, y: cy })}
+                  onContext={(cx, cy) => setMenu({ kind: "slot", slot: i, x: cx, y: cy })}
                 />
               );
             })}
+
+            {/* 8-handle frame editor on the selected slot (hidden in crop mode) */}
+            {selectedSlot !== null && cropSlot !== selectedSlot && effSlots[selectedSlot] && (
+              <SlotFrame
+                px={rawPx(effSlots[selectedSlot])}
+                onChange={(r) =>
+                  useAlbum.getState().setSlotRect(selectedSlot, {
+                    x: (r.x - padIn) / innerW,
+                    y: (r.y - padIn) / innerH,
+                    w: r.w / innerW,
+                    h: r.h / innerH,
+                  })
+                }
+                onWheelZoom={(dy) => {
+                  const t = spread.transforms[selectedSlot] ?? DEFAULT_T;
+                  setSlotTransform(selectedSlot, {
+                    ...t,
+                    zoom: clamp(t.zoom * (dy > 0 ? 0.9 : 1.1), 1, 6),
+                  });
+                }}
+                onDblClick={() => setCropSlot(selectedSlot)}
+                onContext={(x, y) => setMenu({ kind: "slot", slot: selectedSlot, x, y })}
+              />
+            )}
 
             {/* template typography: rasterized by default, click → editable */}
             {tpl.texts.map((tx, i) => {
@@ -639,9 +937,6 @@ export function SpreadCanvas() {
               return (
                 <TplText
                   key={`t${i}`}
-                  bgUrl={tpl.bg}
-                  nbox={{ x: tx.x, y: tx.y, w: tx.w, h: tx.h }}
-                  coverPx={{ x: tx.x * stageW, y: tx.y * stageH, w: tx.w * stageW, h: tx.h * stageH }}
                   px={{ x: (tx.x + dx) * stageW, y: (tx.y + dy) * stageH, w: tx.w * stageW, h: tx.h * stageH }}
                   ed={ed}
                   content={content}
@@ -708,21 +1003,85 @@ export function SpreadCanvas() {
           </Layer>
         </Stage>
         <div className="canvas-tip">
-          <b>SPACE</b> đổi layout · <b>R</b> đổi chỗ ảnh · cuộn <b>zoom</b> · chuột phải <b>tuỳ chọn</b> · <b>← →</b> chuyển spread
+          <b>Kéo ảnh</b> đổi chỗ · <b>double-click</b> chỉnh khung · <b>SPACE</b> đổi layout · chuột phải <b>menu</b> · <b>← →</b> chuyển spread
         </div>
       </div>
+
+      {slotDrag && (() => {
+        const dragImg = images.find((m) => m.id === spread.imageIds[slotDrag.from]);
+        return dragImg ? (
+          <img
+            src={dragImg.thumb}
+            alt=""
+            style={{
+              position: "fixed",
+              left: slotDrag.x + 10,
+              top: slotDrag.y + 10,
+              width: 72,
+              height: 72,
+              objectFit: "cover",
+              borderRadius: 8,
+              border: "2px solid #6e76ff",
+              boxShadow: "0 8px 24px #000a",
+              opacity: 0.9,
+              pointerEvents: "none",
+              zIndex: 90,
+            }}
+          />
+        ) : null;
+      })()}
 
       {swapSource !== null && (
         <div className="swap-hint">Đổi chỗ ảnh: bấm ô đích · Esc để huỷ</div>
       )}
 
-      {menu && (
+      {menu?.kind === "slot" && (
         <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => { useAlbum.getState().setAsBackground(menu.slot); setMenu(null); }}>
+            Đặt làm nền (full-bleed)
+          </button>
+          <div className="ctx-sep" />
+          <button onClick={() => { useAlbum.getState().rotateSlot(menu.slot); setMenu(null); }}>Xoay 90°</button>
+          <button onClick={() => { useAlbum.getState().flipSlot(menu.slot, "h"); setMenu(null); }}>Lật ngang</button>
+          <button onClick={() => { useAlbum.getState().flipSlot(menu.slot, "v"); setMenu(null); }}>Lật dọc</button>
+          <div className="ctx-sep" />
           <button onClick={() => { setSlotFit(menu.slot, "cover"); setMenu(null); }}>Lấp đầy ô</button>
           <button onClick={() => { setSlotFit(menu.slot, "contain"); setMenu(null); }}>Vừa khít</button>
-          <button onClick={() => { setSlotTransform(menu.slot, DEFAULT_T); setMenu(null); }}>Đặt lại khung</button>
+          <button
+            onClick={() => {
+              setSlotTransform(menu.slot, DEFAULT_T);
+              useAlbum.getState().resetSlotRect(menu.slot);
+              setMenu(null);
+            }}
+          >
+            Đặt lại khung
+          </button>
           <div className="ctx-sep" />
           <button className="danger" onClick={() => { clearSlot(menu.slot); setMenu(null); }}>Gỡ ảnh</button>
+        </div>
+      )}
+
+      {menu?.kind === "spread" && (
+        <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => { useAlbum.getState().redesignSpread(); setMenu(null); }}>
+            Redesign spread (⌘⇧D)
+          </button>
+          <button onClick={() => { useAlbum.getState().changeSlotCount(1); setMenu(null); }}>+ Thêm 1 ô ảnh</button>
+          <button onClick={() => { useAlbum.getState().changeSlotCount(-1); setMenu(null); }}>− Bớt 1 ô ảnh</button>
+          {spread.bgImageId && (
+            <button onClick={() => { useAlbum.getState().removeBackground(); setMenu(null); }}>Gỡ ảnh nền</button>
+          )}
+          <div className="ctx-sep" />
+          <button onClick={() => { useAlbum.getState().duplicateSpread(currentIndex); setMenu(null); }}>
+            Nhân đôi spread
+          </button>
+          <button onClick={() => { useAlbum.getState().addSpreadAfter(currentIndex); setMenu(null); }}>
+            Thêm spread mới sau
+          </button>
+          <div className="ctx-sep" />
+          <button className="danger" onClick={() => { useAlbum.getState().removeSpread(currentIndex); setMenu(null); }}>
+            Xoá spread
+          </button>
         </div>
       )}
     </div>
