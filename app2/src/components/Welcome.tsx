@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { ALBUM_SIZES, type AlbumSize } from "../engine/templates";
 import { createProject, openProject } from "../flows/projectIO";
-import { loadRecents, forgetRecent, type RecentProject } from "../store/project";
+import { loadRecents, forgetRecent, useProject, type RecentProject } from "../store/project";
 import "./Welcome.css";
 
 /** SmartAlbums-style welcome: New Album / Open Album + recent projects. */
 export function Welcome() {
   const [recents, setRecents] = useState<RecentProject[]>(loadRecents());
-  const [wizard, setWizard] = useState(false);
+  // ⌘N from the editor lands here with the wizard already open.
+  const [wizard, setWizard] = useState(() => {
+    const requested = useProject.getState().wizardRequested;
+    if (requested) useProject.getState().requestWizard(false);
+    return requested;
+  });
   const [busy, setBusy] = useState(false);
 
   async function handleOpen(path?: string) {

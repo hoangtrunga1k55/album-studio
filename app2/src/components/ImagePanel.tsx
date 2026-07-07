@@ -9,6 +9,8 @@ import "./ImagePanel.css";
 const IMG_EXT = ["jpg", "jpeg", "png", "tif", "tiff", "heic", "heif"];
 const THUMB_MIN = 80;
 const THUMB_MAX = 200;
+/** color labels (keys 6–9): red / yellow / green / blue. */
+const LABEL_COLORS = ["", "#ef4444", "#f59e0b", "#10b981", "#3b82f6"];
 
 type SortBy = "date" | "name" | "rating";
 type Filter = "all" | "used" | "unused" | "starred" | "rejected";
@@ -37,6 +39,8 @@ export function ImagePanel() {
   const [thumbSize, setThumbSize] = useState(110);
   const [sortBy, setSortBy] = useState<SortBy>("date");
   const [filter, setFilter] = useState<Filter>("all");
+  /** color-label filter (null = off) — combines with the main filter. */
+  const [labelFilter, setLabelFilter] = useState<1 | 2 | 3 | 4 | null>(null);
   const [anchor, setAnchor] = useState<string | null>(null); // shift-range anchor
 
   // ---- import ----
@@ -104,9 +108,10 @@ export function ImagePanel() {
       else if (filter === "unused") list = list.filter((i) => !usedCount.has(i.id));
       else if (filter === "starred") list = list.filter((i) => (photoMeta[i.id]?.rating ?? 0) > 0);
     }
+    if (labelFilter) list = list.filter((i) => photoMeta[i.id]?.label === labelFilter);
     const q = query.trim().toLowerCase();
     return q ? list.filter((i) => i.name.toLowerCase().includes(q)) : list;
-  }, [images, query, sortBy, filter, photoMeta, usedCount]);
+  }, [images, query, sortBy, filter, labelFilter, photoMeta, usedCount]);
 
   // ---- selection (click / cmd / shift) ----
   function onCellClick(e: React.MouseEvent, id: string) {
@@ -138,6 +143,10 @@ export function ImagePanel() {
       if (e.key >= "0" && e.key <= "5") {
         e.preventDefault();
         st.ratePhotos(st.selectedPhotos, parseInt(e.key, 10));
+      } else if (e.key >= "6" && e.key <= "9") {
+        // color labels (§4.3): 6=đỏ 7=vàng 8=xanh lá 9=xanh dương
+        e.preventDefault();
+        st.labelPhotos(st.selectedPhotos, (parseInt(e.key, 10) - 5) as 1 | 2 | 3 | 4);
       } else if (e.key.toLowerCase() === "x") {
         e.preventDefault();
         st.toggleRejected(st.selectedPhotos);
@@ -188,6 +197,19 @@ export function ImagePanel() {
           >
             {f.label}
           </button>
+        ))}
+      </div>
+
+      <div className="ip-filters">
+        <span className="ip-row-label">Nhãn:</span>
+        {([1, 2, 3, 4] as const).map((l) => (
+          <button
+            key={l}
+            className={"ip-labelfilter" + (labelFilter === l ? " active" : "")}
+            style={{ ["--dot" as string]: LABEL_COLORS[l] }}
+            onClick={() => setLabelFilter(labelFilter === l ? null : l)}
+            title={`Lọc theo nhãn màu (phím ${l + 5} để gán)`}
+          />
         ))}
         <input
           className="ip-zoom"
@@ -251,6 +273,9 @@ export function ImagePanel() {
             >
               <img src={img.thumb} alt={img.name} loading="lazy" draggable={false} />
               {isSel && <span className="ip-check">✓</span>}
+              {meta?.label && (
+                <span className="ip-label" style={{ background: LABEL_COLORS[meta.label] }} />
+              )}
               {used > 0 && <span className="ip-used" title={`Dùng ${used} lần trong album`}>{used}</span>}
               {(meta?.rating ?? 0) > 0 && (
                 <span className="ip-stars">{"★".repeat(meta!.rating!)}</span>

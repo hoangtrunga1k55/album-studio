@@ -1,9 +1,9 @@
 .canvas-wrap {
   position: relative;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  /* stage-host centers itself via margin:auto — safe with overflow scrolling */
+  /* scrolls when the stage is view-zoomed (⌘+) beyond the viewport */
+  overflow: auto;
   background:
     radial-gradient(1100px 700px at 50% 0%, #181429 0%, transparent 65%),
     radial-gradient(900px 600px at 50% 120%, #14182a 0%, transparent 60%),
@@ -12,6 +12,8 @@
 
 .stage-host {
   position: relative;
+  margin: auto;
+  flex-shrink: 0;
   border-radius: 3px;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.04),

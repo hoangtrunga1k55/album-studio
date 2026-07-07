@@ -11,7 +11,7 @@ import { getTemplate } from "./engine/templates";
 import { registerBundledFonts } from "./engine/bundledFonts";
 import { loadTemplateFontsFromFolder, savedFontFolder } from "./engine/fontLibrary";
 import { loadTypoFolder, savedTypoFolder } from "./ipc/typos";
-import { saveNow, startAutosave } from "./flows/projectIO";
+import { openProject, saveNow, startAutosave } from "./flows/projectIO";
 import { useAlbum } from "./store/album";
 import { useFonts } from "./store/fonts";
 import { useTypos } from "./store/typos";
@@ -95,6 +95,32 @@ function App() {
       } else if (k === "b") {
         e.preventDefault();
         useAlbum.getState().toggleBleed();
+      } else if (k === "n") {
+        // New Album: save current work, go to Welcome with the wizard open.
+        e.preventDefault();
+        void (async () => {
+          await saveNow();
+          useProject.getState().requestWizard(true);
+          useProject.getState().closeProject();
+          useAlbum.getState().resetAlbum();
+        })();
+      } else if (k === "o") {
+        e.preventDefault();
+        void (async () => {
+          await saveNow();
+          await openProject().catch((err) => alert("Không mở được project: " + String(err)));
+        })();
+      } else if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        const z = useAlbum.getState().viewZoom;
+        useAlbum.getState().setViewZoom(Math.min(3, z * 1.15));
+      } else if (e.key === "-") {
+        e.preventDefault();
+        const z = useAlbum.getState().viewZoom;
+        useAlbum.getState().setViewZoom(Math.max(1, z / 1.15));
+      } else if (e.key === "0") {
+        e.preventDefault();
+        useAlbum.getState().setViewZoom(1);
       }
     };
     window.addEventListener("keydown", onKey);

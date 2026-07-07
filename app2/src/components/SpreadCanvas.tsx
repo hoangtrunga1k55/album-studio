@@ -676,6 +676,7 @@ export function SpreadCanvas() {
 
   const cropSlot = useAlbum((s) => s.cropSlot);
   const showBleed = useAlbum((s) => s.showBleed);
+  const viewZoom = useAlbum((s) => s.viewZoom);
   const setCropSlot = useAlbum((s) => s.setCropSlot);
   // Slot-to-slot photo move (§6.2): mousedown arms it, movement >6px starts it.
   const movePending = useRef<{ from: number; sx: number; sy: number } | null>(null);
@@ -749,6 +750,9 @@ export function SpreadCanvas() {
     stageW = availW;
     stageH = availW / ratio;
   }
+  // View zoom (⌘+/⌘−/⌘0): scale the whole stage; the wrap scrolls when >1.
+  stageW *= viewZoom;
+  stageH *= viewZoom;
 
   // Margin = photo↔photo gap; Padding = photo↔spread-edge inset (§6.6).
   const gap = (spread.margin ?? 0) * stageH;

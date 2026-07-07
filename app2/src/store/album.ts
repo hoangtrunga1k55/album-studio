@@ -121,6 +121,8 @@ function freshSpread(size: AlbumSize, slotCount = 1): Spread {
 export interface PhotoMeta {
   rating?: number; // 0–5 stars
   rejected?: boolean; // X — hidden from the grid, file untouched
+  /** color label 1–4 (keys 6–9): red / yellow / green / blue. */
+  label?: 1 | 2 | 3 | 4;
 }
 
 interface AlbumState {
@@ -156,6 +158,12 @@ interface AlbumState {
   ratePhotos: (ids: string[], rating: number) => void;
   /** Toggle reject (X) on the given photos. */
   toggleRejected: (ids: string[]) => void;
+  /** Set/toggle a color label (keys 6–9) on the given photos. */
+  labelPhotos: (ids: string[], label: 1 | 2 | 3 | 4) => void;
+
+  /** Canvas view zoom (1 = fit to screen). ⌘+/⌘−/⌘0. */
+  viewZoom: number;
+  setViewZoom: (z: number) => void;
 
   /** Toggle an image on the CURRENT spread; re-picks a template matching the new count. */
   toggleImage: (imageId: string) => void;
@@ -319,6 +327,20 @@ export const useAlbum = create<AlbumState>((set) => ({
       }
       return { photoMeta };
     }),
+
+  labelPhotos: (ids, label) =>
+    set((s) => {
+      const photoMeta = { ...s.photoMeta };
+      // Same key again clears the label (Lightroom-style toggle).
+      const allSame = ids.every((id) => photoMeta[id]?.label === label);
+      for (const id of ids) {
+        photoMeta[id] = { ...photoMeta[id], label: allSame ? undefined : label };
+      }
+      return { photoMeta };
+    }),
+
+  viewZoom: 1,
+  setViewZoom: (viewZoom) => set({ viewZoom }),
 
   toggleImage: (imageId) =>
     set((s) => {

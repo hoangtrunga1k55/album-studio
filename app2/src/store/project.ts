@@ -47,16 +47,21 @@ interface ProjectState {
   path: string | null;
   name: string;
   saveState: SaveState;
+  /** ⌘N from the editor: land on Welcome with the New Album wizard open. */
+  wizardRequested: boolean;
   openProject: (path: string, name: string) => void;
   closeProject: () => void;
   setSaveState: (s: SaveState) => void;
+  requestWizard: (v: boolean) => void;
 }
 
 export const useProject = create<ProjectState>((set) => ({
   path: null,
   name: "",
   saveState: "saved",
-  openProject: (path, name) => set({ path, name, saveState: "saved" }),
+  wizardRequested: false,
+  openProject: (path, name) => set({ path, name, saveState: "saved", wizardRequested: false }),
   closeProject: () => set({ path: null, name: "", saveState: "saved" }),
   setSaveState: (saveState) => set({ saveState }),
+  requestWizard: (wizardRequested) => set({ wizardRequested }),
 }));
