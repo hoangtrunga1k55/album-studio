@@ -180,6 +180,9 @@ interface AlbumState {
   /** Slot in crop mode (double-click a photo → pan/zoom it; Esc exits) §6.3. */
   cropSlot: number | null;
   setCropSlot: (slot: number | null) => void;
+  /** Quality overlays (§10): bleed frame + gutter strip. Toggle with ⌘B. */
+  showBleed: boolean;
+  toggleBleed: () => void;
   /** Set gap between photos for the current spread. */
   setMargin: (margin: number) => void;
   /** Set photo→edge padding for the current spread (§6.6). */
@@ -633,6 +636,9 @@ export const useAlbum = create<AlbumState>((set) => ({
 
   cropSlot: null,
   setCropSlot: (cropSlot) => set({ cropSlot }),
+
+  showBleed: true,
+  toggleBleed: () => set((s) => ({ showBleed: !s.showBleed })),
 
   setSlotRect: (slotIndex, rect) =>
     set((s) => {

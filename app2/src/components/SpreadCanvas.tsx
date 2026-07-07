@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
-import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
+import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
 import type Konva from "konva";
 import useImage from "use-image";
 import { getDisplayImage, type ImageMeta } from "../ipc/import";
@@ -21,6 +21,12 @@ interface Px {
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const DEFAULT_T: SlotTransform = { zoom: 1, panX: 0, panY: 0, fit: "cover" };
+
+/** Quality-check thresholds (§10): print bleed, binding gutter, min DPI. */
+const BLEED_CM = 0.3; // 3mm trimmed at the edges
+const GUTTER_CM = 1.2; // ~12mm swallowed by the spine (2-page spreads)
+const DPI_LOW = 200; // warn below this
+const DPI_BAD = 150; // red below this
 
 /** Base font size (px) for a template text, sized to match the original design:
  *  single-line texts are width-fit to the ORIGINAL content (so editing letters
@@ -454,6 +460,8 @@ function Slot(props: {
   crop: boolean;
   /** another photo is being dragged and would land here. */
   dropTarget: boolean;
+  /** stage px per printed inch — enables the low-resolution warning (§10.3). */
+  ppi?: number;
   transform: SlotTransform;
   onSelect: () => void;
   onEnterCrop: () => void;
@@ -463,7 +471,7 @@ function Slot(props: {
   onContext: (clientX: number, clientY: number) => void;
 }) {
   const {
-    index, px, img, selected, crop, dropTarget, transform: t,
+    index, px, img, selected, crop, dropTarget, ppi, transform: t,
     onSelect, onEnterCrop, onBeginMove, onTransform, onContext,
   } = props;
   const [uri, setUri] = useState<string>();
@@ -486,6 +494,8 @@ function Slot(props: {
   let node: ReactNode;
   let maxX = 0;
   let maxY = 0;
+  /** effective print DPI of the photo in this slot (Infinity = no warning). */
+  let dpi = Infinity;
   if (img && image) {
     // Rotation swaps the image's footprint; fit against the rotated bounds.
     const rot = t.rot ?? 0;
@@ -501,6 +511,8 @@ function Slot(props: {
     maxY = Math.max(0, (dh - px.h) / 2);
     const nw = image.width * scale;
     const nh = image.height * scale;
+    // image px per stage px = 1/scale → DPI = stage-px-per-inch / scale (§10.3).
+    if (ppi) dpi = ppi / scale;
     node = (
       <KonvaImage
         image={image}
@@ -614,6 +626,19 @@ function Slot(props: {
         listening={false}
         perfectDrawEnabled={false}
       />
+      {/* §10.3 low-resolution warning: photo would print below DPI_LOW */}
+      {dpi < DPI_LOW && (
+        <Group x={px.x + 13} y={px.y + 13} listening={false}>
+          <Circle
+            radius={9}
+            fill={dpi < DPI_BAD ? "#ef4444" : "#f59e0b"}
+            shadowColor="#000"
+            shadowBlur={5}
+            shadowOpacity={0.5}
+          />
+          <Text x={-9} y={-6} width={18} align="center" text="!" fontSize={12} fontStyle="bold" fill="#fff" />
+        </Group>
+      )}
     </Group>
   );
 }
@@ -650,6 +675,7 @@ export function SpreadCanvas() {
   >(null);
 
   const cropSlot = useAlbum((s) => s.cropSlot);
+  const showBleed = useAlbum((s) => s.showBleed);
   const setCropSlot = useAlbum((s) => s.setCropSlot);
   // Slot-to-slot photo move (§6.2): mousedown arms it, movement >6px starts it.
   const movePending = useRef<{ from: number; sx: number; sy: number } | null>(null);
@@ -740,6 +766,9 @@ export function SpreadCanvas() {
     ...s,
     ...(spread.slotRects?.[i] ?? {}),
   }));
+  // Physical scale for quality checks (§10): stage px per cm / per inch.
+  const pxPerCm = cmDims ? stageH / cmDims.h : null;
+  const ppi = pxPerCm ? pxPerCm * 2.54 : undefined;
   /** Gapless px rect — what the frame editor manipulates. */
   const rawPx = (s: PhotoSlot): Px => ({
     x: padIn + s.x * innerW,
@@ -884,6 +913,7 @@ export function SpreadCanvas() {
                   selected={selectedSlot === i}
                   crop={cropSlot === i}
                   dropTarget={!!slotDrag && slotDrag.target === i && slotDrag.from !== i}
+                  ppi={ppi}
                   transform={spread.transforms[i] ?? DEFAULT_T}
                   onSelect={() =>
                     swapSource !== null && swapSource !== i
@@ -1000,10 +1030,51 @@ export function SpreadCanvas() {
                 />
               );
             })}
+
+            {/* §10.1–10.2 quality overlays (⌘B): bleed frame + binding gutter */}
+            {showBleed && pxPerCm && (
+              <>
+                <Rect
+                  x={BLEED_CM * pxPerCm}
+                  y={BLEED_CM * pxPerCm}
+                  width={stageW - BLEED_CM * pxPerCm * 2}
+                  height={stageH - BLEED_CM * pxPerCm * 2}
+                  stroke="#ef4444"
+                  strokeWidth={1}
+                  dash={[7, 5]}
+                  opacity={0.75}
+                  listening={false}
+                  perfectDrawEnabled={false}
+                />
+                {tpl.ratioWH >= 1 && (
+                  <>
+                    <Rect
+                      x={stageW / 2 - (GUTTER_CM * pxPerCm) / 2}
+                      y={0}
+                      width={GUTTER_CM * pxPerCm}
+                      height={stageH}
+                      fill="#000"
+                      opacity={0.1}
+                      listening={false}
+                      perfectDrawEnabled={false}
+                    />
+                    <Rect
+                      x={stageW / 2 - 0.5}
+                      y={0}
+                      width={1}
+                      height={stageH}
+                      fill="#00000055"
+                      listening={false}
+                      perfectDrawEnabled={false}
+                    />
+                  </>
+                )}
+              </>
+            )}
           </Layer>
         </Stage>
         <div className="canvas-tip">
-          <b>Kéo ảnh</b> đổi chỗ · <b>double-click</b> chỉnh khung · <b>SPACE</b> đổi layout · chuột phải <b>menu</b> · <b>← →</b> chuyển spread
+          <b>Kéo ảnh</b> đổi chỗ · <b>double-click</b> chỉnh khung · <b>SPACE</b> đổi layout · chuột phải <b>menu</b> · <b>⌘B</b> bleed/gáy
         </div>
       </div>
 

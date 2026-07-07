@@ -92,6 +92,9 @@ function App() {
         e.preventDefault();
         if (e.shiftKey) useAlbum.getState().redesignSpread();
         else setShowDesign(true);
+      } else if (k === "b") {
+        e.preventDefault();
+        useAlbum.getState().toggleBleed();
       }
     };
     window.addEventListener("keydown", onKey);
