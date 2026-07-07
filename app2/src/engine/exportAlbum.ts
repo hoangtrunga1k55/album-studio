@@ -16,6 +16,31 @@ export interface ExportOpts {
   folder: string;
   /** Album page size in cm (from the album's size, incl. custom "WxH"). */
   pageCm?: { w: number; h: number } | null;
+  /** JPG output: whole spreads or single pages (spread cut in half) §12.2. */
+  pageMode?: "spread" | "page";
+  /** print bleed in mm (0 = off) §12.3. */
+  bleedMm?: number;
+  /** corner crop marks (needs bleed > 0) §12.3. */
+  cropMarks?: boolean;
+}
+
+/** Cut a rendered spread JPEG into left/right page halves (§12.2). */
+async function splitPages(dataUrl: string, quality: number): Promise<string[]> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = reject;
+    im.src = dataUrl;
+  });
+  const half = Math.floor(img.width / 2);
+  const cut = (x: number, w: number) => {
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = img.height;
+    c.getContext("2d")!.drawImage(img, x, 0, w, img.height, 0, 0, w, img.height);
+    return c.toDataURL("image/jpeg", quality / 100);
+  };
+  return [cut(0, half), cut(half, img.width - half)];
 }
 
 export interface CancelRef {
@@ -64,16 +89,42 @@ export async function exportAlbum(
       hiresBg = await readLayoutBg(layoutFolder, name).catch(() => null);
     }
     pages.push(
-      await renderSpread(spreads[i], tpl, images, bgColor, opts.dpi, opts.quality, hiresBg, opts.pageCm)
+      await renderSpread(
+        spreads[i],
+        tpl,
+        images,
+        bgColor,
+        opts.dpi,
+        opts.quality,
+        hiresBg,
+        opts.pageCm,
+        (opts.bleedMm ?? 0) / 10,
+        opts.cropMarks ?? false
+      )
     );
   }
   onProgress(spreads.length, spreads.length);
 
   const files: ExportFile[] = [];
   if (opts.format === "jpg" || opts.format === "both") {
-    pages.forEach((p, i) =>
-      files.push({ name: `${opts.prefix}${pad(i + 1)}.jpg`, b64: stripDataUri(p.dataUrl) })
-    );
+    if (opts.pageMode === "page") {
+      // JPG per page: landscape spreads split into left/right halves (§12.2).
+      let pageNo = 0;
+      for (const p of pages) {
+        const parts = p.w > p.h ? await splitPages(p.dataUrl, opts.quality) : [p.dataUrl];
+        for (const part of parts) {
+          pageNo += 1;
+          files.push({
+            name: `${opts.prefix}Page_${String(pageNo).padStart(3, "0")}.jpg`,
+            b64: stripDataUri(part),
+          });
+        }
+      }
+    } else {
+      pages.forEach((p, i) =>
+        files.push({ name: `${opts.prefix}${pad(i + 1)}.jpg`, b64: stripDataUri(p.dataUrl) })
+      );
+    }
   }
   if (opts.format === "pdf" || opts.format === "both") {
     const doc = await PDFDocument.create();

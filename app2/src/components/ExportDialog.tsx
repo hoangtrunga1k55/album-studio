@@ -13,6 +13,17 @@ import {
 } from "../ipc/layouts";
 import { IconClose } from "../icons";
 
+/** VN lab presets (§12.5) — DPI + bleed per lab; always confirm with the lab. */
+const LAB_PRESETS: { id: string; label: string; dpi: number; bleedMm: number }[] = [
+  { id: "custom", label: "Tuỳ chỉnh…", dpi: 300, bleedMm: 0 },
+  { id: "hongquan", label: "Hồng Quân (HN)", dpi: 300, bleedMm: 3 },
+  { id: "whitehouse", label: "WhiteHouse (HCM)", dpi: 300, bleedMm: 3 },
+  { id: "saigonlab", label: "Saigon Lab", dpi: 300, bleedMm: 3 },
+  { id: "hunghuong", label: "Hùng Hương (HCM)", dpi: 300, bleedMm: 5 },
+  { id: "hanoilab", label: "Hà Nội Lab", dpi: 300, bleedMm: 3 },
+];
+const DPI_OPTIONS = [150, 200, 300, 400, 600];
+
 export function ExportDialog({ onClose }: { onClose: () => void }) {
   const spreads = useAlbum((s) => s.spreads);
   const images = useAlbum((s) => s.images);
@@ -60,6 +71,19 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const [quality, setQuality] = useState(95);
   const [prefix, setPrefix] = useState("Spread_");
   const [folder, setFolder] = useState<string>("");
+  const [lab, setLab] = useState("custom");
+  const [pageMode, setPageMode] = useState<"spread" | "page">("spread");
+  const [bleedMm, setBleedMm] = useState(0);
+  const [cropMarks, setCropMarks] = useState(false);
+
+  function pickLab(id: string) {
+    setLab(id);
+    const p = LAB_PRESETS.find((l) => l.id === id);
+    if (p && id !== "custom") {
+      setDpi(p.dpi);
+      setBleedMm(p.bleedMm);
+    }
+  }
   const [status, setStatus] = useState<"idle" | "running" | "done" | "error">("idle");
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState("");
@@ -83,7 +107,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
         spreads,
         images,
         bgColor,
-        { format, dpi, quality, prefix, folder, pageCm: parseSizeCm(size) },
+        { format, dpi, quality, prefix, folder, pageCm: parseSizeCm(size), pageMode, bleedMm, cropMarks },
         (done, total) => setProgress({ done, total }),
         cancelRef.current
       );
@@ -111,6 +135,23 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
 
         <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
+            <div className="prop-label">Lab in (§12.5 — luôn hỏi lab trước khi in loạt lớn)</div>
+            <select
+              className="input"
+              value={lab}
+              onChange={(e) => pickLab(e.target.value)}
+              style={{ width: "100%" }}
+            >
+              {LAB_PRESETS.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                  {l.id !== "custom" ? ` · ${l.dpi} DPI · bleed ${l.bleedMm}mm · sRGB` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <div className="prop-label">Định dạng</div>
             <div className="seg-row">
               {(["jpg", "pdf", "both"] as ExportFormat[]).map((f) => (
@@ -119,14 +160,39 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 </button>
               ))}
             </div>
+            {format !== "pdf" && (
+              <div className="seg-row" style={{ marginTop: 8 }}>
+                <button
+                  className={"seg" + (pageMode === "spread" ? " active" : "")}
+                  onClick={() => setPageMode("spread")}
+                >
+                  JPG theo spread
+                </button>
+                <button
+                  className={"seg" + (pageMode === "page" ? " active" : "")}
+                  onClick={() => setPageMode("page")}
+                >
+                  JPG theo trang đơn
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="seg-2">
             <div>
               <div className="prop-label">DPI</div>
               <div className="seg-row">
-                {[150, 300].map((d) => (
-                  <button key={d} className={"seg" + (dpi === d ? " active" : "")} onClick={() => setDpi(d)}>{d}</button>
+                {DPI_OPTIONS.map((d) => (
+                  <button
+                    key={d}
+                    className={"seg" + (dpi === d ? " active" : "")}
+                    onClick={() => {
+                      setDpi(d);
+                      setLab("custom");
+                    }}
+                  >
+                    {d}
+                  </button>
                 ))}
               </div>
             </div>
@@ -136,6 +202,40 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 {[80, 90, 95, 100].map((q) => (
                   <button key={q} className={"seg" + (quality === q ? " active" : "")} onClick={() => setQuality(q)}>{q}</button>
                 ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="seg-2">
+            <div>
+              <div className="prop-label">Bleed (chừa xén)</div>
+              <div className="seg-row">
+                {[0, 3, 5].map((b) => (
+                  <button
+                    key={b}
+                    className={"seg" + (bleedMm === b ? " active" : "")}
+                    onClick={() => {
+                      setBleedMm(b);
+                      setLab("custom");
+                      if (b === 0) setCropMarks(false);
+                    }}
+                  >
+                    {b === 0 ? "Không" : `${b}mm`}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="prop-label">Crop marks</div>
+              <div className="seg-row">
+                <button
+                  className={"seg" + (cropMarks ? " active" : "")}
+                  onClick={() => setCropMarks(!cropMarks)}
+                  disabled={bleedMm === 0}
+                  title={bleedMm === 0 ? "Cần bleed > 0" : ""}
+                >
+                  {cropMarks ? "Bật" : "Tắt"}
+                </button>
               </div>
             </div>
           </div>

@@ -38,7 +38,11 @@ export async function renderSpread(
   dpi: number,
   quality: number,
   hiresBg?: string | null,
-  pageCm?: { w: number; h: number } | null
+  pageCm?: { w: number; h: number } | null,
+  /** print bleed in cm (0 = none): the design is scaled up to cover it (§12.3). */
+  bleedCm = 0,
+  /** draw corner crop marks in the bleed margin (§12.3). */
+  cropMarks = false
 ): Promise<RenderResult> {
   // Print at the album's true page size (cm): landscape templates are 2-page
   // spreads (2×w × h), portrait ones a single page (w × h) — the normalized
@@ -59,18 +63,32 @@ export async function renderSpread(
     H = tpl.ratioWH >= 1 ? Math.round(longPx / tpl.ratioWH) : longPx;
   }
 
+  // Bleed: the output canvas grows by the bleed on every side, and the whole
+  // design is scaled up (from the center) so edge content extends past trim.
+  const bp = Math.round((dpi * bleedCm) / 2.54);
+  const outW = W + bp * 2;
+  const outH = H + bp * 2;
+  const bleedScale = bp > 0 ? Math.max(outW / W, outH / H) : 1;
+
   const container = document.createElement("div");
   container.style.display = "none";
   document.body.appendChild(container);
-  const stage = new Konva.Stage({ container, width: W, height: H });
+  const stage = new Konva.Stage({ container, width: outW, height: outH });
   const layer = new Konva.Layer({ listening: false });
   stage.add(layer);
+  const root = new Konva.Group({
+    x: (outW - W * bleedScale) / 2,
+    y: (outH - H * bleedScale) / 2,
+    scaleX: bleedScale,
+    scaleY: bleedScale,
+  });
+  layer.add(root);
 
   try {
     // Hi-res text-free plate → clean-background print path (render all text vector).
     const cleanBg = !!hiresBg;
     const bgSrc = hiresBg || tpl.bg;
-    layer.add(new Konva.Rect({ x: 0, y: 0, width: W, height: H, fill: bgColor }));
+    root.add(new Konva.Rect({ x: 0, y: 0, width: W, height: H, fill: bgColor }));
     if (spread.bgImageId) {
       // Full-bleed background photo replaces the template plate (§6.5).
       const meta = images.find((m) => m.id === spread.bgImageId);
@@ -80,7 +98,7 @@ export async function renderSpread(
           const scale = Math.max(W / bg.width, H / bg.height);
           const dw = bg.width * scale;
           const dh = bg.height * scale;
-          layer.add(
+          root.add(
             new Konva.Image({ image: bg, x: (W - dw) / 2, y: (H - dh) / 2, width: dw, height: dh })
           );
         } catch {
@@ -90,7 +108,7 @@ export async function renderSpread(
     } else if (bgSrc) {
       try {
         const bg = await loadImg(bgSrc);
-        layer.add(new Konva.Image({ image: bg, x: 0, y: 0, width: W, height: H }));
+        root.add(new Konva.Image({ image: bg, x: 0, y: 0, width: W, height: H }));
       } catch {
         /* ignore missing bg */
       }
@@ -121,7 +139,7 @@ export async function renderSpread(
         const oh = tx.h * H;
         const padX = ow * 0.04 + fs * 0.12;
         const padY = oh * 0.22;
-        layer.add(
+        root.add(
           new Konva.Rect({ x: ox - padX, y: oy - padY / 2, width: ow + padX * 2, height: oh + padY, fill: cover })
         );
       }
@@ -181,7 +199,7 @@ export async function renderSpread(
           scaleY: t.flipV ? -1 : 1,
         })
       );
-      layer.add(g);
+      root.add(g);
     }
 
     // Ensure imported fonts are ready before measuring/drawing text.
@@ -206,7 +224,7 @@ export async function renderSpread(
       const fs = Math.max(7, baseFs * (ed?.sizeScale ?? 1));
 
       if (ed?.deleted) continue;
-      layer.add(
+      root.add(
         new Konva.Text({
           x: px.x,
           y: px.y,
@@ -225,7 +243,7 @@ export async function renderSpread(
     spread.addedTexts.forEach((a) => {
       const content = a.content.replace(/\r/g, "\n");
       const fs = Math.max(8, a.sizeFrac * H);
-      layer.add(
+      root.add(
         new Konva.Text({
           x: a.x * W,
           y: a.y * H,
@@ -280,13 +298,31 @@ export async function renderSpread(
           })
         );
       }
-      layer.add(g);
+      root.add(g);
+    }
+
+    // Crop marks: corner ticks at the trim box, drawn in the bleed margin.
+    if (cropMarks && bp > 0) {
+      const len = Math.max(12, bp * 0.8);
+      const off = 4; // small gap so marks never touch the trim
+      const mark = (points: number[]) =>
+        layer.add(new Konva.Line({ points, stroke: "#000", strokeWidth: Math.max(1, dpi / 150) }));
+      const corners = [
+        { cx: bp, cy: bp, dx: -1, dy: -1 },
+        { cx: bp + W, cy: bp, dx: 1, dy: -1 },
+        { cx: bp, cy: bp + H, dx: -1, dy: 1 },
+        { cx: bp + W, cy: bp + H, dx: 1, dy: 1 },
+      ];
+      for (const c of corners) {
+        mark([c.cx + c.dx * off, c.cy, c.cx + c.dx * (off + len), c.cy]);
+        mark([c.cx, c.cy + c.dy * off, c.cx, c.cy + c.dy * (off + len)]);
+      }
     }
 
     await document.fonts.ready;
     layer.draw();
     const dataUrl = stage.toDataURL({ mimeType: "image/jpeg", quality: quality / 100, pixelRatio: 1 });
-    return { dataUrl, w: W, h: H };
+    return { dataUrl, w: outW, h: outH };
   } finally {
     stage.destroy();
     container.remove();
