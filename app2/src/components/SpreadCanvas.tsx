@@ -3,7 +3,7 @@ import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transform
 import type Konva from "konva";
 import useImage from "use-image";
 import { getDisplayImage, type ImageMeta } from "../ipc/import";
-import { getTemplate, spreadCmFor, type PhotoSlot, type TemplateText } from "../engine/templates";
+import { getTemplate, saveCustomTemplate, spreadCmFor, type PhotoSlot, type TemplateText } from "../engine/templates";
 import { getTypo, type Typo } from "../engine/typos";
 import { useAlbum, type SlotTransform, type TextEdit, type PlacedTypo } from "../store/album";
 import { useFonts } from "../store/fonts";
@@ -449,6 +449,136 @@ function SlotFrame(props: {
   );
 }
 
+/** §7.4 rulers + draggable guides (DOM overlay). Drag from the top ruler for a
+ *  horizontal guide, from the left ruler for a vertical one; drag a guide to
+ *  move it (drop on a ruler to remove), right-click deletes. */
+function GuideLayer(props: {
+  stageW: number;
+  stageH: number;
+  pxPerCm: number | null;
+  guides: { v: number[]; h: number[] };
+  onChange: (g: { v: number[]; h: number[] }) => void;
+}) {
+  const { stageW, stageH, pxPerCm, guides, onChange } = props;
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ axis: "v" | "h"; pos: number; idx: number | null } | null>(null);
+
+  useEffect(() => {
+    if (!drag) return;
+    const posFrom = (e: MouseEvent, axis: "v" | "h") => {
+      const r = hostRef.current!.getBoundingClientRect();
+      return axis === "v" ? (e.clientX - r.left) / stageW : (e.clientY - r.top) / stageH;
+    };
+    const move = (e: MouseEvent) => setDrag((d) => (d ? { ...d, pos: posFrom(e, d.axis) } : d));
+    const up = (e: MouseEvent) => {
+      setDrag((d) => {
+        if (d) {
+          const pos = posFrom(e, d.axis);
+          const inside = pos > 0.004 && pos < 0.996;
+          const list = [...guides[d.axis]];
+          if (d.idx === null) {
+            if (inside) list.push(pos);
+          } else if (inside) {
+            list[d.idx] = pos;
+          } else {
+            list.splice(d.idx, 1);
+          }
+          onChange({ ...guides, [d.axis]: list });
+        }
+        return null;
+      });
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!drag, guides, stageW, stageH]);
+
+  const cm = pxPerCm ?? 40;
+  const tick = (dir: "right" | "bottom") =>
+    `repeating-linear-gradient(to ${dir}, #ffffff2e 0, #ffffff2e 1px, transparent 1px, transparent ${cm}px)`;
+
+  return (
+    <div ref={hostRef} style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 20 }}>
+      {/* rulers */}
+      <div
+        title="Kéo xuống để tạo guide ngang"
+        style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: 14,
+          background: `linear-gradient(#0f1015d8, #0f1015d8) , ${""}`.trim() || undefined,
+          backgroundColor: "#0f1015d8",
+          backgroundImage: tick("right"),
+          cursor: "row-resize", pointerEvents: "auto",
+        }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setDrag({ axis: "h", pos: 0, idx: null });
+        }}
+      />
+      <div
+        title="Kéo sang phải để tạo guide dọc"
+        style={{
+          position: "absolute", top: 0, left: 0, bottom: 0, width: 14,
+          backgroundColor: "#0f1015d8",
+          backgroundImage: tick("bottom"),
+          cursor: "col-resize", pointerEvents: "auto",
+        }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setDrag({ axis: "v", pos: 0, idx: null });
+        }}
+      />
+      {/* placed guides */}
+      {guides.v.map((g, i) => (
+        <div
+          key={`v${i}`}
+          style={{
+            position: "absolute", top: 0, bottom: 0, left: g * stageW - 1, width: 3,
+            cursor: "col-resize", pointerEvents: "auto",
+            background: "linear-gradient(to right, transparent 1px, #22d3ee 1px, #22d3ee 2px, transparent 2px)",
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setDrag({ axis: "v", pos: g, idx: i });
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            onChange({ ...guides, v: guides.v.filter((_, k) => k !== i) });
+          }}
+        />
+      ))}
+      {guides.h.map((g, i) => (
+        <div
+          key={`h${i}`}
+          style={{
+            position: "absolute", left: 0, right: 0, top: g * stageH - 1, height: 3,
+            cursor: "row-resize", pointerEvents: "auto",
+            background: "linear-gradient(to bottom, transparent 1px, #22d3ee 1px, #22d3ee 2px, transparent 2px)",
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setDrag({ axis: "h", pos: g, idx: i });
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            onChange({ ...guides, h: guides.h.filter((_, k) => k !== i) });
+          }}
+        />
+      ))}
+      {/* live drag preview */}
+      {drag &&
+        (drag.axis === "v" ? (
+          <div style={{ position: "absolute", top: 0, bottom: 0, left: drag.pos * stageW, width: 1, background: "#22d3ee" }} />
+        ) : (
+          <div style={{ position: "absolute", left: 0, right: 0, top: drag.pos * stageH, height: 1, background: "#22d3ee" }} />
+        ))}
+    </div>
+  );
+}
+
 /** One photo slot. SmartAlbums behavior (§6.2–6.3): plain drag MOVES the photo
  *  to another slot; double-click enters crop mode where drag pans / wheel zooms. */
 function Slot(props: {
@@ -676,7 +806,27 @@ export function SpreadCanvas() {
 
   const cropSlot = useAlbum((s) => s.cropSlot);
   const showBleed = useAlbum((s) => s.showBleed);
+  const showRuler = useAlbum((s) => s.showRuler);
+  const tool = useAlbum((s) => s.tool);
   const viewZoom = useAlbum((s) => s.viewZoom);
+
+  // §7.4 guides — kept per spread id (session-scoped, not saved to the file).
+  const guidesRef = useRef(new Map<string, { v: number[]; h: number[] }>());
+  const [guides, setGuidesState] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
+  const spreadId = spreads[currentIndex]?.id;
+  useEffect(() => {
+    setGuidesState(guidesRef.current.get(spreadId ?? "") ?? { v: [], h: [] });
+  }, [spreadId]);
+  const setGuides = (g: { v: number[]; h: number[] }) => {
+    setGuidesState(g);
+    if (spreadId) guidesRef.current.set(spreadId, g);
+  };
+
+  // §7.2 rectangle tool — drag preview while drawing a new frame.
+  const drawStart = useRef<{ x: number; y: number } | null>(null);
+  const [drawRect, setDrawRect] = useState<Px | null>(null);
+  // §7.5 save-as-template naming dialog (window.prompt is a no-op in Tauri).
+  const [saveTpl, setSaveTpl] = useState<{ name: string } | null>(null);
   const setCropSlot = useAlbum((s) => s.setCropSlot);
   // Slot-to-slot photo move (§6.2): mousedown arms it, movement >6px starts it.
   const movePending = useRef<{ from: number; sx: number; sy: number } | null>(null);
@@ -722,6 +872,7 @@ export function SpreadCanvas() {
         st.cancelSwap();
         st.selectSlot(null);
         st.setCropSlot(null);
+        st.setTool("select");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -765,11 +916,17 @@ export function SpreadCanvas() {
     w: Math.max(4, s.w * innerW - gap),
     h: Math.max(4, s.h * innerH - gap),
   });
-  // Effective slot rects: user-moved/resized frames override the template.
-  const effSlots: PhotoSlot[] = tpl.slots.map((s, i) => ({
-    ...s,
-    ...(spread.slotRects?.[i] ?? {}),
-  }));
+  // Effective slot rects: user-moved/resized frames override the template,
+  // plus hand-drawn extra frames (§7.2) at indices beyond the template's.
+  const extraRects: PhotoSlot[] = Object.entries(spread.slotRects ?? {})
+    .map(([k, v]) => [Number(k), v] as const)
+    .filter(([k]) => k >= tpl.slots.length)
+    .sort((a, b) => a[0] - b[0])
+    .map(([, v]) => ({ ...v }));
+  const effSlots: PhotoSlot[] = [
+    ...tpl.slots.map((s, i) => ({ ...s, ...(spread.slotRects?.[i] ?? {}) })),
+    ...extraRects,
+  ];
   // Physical scale for quality checks (§10): stage px per cm / per inch.
   const pxPerCm = cmDims ? stageH / cmDims.h : null;
   const ppi = pxPerCm ? pxPerCm * 2.54 : undefined;
@@ -780,6 +937,39 @@ export function SpreadCanvas() {
     w: s.w * innerW,
     h: s.h * innerH,
   });
+
+  /** §7.2 snap: pull frame edges onto guides / spread edges / center (±7px). */
+  const snapRect = (r: Px): Px => {
+    const t = 7;
+    const xs = [0, stageW / 2, stageW, ...guides.v.map((g) => g * stageW)];
+    const ys = [0, stageH / 2, stageH, ...guides.h.map((g) => g * stageH)];
+    const near = (v: number, cands: number[]) => {
+      for (const c of cands) if (Math.abs(v - c) < t) return c;
+      return v;
+    };
+    let x = near(r.x, xs);
+    if (x === r.x) {
+      const right = near(r.x + r.w, xs);
+      if (right !== r.x + r.w) x = right - r.w;
+    }
+    let y = near(r.y, ys);
+    if (y === r.y) {
+      const bottom = near(r.y + r.h, ys);
+      if (bottom !== r.y + r.h) y = bottom - r.h;
+    }
+    const w = near(x + r.w, xs) - x;
+    const h = near(y + r.h, ys) - y;
+    return { x, y, w: w > 24 ? w : r.w, h: h > 24 ? h : r.h };
+  };
+
+  /** §7.5: persist the current frame layout into "Mẫu của tôi". */
+  function doSaveTemplate() {
+    if (!saveTpl) return;
+    const size = useAlbum.getState().size ?? "25x35";
+    const ratio = cmDims ? cmDims.w / cmDims.h : tpl!.ratioWH || 2;
+    saveCustomTemplate(size, saveTpl.name.trim() || "My Layout", ratio, effSlots.map((s) => ({ ...s })));
+    setSaveTpl(null);
+  }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -938,14 +1128,15 @@ export function SpreadCanvas() {
             {selectedSlot !== null && cropSlot !== selectedSlot && effSlots[selectedSlot] && (
               <SlotFrame
                 px={rawPx(effSlots[selectedSlot])}
-                onChange={(r) =>
+                onChange={(raw) => {
+                  const r = snapRect(raw);
                   useAlbum.getState().setSlotRect(selectedSlot, {
                     x: (r.x - padIn) / innerW,
                     y: (r.y - padIn) / innerH,
                     w: r.w / innerW,
                     h: r.h / innerH,
-                  })
-                }
+                  });
+                }}
                 onWheelZoom={(dy) => {
                   const t = spread.transforms[selectedSlot] ?? DEFAULT_T;
                   setSlotTransform(selectedSlot, {
@@ -1077,6 +1268,75 @@ export function SpreadCanvas() {
             )}
           </Layer>
         </Stage>
+
+        {/* §7.4 rulers + guides */}
+        {showRuler && (
+          <GuideLayer
+            stageW={stageW}
+            stageH={stageH}
+            pxPerCm={pxPerCm}
+            guides={guides}
+            onChange={setGuides}
+          />
+        )}
+
+        {/* §7.2 rectangle tool — drag to draw a new photo frame */}
+        {tool === "drawSlot" && (
+          <div
+            style={{ position: "absolute", inset: 0, cursor: "crosshair", zIndex: 30 }}
+            onMouseDown={(e) => {
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              drawStart.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+              setDrawRect({ ...drawStart.current, w: 0, h: 0 });
+            }}
+            onMouseMove={(e) => {
+              const st = drawStart.current;
+              if (!st) return;
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              const cx = e.clientX - rect.left;
+              const cy = e.clientY - rect.top;
+              setDrawRect({
+                x: Math.min(cx, st.x),
+                y: Math.min(cy, st.y),
+                w: Math.abs(cx - st.x),
+                h: Math.abs(cy - st.y),
+              });
+            }}
+            onMouseUp={() => {
+              const r = drawRect;
+              drawStart.current = null;
+              setDrawRect(null);
+              if (r && r.w > 24 && r.h > 24) {
+                const sr = snapRect(r);
+                useAlbum.getState().addDrawnSlot({
+                  x: (sr.x - padIn) / innerW,
+                  y: (sr.y - padIn) / innerH,
+                  w: sr.w / innerW,
+                  h: sr.h / innerH,
+                });
+              }
+            }}
+            onMouseLeave={() => {
+              drawStart.current = null;
+              setDrawRect(null);
+            }}
+          >
+            {drawRect && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: drawRect.x,
+                  top: drawRect.y,
+                  width: drawRect.w,
+                  height: drawRect.h,
+                  border: "1.5px dashed #6e76ff",
+                  background: "#6e76ff22",
+                  pointerEvents: "none",
+                }}
+              />
+            )}
+          </div>
+        )}
         <div className="canvas-tip">
           <b>Kéo ảnh</b> đổi chỗ · <b>double-click</b> chỉnh khung · <b>SPACE</b> đổi layout · chuột phải <b>menu</b> · <b>⌘B</b> bleed/gáy
         </div>
@@ -1110,6 +1370,33 @@ export function SpreadCanvas() {
         <div className="swap-hint">Đổi chỗ ảnh: bấm ô đích · Esc để huỷ</div>
       )}
 
+      {saveTpl && (
+        <div className="modal-overlay" onClick={() => setSaveTpl(null)}>
+          <div
+            className="modal"
+            style={{ width: "min(360px, 92vw)", padding: 20 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 12px" }}>Lưu layout thành mẫu</h3>
+            <input
+              className="input"
+              autoFocus
+              value={saveTpl.name}
+              onChange={(e) => setSaveTpl({ name: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && doSaveTemplate()}
+              style={{ width: "100%", boxSizing: "border-box" }}
+            />
+            <div className="hint-sm" style={{ marginTop: 8 }}>
+              {effSlots.length} khung · lưu vào “Mẫu của tôi” — hiện trong danh sách layout và khi bấm SPACE.
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+              <button className="btn" onClick={() => setSaveTpl(null)}>Huỷ</button>
+              <button className="btn primary" onClick={doSaveTemplate}>Lưu mẫu</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {menu?.kind === "slot" && (
         <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
           <button onClick={() => { useAlbum.getState().setAsBackground(menu.slot); setMenu(null); }}>
@@ -1133,6 +1420,14 @@ export function SpreadCanvas() {
           </button>
           <div className="ctx-sep" />
           <button className="danger" onClick={() => { clearSlot(menu.slot); setMenu(null); }}>Gỡ ảnh</button>
+          {menu.slot >= tpl.slots.length && (
+            <button
+              className="danger"
+              onClick={() => { useAlbum.getState().removeDrawnSlot(menu.slot); setMenu(null); }}
+            >
+              Xoá khung này
+            </button>
+          )}
         </div>
       )}
 
@@ -1146,6 +1441,15 @@ export function SpreadCanvas() {
           {spread.bgImageId && (
             <button onClick={() => { useAlbum.getState().removeBackground(); setMenu(null); }}>Gỡ ảnh nền</button>
           )}
+          <div className="ctx-sep" />
+          <button
+            onClick={() => {
+              setSaveTpl({ name: "My Layout" });
+              setMenu(null);
+            }}
+          >
+            Lưu layout thành mẫu
+          </button>
           <div className="ctx-sep" />
           <button onClick={() => { useAlbum.getState().duplicateSpread(currentIndex); setMenu(null); }}>
             Nhân đôi spread

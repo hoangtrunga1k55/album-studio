@@ -1,4 +1,4 @@
-import { getTemplate } from "../engine/templates";
+import { getTemplate, spreadCmFor } from "../engine/templates";
 import { getTypo } from "../engine/typos";
 import { useAlbum } from "../store/album";
 import { useFonts } from "../store/fonts";
@@ -198,9 +198,48 @@ export function PropertiesPanel() {
   if (selectedSlot !== null) {
     const imgId = spread?.imageIds[selectedSlot];
     const img = imgId ? images.find((im) => im.id === imgId) : undefined;
+
+    // §7.3 exact frame position/size in cm (spread coordinates).
+    const size = useAlbum.getState().size;
+    const cm = tpl ? spreadCmFor(tpl, size) : null;
+    const eff =
+      tpl && selectedSlot < tpl.slots.length
+        ? { ...tpl.slots[selectedSlot], ...(spread?.slotRects?.[selectedSlot] ?? {}) }
+        : spread?.slotRects?.[selectedSlot];
+    const setFrameCm = (field: "x" | "y" | "w" | "h", valCm: number) => {
+      if (!cm || !eff || !Number.isFinite(valCm)) return;
+      const div = field === "x" || field === "w" ? cm.w : cm.h;
+      useAlbum.getState().setSlotRect(selectedSlot, { ...eff, [field]: valCm / div });
+    };
+    const frameFields = (["x", "y", "w", "h"] as const).map((f) => ({
+      f,
+      label: { x: "X", y: "Y", w: "Rộng", h: "Cao" }[f],
+      val: eff && cm ? (eff[f] * (f === "x" || f === "w" ? cm.w : cm.h)).toFixed(1) : "",
+    }));
+
     return (
       <aside className="props">
         <h3>Ô ảnh #{selectedSlot + 1}</h3>
+        {eff && cm && (
+          <div className="prop-group">
+            <div className="prop-label">Khung (cm — toạ độ trên spread)</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              {frameFields.map(({ f, label, val }) => (
+                <label key={f} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5 }}>
+                  <span style={{ width: 34, color: "var(--text-faint)" }}>{label}</span>
+                  <input
+                    className="input"
+                    type="number"
+                    step={0.1}
+                    value={val}
+                    onChange={(e) => setFrameCm(f, parseFloat(e.target.value))}
+                    style={{ width: "100%" }}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
         {img ? (
           <>
             <div className="prop-meta">

@@ -897,3 +897,29 @@ button.danger:hover {
   color: #ff7676;
   font-weight: 700;
 }
+
+/* layout gallery source tabs */
+.lay-tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: 14px;
+  flex: 1;
+}
+.lay-tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 6px 11px;
+  cursor: pointer;
+}
+.lay-tab:hover {
+  color: var(--text);
+}
+.lay-tab.active {
+  background: var(--bg-3);
+  border-color: var(--border);
+  color: var(--text);
+}

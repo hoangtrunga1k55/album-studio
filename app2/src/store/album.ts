@@ -191,6 +191,16 @@ interface AlbumState {
   /** Quality overlays (§10): bleed frame + gutter strip. Toggle with ⌘B. */
   showBleed: boolean;
   toggleBleed: () => void;
+  /** Rulers along the canvas edges (§7.4). Toggle with ⌘R. */
+  showRuler: boolean;
+  toggleRuler: () => void;
+  /** Active canvas tool (§7.2): select or draw a new photo frame. */
+  tool: "select" | "drawSlot";
+  setTool: (tool: "select" | "drawSlot") => void;
+  /** Append a hand-drawn photo frame beyond the template's slots (§7.2). */
+  addDrawnSlot: (rect: SlotRect) => void;
+  /** Remove a hand-drawn frame (index >= template slot count). */
+  removeDrawnSlot: (slotIndex: number) => void;
   /** Set gap between photos for the current spread. */
   setMargin: (margin: number) => void;
   /** Set photo→edge padding for the current spread (§6.6). */
@@ -661,6 +671,65 @@ export const useAlbum = create<AlbumState>((set) => ({
 
   showBleed: true,
   toggleBleed: () => set((s) => ({ showBleed: !s.showBleed })),
+
+  showRuler: false,
+  toggleRuler: () => set((s) => ({ showRuler: !s.showRuler })),
+
+  tool: "select",
+  setTool: (tool) => set({ tool }),
+
+  addDrawnSlot: (rect) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const tpl = getTemplate(cur.templateId);
+      const base = tpl?.slotCount ?? 0;
+      // Extra frames live at sequential indices right after the template's.
+      const extras = Object.keys(cur.slotRects ?? {})
+        .map(Number)
+        .filter((k) => k >= base);
+      const idx = base + extras.length;
+      cur.slotRects = { ...cur.slotRects, [idx]: rect };
+      spreads[s.currentIndex] = cur;
+      return { spreads, selectedSlot: idx, tool: "select" };
+    }),
+
+  removeDrawnSlot: (slotIndex) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const tpl = getTemplate(cur.templateId);
+      const base = tpl?.slotCount ?? 0;
+      if (slotIndex < base || !cur.slotRects?.[slotIndex]) return s;
+      // Compact the extra frames (and their photos) so indices stay sequential.
+      const extras = Object.keys(cur.slotRects)
+        .map(Number)
+        .filter((k) => k >= base)
+        .sort((a, b) => a - b);
+      const keptRects: Record<number, SlotRect> = {};
+      for (const [k, v] of Object.entries(cur.slotRects)) {
+        if (Number(k) < base) keptRects[Number(k)] = v;
+      }
+      const imageIds = [...cur.imageIds];
+      const transforms = { ...cur.transforms };
+      let out = base;
+      for (const k of extras) {
+        if (k === slotIndex) {
+          delete transforms[k];
+          continue;
+        }
+        keptRects[out] = cur.slotRects[k];
+        imageIds[out] = cur.imageIds[k] ?? "";
+        if (cur.transforms[k]) transforms[out] = cur.transforms[k];
+        out++;
+      }
+      imageIds.length = out;
+      cur.slotRects = keptRects;
+      cur.imageIds = imageIds;
+      cur.transforms = transforms;
+      spreads[s.currentIndex] = cur;
+      return { spreads, selectedSlot: null };
+    }),
 
   setSlotRect: (slotIndex, rect) =>
     set((s) => {

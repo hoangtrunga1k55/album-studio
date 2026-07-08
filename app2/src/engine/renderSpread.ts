@@ -150,13 +150,21 @@ export async function renderSpread(
     const padIn = (spread.padding ?? 0) * H;
     const innerW = W - padIn * 2;
     const innerH = H - padIn * 2;
-    for (let i = 0; i < tpl.slots.length; i++) {
+    // Template slots (with user overrides) + hand-drawn extra frames (§7.2).
+    const allSlots = [
+      ...tpl.slots.map((s, i) => ({ ...s, ...(spread.slotRects?.[i] ?? {}) })),
+      ...Object.entries(spread.slotRects ?? {})
+        .map(([k, v]) => [Number(k), v] as const)
+        .filter(([k]) => k >= tpl.slots.length)
+        .sort((a, b) => a[0] - b[0])
+        .map(([, v]) => ({ ...v })),
+    ];
+    for (let i = 0; i < allSlots.length; i++) {
       const id = spread.imageIds[i];
       if (!id) continue;
       const meta = images.find((m) => m.id === id);
       if (!meta) continue;
-      // User-moved/resized frames override the template rect.
-      const s = { ...tpl.slots[i], ...(spread.slotRects?.[i] ?? {}) };
+      const s = allSlots[i];
       const px = {
         x: padIn + s.x * innerW + gap / 2,
         y: padIn + s.y * innerH + gap / 2,

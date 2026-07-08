@@ -19,6 +19,7 @@ import { useProject } from "./store/project";
 import {
   IconExport,
   IconLayout,
+  IconPlus,
   IconSettings,
   IconShuffle,
   IconSparkle,
@@ -46,6 +47,8 @@ function App() {
   const setFontIndex = useFonts((s) => s.setIndex);
   const fonts = useFonts((s) => s.fonts);
   const setTypos = useTypos((s) => s.setTypos);
+  const tool = useAlbum((s) => s.tool);
+  const setTool = useAlbum((s) => s.setTool);
   const [showGallery, setShowGallery] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showDesign, setShowDesign] = useState(false);
@@ -95,6 +98,9 @@ function App() {
       } else if (k === "b") {
         e.preventDefault();
         useAlbum.getState().toggleBleed();
+      } else if (k === "r") {
+        e.preventDefault();
+        useAlbum.getState().toggleRuler();
       } else if (k === "n") {
         // New Album: save current work, go to Welcome with the wizard open.
         e.preventDefault();
@@ -182,6 +188,13 @@ function App() {
               }
             >
               <IconText />
+            </button>
+            <button
+              className={"tbtn" + (tool === "drawSlot" ? " active" : "")}
+              title="Vẽ khung ảnh mới (kéo trên canvas · Esc thoát)"
+              onClick={() => setTool(tool === "drawSlot" ? "select" : "drawSlot")}
+            >
+              <IconPlus />
             </button>
           </div>
           <div className="toolbar-status">
