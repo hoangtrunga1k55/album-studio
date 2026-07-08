@@ -26,6 +26,7 @@ import {
   IconText,
 } from "./icons";
 import { DENSITY_LABELS } from "./engine/autoLayout";
+import { mod } from "./engine/platform";
 import "./App.css";
 
 function App() {
@@ -218,7 +219,7 @@ function App() {
             className="btn"
             onClick={() => setShowDesign(true)}
             disabled={!images.length}
-            title="Tự dàn cả album (⌘D)"
+            title={`Tự dàn cả album (${mod("D")})`}
           >
             <IconSparkle />
             Auto Design

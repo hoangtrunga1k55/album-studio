@@ -51,7 +51,7 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 
 | Nền tảng | File | Nguồn |
 |---|---|---|
-| **Windows 10/11 x64** | `Album Studio 2_0.2.0_x64-setup.exe` | https://github.com/hoangtrunga1k55/album-studio/releases/tag/v0.2.0 |
+| **Windows 10/11 x64** | `Album Studio 2_x64-setup.exe` (bản mới nhất) | https://github.com/hoangtrunga1k55/album-studio/releases/latest |
 | macOS (Apple Silicon) | `Album Studio 2_0.2.0_aarch64.dmg` | build local (`app2/src-tauri/target/release/bundle/dmg/`) |
 
 **Setup test (1 lần):** cài app → trỏ 3 thư mục do team cấp: ① kho font (tab Font) ② typo pack (tab Typo) ③ layout pack in nét (hộp thoại Xuất album). App nhớ vĩnh viễn.

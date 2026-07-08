@@ -10,6 +10,7 @@ import { useFonts } from "../store/fonts";
 import { sampleBgColor } from "../engine/sampleBg";
 import { fitFontSizeToWidth, isSingleLine } from "../engine/fitText";
 import { IMAGE_DND_KEY, TYPO_DND_KEY } from "../constants";
+import { mod } from "../engine/platform";
 import "./SpreadCanvas.css";
 
 interface Px {
@@ -1338,7 +1339,7 @@ export function SpreadCanvas() {
           </div>
         )}
         <div className="canvas-tip">
-          <b>Kéo ảnh</b> đổi chỗ · <b>double-click</b> chỉnh khung · <b>SPACE</b> đổi layout · chuột phải <b>menu</b> · <b>⌘B</b> bleed/gáy
+          <b>Kéo ảnh</b> đổi chỗ · <b>double-click</b> chỉnh khung · <b>SPACE</b> đổi layout · chuột phải <b>menu</b> · <b>{mod("B")}</b> bleed/gáy
         </div>
       </div>
 
@@ -1434,7 +1435,7 @@ export function SpreadCanvas() {
       {menu?.kind === "spread" && (
         <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
           <button onClick={() => { useAlbum.getState().redesignSpread(); setMenu(null); }}>
-            Redesign spread (⌘⇧D)
+            Redesign spread ({mod("⇧D")})
           </button>
           <button onClick={() => { useAlbum.getState().changeSlotCount(1); setMenu(null); }}>+ Thêm 1 ô ảnh</button>
           <button onClick={() => { useAlbum.getState().changeSlotCount(-1); setMenu(null); }}>− Bớt 1 ô ảnh</button>
