@@ -90,6 +90,7 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
   const [cw, setCw] = useState("30");
   const [ch, setCh] = useState("30");
   const [unit, setUnit] = useState<Unit>("cm");
+  const [spreadCount, setSpreadCount] = useState("10"); // 20 trang = 10 spread (chuẩn lab)
   const [busy, setBusy] = useState(false);
 
   function switchUnit(next: Unit) {
@@ -123,9 +124,10 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
       alert(`Kích thước tuỳ chỉnh phải từ ${CUSTOM_MIN_CM}–${CUSTOM_MAX_CM} cm.`);
       return;
     }
+    const spreads = Math.min(50, Math.max(1, parseInt(spreadCount, 10) || 1));
     setBusy(true);
     try {
-      const ok = await createProject(name, chosen);
+      const ok = await createProject(name, chosen, spreads);
       if (ok) onClose();
     } catch (e) {
       alert("Không tạo được project: " + String(e));
@@ -212,6 +214,22 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
               <span className="wz-size-note">Rộng × cao · cm / inch / px</span>
             )}
           </button>
+        </div>
+
+        <label className="wz-label">Số spread ban đầu</label>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input
+            className="wz-input"
+            type="number"
+            min={1}
+            max={50}
+            value={spreadCount}
+            onChange={(e) => setSpreadCount(e.target.value)}
+            style={{ width: 90 }}
+          />
+          <span className="wz-size-note">
+            = {(parseInt(spreadCount, 10) || 1) * 2} trang · chuẩn lab tối thiểu 20 trang (10 spread)
+          </span>
         </div>
 
         <div className="wz-foot">

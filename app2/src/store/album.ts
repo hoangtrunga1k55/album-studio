@@ -138,7 +138,7 @@ interface AlbumState {
   /** Photos highlighted in the Photos panel (rating keys apply to these). */
   selectedPhotos: string[];
 
-  createAlbum: (size: AlbumSize) => void;
+  createAlbum: (size: AlbumSize, spreadCount?: number) => void;
   resetAlbum: () => void;
   /** Load a saved project (images re-imported separately by path). */
   applyProject: (p: {
@@ -279,10 +279,10 @@ export const useAlbum = create<AlbumState>((set) => ({
   photoMeta: {},
   selectedPhotos: [],
 
-  createAlbum: (size) =>
+  createAlbum: (size, spreadCount = 1) =>
     set({
       size,
-      spreads: [freshSpread(size)],
+      spreads: Array.from({ length: Math.max(1, spreadCount) }, () => freshSpread(size)),
       currentIndex: 0,
       selectedSlot: null,
       photoMeta: {},
