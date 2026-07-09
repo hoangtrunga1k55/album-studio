@@ -193,6 +193,7 @@ export async function renderSpread(
       const nw = img.width * scale;
       const nh = img.height * scale;
       const g = new Konva.Group({ clipX: px.x, clipY: px.y, clipWidth: px.w, clipHeight: px.h });
+      const frameRot = spread.slotRects?.[i]?.rotDeg ?? 0;
       g.add(
         new Konva.Image({
           image: img,
@@ -207,7 +208,16 @@ export async function renderSpread(
           scaleY: t.flipV ? -1 : 1,
         })
       );
-      root.add(g);
+      if (frameRot) {
+        // spin the whole frame (clip + photo) around its center — matches display
+        const cx = px.x + px.w / 2;
+        const cy = px.y + px.h / 2;
+        const wrap = new Konva.Group({ x: cx, y: cy, offsetX: cx, offsetY: cy, rotation: frameRot });
+        wrap.add(g);
+        root.add(wrap);
+      } else {
+        root.add(g);
+      }
     }
 
     // Ensure imported fonts are ready before measuring/drawing text.
@@ -239,6 +249,7 @@ export async function renderSpread(
           width: Math.max(px.w, fs),
           scaleX: ed?.scaleX ?? 1,
           scaleY: ed?.scaleY ?? 1,
+          rotation: ed?.rotDeg ?? 0,
           text: content,
           fontSize: fs,
           fontFamily: fam(ed?.font ?? tx.font ?? ""),
@@ -258,6 +269,7 @@ export async function renderSpread(
           width: W * 0.5,
           scaleX: a.scaleX ?? 1,
           scaleY: a.scaleY ?? 1,
+          rotation: a.rotDeg ?? 0,
           text: content,
           fontSize: fs,
           fontFamily: fam(a.font),
@@ -279,6 +291,7 @@ export async function renderSpread(
         y: pt.y * H,
         scaleX: pt.scaleX ?? 1,
         scaleY: pt.scaleY ?? 1,
+        rotation: pt.rotDeg ?? 0,
       });
       if (typo.deco) {
         try {

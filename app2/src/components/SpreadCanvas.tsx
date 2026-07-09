@@ -11,6 +11,7 @@ import { sampleBgColor } from "../engine/sampleBg";
 import { fitFontSizeToWidth, isSingleLine } from "../engine/fitText";
 import { IMAGE_DND_KEY, TYPO_DND_KEY } from "../constants";
 import { mod } from "../engine/platform";
+import { rotaterIconStyle } from "../engine/rotateAnchor";
 import "./SpreadCanvas.css";
 
 interface Px {
@@ -91,8 +92,17 @@ const SpreadBgPhoto = memo(function SpreadBgPhoto(props: { img?: ImageMeta; w: n
   );
 });
 
-/** An editable text element (template typo or user-added): draggable, and when
- *  selected shows a resize box (corner handles) that scales the font size. */
+/** What a Transformer edit produced: position, stretch and rotation. */
+interface NodeTransform {
+  xPx: number;
+  yPx: number;
+  scaleX: number;
+  scaleY: number;
+  rotDeg: number;
+}
+
+/** An editable text element (template typo or user-added): draggable, resize
+ *  box (8 handles) that stretches it, plus a rotation handle (360°). */
 function EditableText(props: {
   x: number;
   y: number;
@@ -104,13 +114,17 @@ function EditableText(props: {
   color: string;
   scaleX: number;
   scaleY: number;
+  rotDeg: number;
   selected: boolean;
   onSelect: () => void;
   onMoved: (xPx: number, yPx: number) => void;
-  /** New absolute horizontal/vertical scale after a handle drag. */
-  onResize: (scaleX: number, scaleY: number) => void;
+  /** Full geometry after a handle drag (stretch and/or rotation). */
+  onTransformed: (t: NodeTransform) => void;
 }) {
-  const { x, y, w, fs, lines, content, font, color, scaleX, scaleY, selected, onSelect, onMoved, onResize } = props;
+  const {
+    x, y, w, fs, lines, content, font, color, scaleX, scaleY, rotDeg,
+    selected, onSelect, onMoved, onTransformed,
+  } = props;
   void lines;
   const width = Math.max(w, fs);
   const textRef = useRef<Konva.Text>(null);
@@ -121,7 +135,7 @@ function EditableText(props: {
       trRef.current.nodes([textRef.current]);
       trRef.current.getLayer()?.batchDraw();
     }
-  }, [selected, content, fs, font, x, y, scaleX, scaleY]);
+  }, [selected, content, fs, font, x, y, scaleX, scaleY, rotDeg]);
 
   return (
     <>
@@ -132,6 +146,7 @@ function EditableText(props: {
         width={width}
         scaleX={scaleX}
         scaleY={scaleY}
+        rotation={rotDeg}
         text={content}
         fontSize={fs}
         fontFamily={`"${font}", "EB Garamond", Georgia, serif`}
@@ -145,13 +160,23 @@ function EditableText(props: {
         onTransformEnd={() => {
           const node = textRef.current;
           if (!node) return;
-          onResize(node.scaleX(), node.scaleY());
+          onTransformed({
+            xPx: node.x(),
+            yPx: node.y(),
+            scaleX: node.scaleX(),
+            scaleY: node.scaleY(),
+            rotDeg: node.rotation(),
+          });
         }}
       />
       {selected && (
         <Transformer
           ref={trRef}
-          rotateEnabled={false}
+          rotateEnabled
+          rotateAnchorOffset={28}
+          anchorStyleFunc={rotaterIconStyle}
+          rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
+          rotationSnapTolerance={6}
           keepRatio
           enabledAnchors={[
             "top-left",
@@ -225,15 +250,16 @@ function TplText(props: {
   lines: number;
   scaleX: number;
   scaleY: number;
+  rotDeg: number;
   selected: boolean;
   onEnter: () => void;
   onSelect: () => void;
   onMoved: (xPx: number, yPx: number) => void;
-  onResize: (scaleX: number, scaleY: number) => void;
+  onTransformed: (t: NodeTransform) => void;
 }) {
   const {
-    px, ed, content, font, color, fs, lines, scaleX, scaleY,
-    selected, onEnter, onSelect, onMoved, onResize,
+    px, ed, content, font, color, fs, lines, scaleX, scaleY, rotDeg,
+    selected, onEnter, onSelect, onMoved, onTransformed,
   } = props;
   const editing = ed !== undefined;
   // Show the editable vector overlay (with move/resize handles) whenever the
@@ -261,10 +287,11 @@ function TplText(props: {
           color={color}
           scaleX={scaleX}
           scaleY={scaleY}
+          rotDeg={rotDeg}
           selected={selected}
           onSelect={onSelect}
           onMoved={onMoved}
-          onResize={onResize}
+          onTransformed={onTransformed}
         />
       )}
     </>
@@ -281,9 +308,9 @@ function TypoNode(props: {
   onSelect: () => void;
   onMoved: (nx: number, ny: number) => void;
   onResize: (w: number) => void;
-  onScale: (scaleX: number, scaleY: number) => void;
+  onTransformed: (t: NodeTransform) => void;
 }) {
-  const { typo, pt, stageW, stageH, selected, onSelect, onMoved, onResize, onScale } = props;
+  const { typo, pt, stageW, stageH, selected, onSelect, onMoved, onResize, onTransformed } = props;
   const [deco] = useImage(typo.deco ?? "");
   const W = pt.w * stageW;
   const H = W / (typo.ratioWH || 1);
@@ -305,6 +332,7 @@ function TypoNode(props: {
         y={pt.y * stageH}
         scaleX={pt.scaleX ?? 1}
         scaleY={pt.scaleY ?? 1}
+        rotation={pt.rotDeg ?? 0}
         draggable
         onClick={onSelect}
         onTap={onSelect}
@@ -315,7 +343,14 @@ function TypoNode(props: {
         }}
         onTransformEnd={() => {
           const g = groupRef.current;
-          if (g) onScale(g.scaleX(), g.scaleY());
+          if (!g) return;
+          onTransformed({
+            xPx: g.x(),
+            yPx: g.y(),
+            scaleX: g.scaleX(),
+            scaleY: g.scaleY(),
+            rotDeg: g.rotation(),
+          });
         }}
       >
         {typo.deco && deco && (
@@ -346,7 +381,11 @@ function TypoNode(props: {
       {selected && (
         <Transformer
           ref={trRef}
-          rotateEnabled={false}
+          rotateEnabled
+          rotateAnchorOffset={28}
+          anchorStyleFunc={rotaterIconStyle}
+          rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
+          rotationSnapTolerance={6}
           keepRatio
           enabledAnchors={[
             "top-left",
@@ -374,12 +413,13 @@ function TypoNode(props: {
  *  corners scale both ways, edges stretch one axis, drag moves the frame. */
 function SlotFrame(props: {
   px: Px;
-  onChange: (r: Px) => void;
+  rotDeg: number;
+  onChange: (r: Px & { rotDeg: number }) => void;
   onWheelZoom: (deltaY: number) => void;
   onDblClick: () => void;
   onContext: (x: number, y: number) => void;
 }) {
-  const { px, onChange, onWheelZoom, onDblClick, onContext } = props;
+  const { px, rotDeg, onChange, onWheelZoom, onDblClick, onContext } = props;
   const ref = useRef<Konva.Rect>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
@@ -388,29 +428,31 @@ function SlotFrame(props: {
       trRef.current.nodes([ref.current]);
       trRef.current.getLayer()?.batchDraw();
     }
-  }, [px.x, px.y, px.w, px.h]);
+  }, [px.x, px.y, px.w, px.h, rotDeg]);
 
   return (
     <>
       <Rect
         ref={ref}
-        x={px.x}
-        y={px.y}
+        x={px.x + px.w / 2}
+        y={px.y + px.h / 2}
         width={px.w}
         height={px.h}
+        offsetX={px.w / 2}
+        offsetY={px.h / 2}
+        rotation={rotDeg}
         fill="#ffffff"
         opacity={0.001}
         draggable
-        onDragEnd={(e) => onChange({ x: e.target.x(), y: e.target.y(), w: px.w, h: px.h })}
+        onDragEnd={(e) =>
+          onChange({ x: e.target.x() - px.w / 2, y: e.target.y() - px.h / 2, w: px.w, h: px.h, rotDeg })
+        }
         onTransformEnd={() => {
           const n = ref.current;
           if (!n) return;
-          const r = {
-            x: n.x(),
-            y: n.y(),
-            w: Math.max(24, n.width() * n.scaleX()),
-            h: Math.max(24, n.height() * n.scaleY()),
-          };
+          const w = Math.max(24, n.width() * n.scaleX());
+          const h = Math.max(24, n.height() * n.scaleY());
+          const r = { x: n.x() - w / 2, y: n.y() - h / 2, w, h, rotDeg: n.rotation() };
           n.scaleX(1);
           n.scaleY(1);
           onChange(r);
@@ -427,7 +469,11 @@ function SlotFrame(props: {
       />
       <Transformer
         ref={trRef}
-        rotateEnabled={false}
+        rotateEnabled
+        rotateAnchorOffset={28}
+        anchorStyleFunc={rotaterIconStyle}
+        rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
+        rotationSnapTolerance={6}
         keepRatio={false}
         enabledAnchors={[
           "top-left",
@@ -593,6 +639,8 @@ function Slot(props: {
   dropTarget: boolean;
   /** stage px per printed inch — enables the low-resolution warning (§10.3). */
   ppi?: number;
+  /** free rotation of the whole frame (degrees). */
+  frameRot?: number;
   transform: SlotTransform;
   onSelect: () => void;
   onEnterCrop: () => void;
@@ -602,7 +650,7 @@ function Slot(props: {
   onContext: (clientX: number, clientY: number) => void;
 }) {
   const {
-    index, px, img, selected, crop, dropTarget, ppi, transform: t,
+    index, px, img, selected, crop, dropTarget, ppi, frameRot = 0, transform: t,
     onSelect, onEnterCrop, onBeginMove, onTransform, onContext,
   } = props;
   const [uri, setUri] = useState<string>();
@@ -714,6 +762,14 @@ function Slot(props: {
         }
       }}
     >
+      {/* everything spins together around the frame center (360° rotation) */}
+      <Group
+        x={px.x + px.w / 2}
+        y={px.y + px.h / 2}
+        offsetX={px.x + px.w / 2}
+        offsetY={px.y + px.h / 2}
+        rotation={frameRot}
+      >
       <Group clipX={px.x} clipY={px.y} clipWidth={px.w} clipHeight={px.h}>{node}</Group>
       {!img && (
         <Text
@@ -770,6 +826,7 @@ function Slot(props: {
           <Text x={-9} y={-6} width={18} align="center" text="!" fontSize={12} fontStyle="bold" fill="#fff" />
         </Group>
       )}
+      </Group>
     </Group>
   );
 }
@@ -1109,6 +1166,7 @@ export function SpreadCanvas() {
                   crop={cropSlot === i}
                   dropTarget={!!slotDrag && slotDrag.target === i && slotDrag.from !== i}
                   ppi={ppi}
+                  frameRot={spread.slotRects?.[i]?.rotDeg ?? 0}
                   transform={spread.transforms[i] ?? DEFAULT_T}
                   onSelect={() =>
                     swapSource !== null && swapSource !== i
@@ -1129,13 +1187,16 @@ export function SpreadCanvas() {
             {selectedSlot !== null && cropSlot !== selectedSlot && effSlots[selectedSlot] && (
               <SlotFrame
                 px={rawPx(effSlots[selectedSlot])}
+                rotDeg={spread.slotRects?.[selectedSlot]?.rotDeg ?? 0}
                 onChange={(raw) => {
-                  const r = snapRect(raw);
+                  const straight = Math.abs(((raw.rotDeg % 360) + 360) % 360) < 0.5;
+                  const r = straight ? snapRect(raw) : raw;
                   useAlbum.getState().setSlotRect(selectedSlot, {
                     x: (r.x - padIn) / innerW,
                     y: (r.y - padIn) / innerH,
                     w: r.w / innerW,
                     h: r.h / innerH,
+                    rotDeg: raw.rotDeg,
                   });
                 }}
                 onWheelZoom={(dy) => {
@@ -1172,11 +1233,20 @@ export function SpreadCanvas() {
                   lines={lines}
                   scaleX={ed?.scaleX ?? 1}
                   scaleY={ed?.scaleY ?? 1}
+                  rotDeg={ed?.rotDeg ?? 0}
                   selected={selectedText?.kind === "tpl" && selectedText.index === i}
                   onEnter={() => selectText({ kind: "tpl", index: i })}
                   onSelect={() => selectText({ kind: "tpl", index: i })}
                   onMoved={(xp, yp) => editTplText(i, { dx: xp / stageW - tx.x, dy: yp / stageH - tx.y })}
-                  onResize={(sx, sy) => editTplText(i, { scaleX: sx, scaleY: sy })}
+                  onTransformed={(t) =>
+                    editTplText(i, {
+                      scaleX: t.scaleX,
+                      scaleY: t.scaleY,
+                      rotDeg: t.rotDeg,
+                      dx: t.xPx / stageW - tx.x,
+                      dy: t.yPx / stageH - tx.y,
+                    })
+                  }
                 />
               );
             })}
@@ -1199,10 +1269,19 @@ export function SpreadCanvas() {
                   color={a.color}
                   scaleX={a.scaleX ?? 1}
                   scaleY={a.scaleY ?? 1}
+                  rotDeg={a.rotDeg ?? 0}
                   selected={selectedText?.kind === "added" && selectedText.id === a.id}
                   onSelect={() => selectText({ kind: "added", id: a.id })}
                   onMoved={(xp, yp) => updateAddedText(a.id, { x: xp / stageW, y: yp / stageH })}
-                  onResize={(sx, sy) => updateAddedText(a.id, { scaleX: sx, scaleY: sy })}
+                  onTransformed={(t) =>
+                    updateAddedText(a.id, {
+                      scaleX: t.scaleX,
+                      scaleY: t.scaleY,
+                      rotDeg: t.rotDeg,
+                      x: t.xPx / stageW,
+                      y: t.yPx / stageH,
+                    })
+                  }
                 />
               );
             })}
@@ -1222,7 +1301,15 @@ export function SpreadCanvas() {
                   onSelect={() => selectTypo(pt.id)}
                   onMoved={(nx, ny) => updateTypo(pt.id, { x: nx, y: ny })}
                   onResize={(w) => updateTypo(pt.id, { w })}
-                  onScale={(sx, sy) => updateTypo(pt.id, { scaleX: sx, scaleY: sy })}
+                  onTransformed={(t) =>
+                    updateTypo(pt.id, {
+                      scaleX: t.scaleX,
+                      scaleY: t.scaleY,
+                      rotDeg: t.rotDeg,
+                      x: t.xPx / stageW,
+                      y: t.yPx / stageH,
+                    })
+                  }
                 />
               );
             })}

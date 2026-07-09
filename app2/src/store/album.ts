@@ -29,6 +29,8 @@ export interface SlotRect {
   y: number;
   w: number;
   h: number;
+  /** free rotation of the whole frame, degrees. */
+  rotDeg?: number;
 }
 
 /** Per-template-text override (edit content/font/color/size/position or delete). */
@@ -39,6 +41,7 @@ export interface TextEdit {
   sizeScale?: number;
   scaleX?: number; // free horizontal stretch (resize handles), default 1
   scaleY?: number; // free vertical stretch, default 1
+  rotDeg?: number; // free rotation, degrees
   deleted?: boolean;
   dx?: number; // normalized position offset
   dy?: number;
@@ -53,6 +56,7 @@ export interface AddedText {
   sizeFrac: number; // font size as fraction of stage height
   scaleX?: number; // free horizontal stretch, default 1
   scaleY?: number; // free vertical stretch, default 1
+  rotDeg?: number; // free rotation, degrees
   x: number; // normalized top-left
   y: number;
 }
@@ -71,6 +75,7 @@ export interface PlacedTypo {
   w: number; // normalized width (height derived from typo ratio)
   scaleX?: number; // free horizontal stretch (resize handles), default 1
   scaleY?: number; // free vertical stretch, default 1
+  rotDeg?: number; // free rotation, degrees
   color: string | null; // null = original per-text colors; hex = flood recolor
 }
 
