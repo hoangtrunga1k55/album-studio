@@ -29,6 +29,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const images = useAlbum((s) => s.images);
   const bgColor = useAlbum((s) => s.bgColor);
   const size = useAlbum((s) => s.size);
+  const settings = useAlbum((s) => s.settings);
   const fonts = useFonts((s) => s.fonts);
 
   const [layoutFolder, setLayoutFolder] = useState<string | null>(savedLayoutFolder());
@@ -67,7 +68,8 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   }
 
   const [format, setFormat] = useState<ExportFormat>("both");
-  const [dpi, setDpi] = useState(300);
+  // Default from the album's wizard setting (still overridable per export).
+  const [dpi, setDpi] = useState(settings.dpi);
   const [quality, setQuality] = useState(95);
   const [prefix, setPrefix] = useState("Spread_");
   const [folder, setFolder] = useState<string>("");
@@ -107,7 +109,11 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
         spreads,
         images,
         bgColor,
-        { format, dpi, quality, prefix, folder, pageCm: parseSizeCm(size), pageMode, bleedMm, cropMarks },
+        {
+          format, dpi, quality, prefix, folder,
+          pageCm: parseSizeCm(size), pageMode, bleedMm, cropMarks,
+          borderMm: settings.borderMm, borderColor: settings.borderColor,
+        },
         (done, total) => setProgress({ done, total }),
         cancelRef.current
       );

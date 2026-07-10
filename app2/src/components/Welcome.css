@@ -144,6 +144,8 @@
 }
 .wizard {
   width: min(520px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
   background: #1e1f26;
   border: 1px solid #30313b;
   border-radius: 16px;
@@ -151,9 +153,28 @@
   box-shadow: 0 30px 80px #000c;
 }
 .wizard h2 {
-  margin: 0 0 18px;
+  margin: 0;
   font-size: 19px;
   color: #f2f3f7;
+}
+.wz-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.wz-step {
+  font-size: 11.5px;
+  color: #8b8e99;
+  letter-spacing: 0.3px;
+}
+/* custom-size advanced panel (unit / DPI / output dimensions / safe / trim) */
+.wz-adv {
+  margin-top: 10px;
+}
+.wz-field-wide {
+  grid-column: 1 / -1;
 }
 .wz-label {
   display: block;
@@ -178,44 +199,45 @@
   border-color: #6e76ff;
 }
 
-.wz-sizes {
+/* size select + live spread illustration */
+.wz-size-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: 1fr 148px;
+  gap: 12px;
+  align-items: start;
 }
-.wz-size {
+.wz-size-row select.wz-input {
+  cursor: pointer;
+}
+.wz-size-preview {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
+  gap: 6px;
   background: #16171c;
-  border: 1.5px solid #33343d;
-  border-radius: 12px;
-  padding: 14px 10px 12px;
-  cursor: pointer;
-  color: inherit;
-  transition: 0.15s ease;
+  border: 1px solid #2c2d36;
+  border-radius: 10px;
+  padding: 10px 8px;
+  min-height: 74px;
 }
-.wz-size:hover {
-  border-color: #4a4c59;
-}
-.wz-size.active {
-  border-color: #6e76ff;
-  background: #6e76ff14;
-}
-.wz-size-shape {
-  height: 54px;
-  border-radius: 4px;
+.wz-spread {
+  position: relative;
+  height: 56px;
+  width: auto;
+  max-width: 124px;
   border: 1.5px solid #5a5d6b;
+  border-radius: 3px;
   background: #22232b;
+  margin: 0 auto;
 }
-.wz-size.active .wz-size-shape {
-  border-color: #6e76ff;
-}
-.wz-size-label {
-  font-weight: 700;
-  font-size: 13.5px;
-  color: #e8e9ee;
+.wz-spine {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #4a4c59;
 }
 .wz-size-note {
   font-size: 11.5px;
@@ -235,10 +257,7 @@
   text-align: center;
 }
 
-/* custom-size card */
-.wz-size-shape {
-  max-width: 100%;
-}
+/* custom-size inputs (shown when "Tuỳ chỉnh…" is selected) */
 .wz-custom {
   display: flex;
   align-items: center;
@@ -269,6 +288,53 @@
 .wz-unit {
   color: #8b8e99;
   font-size: 12px;
+}
+
+/* design-settings grid (SmartAlbums New Album panel) */
+.wz-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
+}
+.wz-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #16171c;
+  border: 1px solid #2c2d36;
+  border-radius: 9px;
+  padding: 8px 10px;
+}
+.wz-field-name {
+  font-size: 12px;
+  color: #a5a8b3;
+  white-space: nowrap;
+}
+.wz-mm-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.wz-mm-unit {
+  font-size: 11.5px;
+  color: #8b8e99;
+}
+.wz-color {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid #4a4c59;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.wz-color::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+.wz-color::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
 }
 
 /* unit selector (cm / inch / px) */

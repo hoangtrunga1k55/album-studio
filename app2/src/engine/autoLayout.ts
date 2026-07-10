@@ -2,7 +2,7 @@ import type { ImageMeta } from "../ipc/import";
 import {
   availableSlotCounts,
   nearestSlotCount,
-  templatesForSize,
+  suggestionTemplates,
   type AlbumSize,
   type Template,
 } from "./templates";
@@ -34,7 +34,7 @@ function pickCount(size: AlbumSize, density: Density): number {
 
 /** Template with `count` slots whose slot orientations best match the image group. */
 function pickTemplate(size: AlbumSize, count: number, group: ImageMeta[]): Template | undefined {
-  const pool = templatesForSize(size).filter((t) => t.slotCount === count);
+  const pool = suggestionTemplates(size).filter((t) => t.slotCount === count);
   if (!pool.length) return undefined;
   const gsig = group.map((g) => orient(g.ratio)).sort().join("");
   let best = -1;
@@ -73,7 +73,7 @@ export interface AutoDesignOptions {
 
 /** 1-photo template whose slot covers the most area (closest to full bleed). */
 function pickFullBleedTemplate(size: AlbumSize): Template | undefined {
-  const pool = templatesForSize(size).filter((t) => t.slotCount === 1);
+  const pool = suggestionTemplates(size).filter((t) => t.slotCount === 1);
   if (!pool.length) return undefined;
   let best: Template | undefined;
   let bestArea = -1;

@@ -5,8 +5,11 @@ import {
   nearestSlotCount,
   nextTemplateAny,
   nextTemplateSameCount,
+  parseSizeCm,
   randomTemplate,
+  setPreferredSource,
   type AlbumSize,
+  type LayoutSourceFilter,
 } from "../engine/templates";
 import { planAutoDesign, type Density } from "../engine/autoLayout";
 
@@ -102,10 +105,43 @@ export interface Spread {
   slotRects?: Record<number, SlotRect>;
 }
 
+/** Album-wide print/design settings from the New Album wizard (SmartAlbums-style). */
+export interface AlbumSettings {
+  /** print DPI — export default + photo low-resolution warnings. */
+  dpi: number;
+  /** trim: edge strip the lab may cut away, mm (red dashed guide; 0 = off). */
+  trimMm: number;
+  /** safe zone from the page edge, mm (green dashed guide; 0 = off). */
+  safeMm: number;
+  /** border drawn around every photo, mm (0 = off). */
+  borderMm: number;
+  borderColor: string;
+  /** gap between photos, mm — default margin of every new spread. */
+  gapMm: number;
+  /** which layout set drives suggestions (Space / Auto Design). */
+  layoutSource: LayoutSourceFilter;
+}
+
+export const DEFAULT_SETTINGS: AlbumSettings = {
+  dpi: 300,
+  trimMm: 3,
+  safeMm: 5,
+  borderMm: 0,
+  borderColor: "#ffffff",
+  gapMm: 0,
+  layoutSource: "all",
+};
+
+/** Gap in mm → margin as a fraction of the page height (0 when size unknown). */
+function gapFrac(size: AlbumSize | null, gapMm: number): number {
+  const cm = parseSizeCm(size);
+  return cm && gapMm > 0 ? gapMm / 10 / cm.h : 0;
+}
+
 let counter = 0;
 const newId = (p: string) => `${p}_${++counter}`;
 
-function freshSpread(size: AlbumSize, slotCount = 1): Spread {
+function freshSpread(size: AlbumSize, slotCount = 1, margin = 0): Spread {
   const t =
     randomTemplate(size, nearestSlotCount(size, slotCount)) ??
     randomTemplate(size, nearestSlotCount(size, 1));
@@ -117,7 +153,7 @@ function freshSpread(size: AlbumSize, slotCount = 1): Spread {
     textEdits: {},
     addedTexts: [],
     typos: [],
-    margin: 0,
+    margin,
   };
 }
 
@@ -142,8 +178,15 @@ interface AlbumState {
   photoMeta: Record<string, PhotoMeta>;
   /** Photos highlighted in the Photos panel (rating keys apply to these). */
   selectedPhotos: string[];
+  /** Album-wide settings from the New Album wizard. */
+  settings: AlbumSettings;
+  setSettings: (patch: Partial<AlbumSettings>) => void;
 
-  createAlbum: (size: AlbumSize, spreadCount?: number) => void;
+  createAlbum: (
+    size: AlbumSize,
+    spreadCount?: number,
+    opts?: { settings?: AlbumSettings; bgColor?: string }
+  ) => void;
   resetAlbum: () => void;
   /** Load a saved project (images re-imported separately by path). */
   applyProject: (p: {
@@ -153,6 +196,7 @@ interface AlbumState {
     currentIndex: number;
     spreads: Spread[];
     photoMeta?: Record<string, PhotoMeta>;
+    settings?: Partial<AlbumSettings>;
   }) => void;
 
   addImages: (images: ImageMeta[]) => void;
@@ -283,17 +327,36 @@ export const useAlbum = create<AlbumState>((set) => ({
   bgColor: "#ffffff",
   photoMeta: {},
   selectedPhotos: [],
+  settings: DEFAULT_SETTINGS,
 
-  createAlbum: (size, spreadCount = 1) =>
-    set({
-      size,
-      spreads: Array.from({ length: Math.max(1, spreadCount) }, () => freshSpread(size)),
-      currentIndex: 0,
-      selectedSlot: null,
-      photoMeta: {},
-      selectedPhotos: [],
+  setSettings: (patch) =>
+    set((s) => {
+      const settings = { ...s.settings, ...patch };
+      setPreferredSource(settings.layoutSource);
+      return { settings };
     }),
-  resetAlbum: () =>
+
+  createAlbum: (size, spreadCount = 1, opts) =>
+    set((s) => {
+      const settings = opts?.settings ?? s.settings;
+      // Suggestion pool must be narrowed BEFORE the spreads pick their templates.
+      setPreferredSource(settings.layoutSource);
+      const margin = gapFrac(size, settings.gapMm);
+      return {
+        size,
+        settings,
+        bgColor: opts?.bgColor ?? s.bgColor,
+        spreads: Array.from({ length: Math.max(1, spreadCount) }, () =>
+          freshSpread(size, 1, margin)
+        ),
+        currentIndex: 0,
+        selectedSlot: null,
+        photoMeta: {},
+        selectedPhotos: [],
+      };
+    }),
+  resetAlbum: () => {
+    setPreferredSource("all");
     set({
       size: null,
       spreads: [],
@@ -302,9 +365,14 @@ export const useAlbum = create<AlbumState>((set) => ({
       selectedSlot: null,
       photoMeta: {},
       selectedPhotos: [],
-    }),
+      settings: DEFAULT_SETTINGS,
+      bgColor: "#ffffff",
+    });
+  },
 
-  applyProject: (p) =>
+  applyProject: (p) => {
+    const settings = { ...DEFAULT_SETTINGS, ...p.settings };
+    setPreferredSource(settings.layoutSource);
     set({
       size: p.size,
       bgColor: p.bgColor,
@@ -317,7 +385,9 @@ export const useAlbum = create<AlbumState>((set) => ({
       selectedTypo: null,
       photoMeta: p.photoMeta ?? {},
       selectedPhotos: [],
-    }),
+      settings,
+    });
+  },
 
   addImages: (imgs) => set((s) => ({ images: [...s.images, ...imgs] })),
   clearImages: () => set({ images: [] }),
@@ -598,7 +668,7 @@ export const useAlbum = create<AlbumState>((set) => ({
   addSpread: () =>
     set((s) => {
       if (!s.size) return s;
-      const spreads = [...s.spreads, freshSpread(s.size)];
+      const spreads = [...s.spreads, freshSpread(s.size, 1, gapFrac(s.size, s.settings.gapMm))];
       return { spreads, currentIndex: spreads.length - 1, selectedSlot: null };
     }),
 
@@ -606,7 +676,7 @@ export const useAlbum = create<AlbumState>((set) => ({
     set((s) => {
       if (!s.size) return s;
       const spreads = [...s.spreads];
-      spreads.splice(index + 1, 0, freshSpread(s.size));
+      spreads.splice(index + 1, 0, freshSpread(s.size, 1, gapFrac(s.size, s.settings.gapMm)));
       return { spreads, currentIndex: index + 1, selectedSlot: null };
     }),
 
@@ -785,6 +855,7 @@ export const useAlbum = create<AlbumState>((set) => ({
         ratings,
       });
       if (plans.length === 0) return s;
+      const margin = gapFrac(s.size, s.settings.gapMm);
       const spreads = plans.map((p) => ({
         id: newId("sp"),
         templateId: p.templateId,
@@ -793,7 +864,7 @@ export const useAlbum = create<AlbumState>((set) => ({
         textEdits: {},
         addedTexts: [],
         typos: [],
-        margin: 0,
+        margin,
       }));
       return { spreads, currentIndex: 0, selectedSlot: null, selectedText: null, selectedTypo: null };
     }),

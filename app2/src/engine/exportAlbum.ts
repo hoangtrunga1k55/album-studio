@@ -22,6 +22,9 @@ export interface ExportOpts {
   bleedMm?: number;
   /** corner crop marks (needs bleed > 0) §12.3. */
   cropMarks?: boolean;
+  /** album setting: border around every photo, mm (0 = off). */
+  borderMm?: number;
+  borderColor?: string;
 }
 
 /** Cut a rendered spread JPEG into left/right page halves (§12.2). */
@@ -99,7 +102,9 @@ export async function exportAlbum(
         hiresBg,
         opts.pageCm,
         (opts.bleedMm ?? 0) / 10,
-        opts.cropMarks ?? false
+        opts.cropMarks ?? false,
+        opts.borderMm ?? 0,
+        opts.borderColor ?? "#ffffff"
       )
     );
   }

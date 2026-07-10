@@ -309,6 +309,25 @@ export function getTemplate(id: string | null): Template | undefined {
   );
 }
 
+/** Which layout set drives suggestions (wizard "Bộ layout" select). */
+export type LayoutSourceFilter = "all" | TemplateSource;
+
+let preferredSource: LayoutSourceFilter = "all";
+
+export function setPreferredSource(f: LayoutSourceFilter) {
+  preferredSource = f;
+}
+
+/** Pool used by Space/shuffle/Auto Design: templatesForSize narrowed to the
+ *  album's preferred layout set. Falls back to the full pool when the chosen
+ *  set is empty (e.g. "Mẫu của tôi" with no saved layouts yet). */
+export function suggestionTemplates(size: AlbumSize): Template[] {
+  const all = templatesForSize(size);
+  if (preferredSource === "all") return all;
+  const filtered = all.filter((t) => (t.source ?? "tizino") === preferredSource);
+  return filtered.length > 0 ? filtered : all;
+}
+
 export function templatesForSize(size: AlbumSize): Template[] {
   const customs = CUSTOMS.filter((t) => t.size === size && t.slotCount > 0);
   const exact = TEMPLATES.filter((t) => t.size === size && t.slotCount > 0);
@@ -339,7 +358,7 @@ export function templatesForSize(size: AlbumSize): Template[] {
 
 /** Slot counts actually available for a size, ascending. */
 export function availableSlotCounts(size: AlbumSize): number[] {
-  return [...new Set(templatesForSize(size).map((t) => t.slotCount))].sort(
+  return [...new Set(suggestionTemplates(size).map((t) => t.slotCount))].sort(
     (a, b) => a - b
   );
 }
@@ -358,7 +377,7 @@ export function nearestSlotCount(size: AlbumSize, n: number): number {
 export function nextTemplateSameCount(currentId: string): Template | undefined {
   const cur = getTemplate(currentId);
   if (!cur) return undefined;
-  const pool = templatesForSize(cur.size)
+  const pool = suggestionTemplates(cur.size)
     .filter((t) => t.slotCount === cur.slotCount)
     .sort((a, b) => a.id.localeCompare(b.id));
   if (pool.length <= 1) return cur;
@@ -369,7 +388,7 @@ export function nextTemplateSameCount(currentId: string): Template | undefined {
 /** Next template (deterministic rotation) across ALL templates of a size,
  *  regardless of slot count — used by SPACE before any image is selected. */
 export function nextTemplateAny(size: AlbumSize, currentId: string): Template | undefined {
-  const pool = templatesForSize(size).sort((a, b) => a.id.localeCompare(b.id));
+  const pool = suggestionTemplates(size).sort((a, b) => a.id.localeCompare(b.id));
   if (pool.length === 0) return undefined;
   const i = pool.findIndex((t) => t.id === currentId);
   return pool[(i + 1) % pool.length];
@@ -381,7 +400,7 @@ export function randomTemplate(
   count: number,
   excludeId?: string
 ): Template | undefined {
-  let pool = templatesForSize(size).filter((t) => t.slotCount === count);
+  let pool = suggestionTemplates(size).filter((t) => t.slotCount === count);
   if (pool.length === 0) return undefined;
   if (excludeId && pool.length > 1) {
     pool = pool.filter((t) => t.id !== excludeId);

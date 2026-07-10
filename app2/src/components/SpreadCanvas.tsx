@@ -25,7 +25,6 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 const DEFAULT_T: SlotTransform = { zoom: 1, panX: 0, panY: 0, fit: "cover" };
 
 /** Quality-check thresholds (§10): print bleed, binding gutter, min DPI. */
-const BLEED_CM = 0.3; // 3mm trimmed at the edges
 const GUTTER_CM = 1.2; // ~12mm swallowed by the spine (2-page spreads)
 const DPI_LOW = 200; // warn below this
 const DPI_BAD = 150; // red below this
@@ -639,6 +638,9 @@ function Slot(props: {
   dropTarget: boolean;
   /** stage px per printed inch — enables the low-resolution warning (§10.3). */
   ppi?: number;
+  /** album setting: border drawn around the photo (stage px; 0 = off). */
+  borderPx?: number;
+  borderColor?: string;
   /** free rotation of the whole frame (degrees). */
   frameRot?: number;
   transform: SlotTransform;
@@ -651,6 +653,7 @@ function Slot(props: {
 }) {
   const {
     index, px, img, selected, crop, dropTarget, ppi, frameRot = 0, transform: t,
+    borderPx = 0, borderColor = "#ffffff",
     onSelect, onEnterCrop, onBeginMove, onTransform, onContext,
   } = props;
   const [uri, setUri] = useState<string>();
@@ -771,6 +774,19 @@ function Slot(props: {
         rotation={frameRot}
       >
       <Group clipX={px.x} clipY={px.y} clipWidth={px.w} clipHeight={px.h}>{node}</Group>
+      {/* wizard setting: printed border around every photo */}
+      {img && borderPx > 0 && (
+        <Rect
+          x={px.x}
+          y={px.y}
+          width={px.w}
+          height={px.h}
+          stroke={borderColor}
+          strokeWidth={borderPx}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      )}
       {!img && (
         <Text
           x={px.x}
@@ -863,6 +879,7 @@ export function SpreadCanvas() {
   >(null);
 
   const cropSlot = useAlbum((s) => s.cropSlot);
+  const settings = useAlbum((s) => s.settings);
   const showBleed = useAlbum((s) => s.showBleed);
   const showRuler = useAlbum((s) => s.showRuler);
   const tool = useAlbum((s) => s.tool);
@@ -1166,6 +1183,8 @@ export function SpreadCanvas() {
                   crop={cropSlot === i}
                   dropTarget={!!slotDrag && slotDrag.target === i && slotDrag.from !== i}
                   ppi={ppi}
+                  borderPx={pxPerCm ? (settings.borderMm / 10) * pxPerCm : 0}
+                  borderColor={settings.borderColor}
                   frameRot={spread.slotRects?.[i]?.rotDeg ?? 0}
                   transform={spread.transforms[i] ?? DEFAULT_T}
                   onSelect={() =>
@@ -1317,18 +1336,35 @@ export function SpreadCanvas() {
             {/* §10.1–10.2 quality overlays (⌘B): bleed frame + binding gutter */}
             {showBleed && pxPerCm && (
               <>
-                <Rect
-                  x={BLEED_CM * pxPerCm}
-                  y={BLEED_CM * pxPerCm}
-                  width={stageW - BLEED_CM * pxPerCm * 2}
-                  height={stageH - BLEED_CM * pxPerCm * 2}
-                  stroke="#ef4444"
-                  strokeWidth={1}
-                  dash={[7, 5]}
-                  opacity={0.75}
-                  listening={false}
-                  perfectDrawEnabled={false}
-                />
+                {settings.trimMm > 0 && (
+                  <Rect
+                    x={(settings.trimMm / 10) * pxPerCm}
+                    y={(settings.trimMm / 10) * pxPerCm}
+                    width={stageW - (settings.trimMm / 10) * pxPerCm * 2}
+                    height={stageH - (settings.trimMm / 10) * pxPerCm * 2}
+                    stroke="#ef4444"
+                    strokeWidth={1}
+                    dash={[7, 5]}
+                    opacity={0.75}
+                    listening={false}
+                    perfectDrawEnabled={false}
+                  />
+                )}
+                {/* safe zone from the wizard (green): keep faces/text inside */}
+                {settings.safeMm > 0 && (
+                  <Rect
+                    x={(settings.safeMm / 10) * pxPerCm}
+                    y={(settings.safeMm / 10) * pxPerCm}
+                    width={stageW - (settings.safeMm / 10) * pxPerCm * 2}
+                    height={stageH - (settings.safeMm / 10) * pxPerCm * 2}
+                    stroke="#10b981"
+                    strokeWidth={1}
+                    dash={[4, 4]}
+                    opacity={0.65}
+                    listening={false}
+                    perfectDrawEnabled={false}
+                  />
+                )}
                 {tpl.ratioWH >= 1 && (
                   <>
                     <Rect

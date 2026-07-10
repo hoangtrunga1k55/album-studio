@@ -4,7 +4,7 @@
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { saveProjectFile, openProjectFile } from "../ipc/project";
 import { importFiles } from "../ipc/import";
-import { useAlbum } from "../store/album";
+import { useAlbum, type AlbumSettings } from "../store/album";
 import { useProject, rememberRecent } from "../store/project";
 import type { AlbumSize } from "../engine/templates";
 
@@ -19,6 +19,7 @@ function projectJson(): string {
     imagePaths: st.images.map((i) => i.path),
     spreads: st.spreads,
     photoMeta: st.photoMeta,
+    settings: st.settings,
   });
 }
 
@@ -40,7 +41,8 @@ export async function saveNow(): Promise<void> {
 export async function createProject(
   name: string,
   size: AlbumSize,
-  spreadCount = 1
+  spreadCount = 1,
+  opts?: { settings?: AlbumSettings; bgColor?: string }
 ): Promise<boolean> {
   const safe = name.trim() || "album";
   let path = await save({
@@ -50,7 +52,7 @@ export async function createProject(
   if (!path) return false;
   if (!path.endsWith(".album")) path += ".album";
 
-  useAlbum.getState().createAlbum(size, spreadCount);
+  useAlbum.getState().createAlbum(size, spreadCount, opts);
   useProject.getState().openProject(path, safe);
   await saveNow();
   rememberRecent({ path, name: safe, size });
@@ -84,6 +86,7 @@ export async function openProject(fromPath?: string): Promise<boolean> {
     currentIndex: proj.currentIndex,
     spreads: proj.spreads,
     photoMeta: proj.photoMeta,
+    settings: proj.settings,
   });
 
   // Opening a backup RESTORES it: content from the snapshot, but the session

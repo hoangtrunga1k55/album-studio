@@ -42,7 +42,10 @@ export async function renderSpread(
   /** print bleed in cm (0 = none): the design is scaled up to cover it (§12.3). */
   bleedCm = 0,
   /** draw corner crop marks in the bleed margin (§12.3). */
-  cropMarks = false
+  cropMarks = false,
+  /** album setting: border around every photo, mm (0 = off). */
+  borderMm = 0,
+  borderColor = "#ffffff"
 ): Promise<RenderResult> {
   // Print at the album's true page size (cm): landscape templates are 2-page
   // spreads (2×w × h), portrait ones a single page (w × h) — the normalized
@@ -208,15 +211,30 @@ export async function renderSpread(
           scaleY: t.flipV ? -1 : 1,
         })
       );
+      // Wizard border setting — same geometry as the display canvas.
+      const bw = (borderMm / 10 / 2.54) * dpi;
+      const border =
+        bw > 0
+          ? new Konva.Rect({
+              x: px.x,
+              y: px.y,
+              width: px.w,
+              height: px.h,
+              stroke: borderColor,
+              strokeWidth: bw,
+            })
+          : null;
       if (frameRot) {
         // spin the whole frame (clip + photo) around its center — matches display
         const cx = px.x + px.w / 2;
         const cy = px.y + px.h / 2;
         const wrap = new Konva.Group({ x: cx, y: cy, offsetX: cx, offsetY: cy, rotation: frameRot });
         wrap.add(g);
+        if (border) wrap.add(border);
         root.add(wrap);
       } else {
         root.add(g);
+        if (border) root.add(border);
       }
     }
 
