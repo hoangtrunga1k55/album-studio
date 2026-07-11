@@ -466,13 +466,10 @@ function SlotFrame(props: {
           onContext(e.evt.clientX, e.evt.clientY);
         }}
       />
+      {/* photo-frame rotation moved to the Angle slider in the photo panel */}
       <Transformer
         ref={trRef}
-        rotateEnabled
-        rotateAnchorOffset={28}
-        anchorStyleFunc={rotaterIconStyle}
-        rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
-        rotationSnapTolerance={6}
+        rotateEnabled={false}
         keepRatio={false}
         enabledAnchors={[
           "top-left",
@@ -909,8 +906,15 @@ export function SpreadCanvas() {
     { from: number; x: number; y: number; target: number } | null
   >(null);
 
-  const spread = spreads[currentIndex];
-  const tpl = getTemplate(spread?.templateId ?? null);
+  const previewTemplateId = useAlbum((s) => s.previewTemplateId);
+  const spreadReal = spreads[currentIndex];
+  // Hover preview (layout strip / center ▦ grid): render the candidate
+  // template with pristine frames — the saved spread is untouched.
+  const spread =
+    previewTemplateId && spreadReal
+      ? { ...spreadReal, transforms: {}, slotRects: {}, textEdits: {} }
+      : spreadReal;
+  const tpl = getTemplate(previewTemplateId ?? spread?.templateId ?? null);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -932,6 +936,13 @@ export function SpreadCanvas() {
       } else if (e.key.toLowerCase() === "r") {
         e.preventDefault();
         st.shuffleImages();
+      } else if (e.key.toLowerCase() === "s") {
+        // S = swap: arm on the selected photo, then click the target slot.
+        const cur = st.spreads[st.currentIndex];
+        if (st.selectedSlot !== null && cur?.imageIds[st.selectedSlot]) {
+          e.preventDefault();
+          st.beginSwap(st.selectedSlot);
+        }
       } else if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         if (st.selectedTypo) st.removeTypo(st.selectedTypo);
@@ -939,9 +950,13 @@ export function SpreadCanvas() {
           if (st.selectedText.kind === "tpl") st.deleteTplText(st.selectedText.index);
           else st.removeAddedText(st.selectedText.id);
         } else if (st.selectedSlot !== null) st.clearSlot(st.selectedSlot);
-      } else if (e.key === "ArrowRight" || e.key === "PageDown") {
+      } else if (
+        e.key === "ArrowRight" || e.key === "PageDown" || e.key === "." || e.key === ">"
+      ) {
         if (st.currentIndex < st.spreads.length - 1) st.setCurrent(st.currentIndex + 1);
-      } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+      } else if (
+        e.key === "ArrowLeft" || e.key === "PageUp" || e.key === "," || e.key === "<"
+      ) {
         if (st.currentIndex > 0) st.setCurrent(st.currentIndex - 1);
       } else if (e.key === "Escape") {
         st.cancelSwap();
@@ -957,12 +972,12 @@ export function SpreadCanvas() {
   if (!tpl) {
     return (
       <div className="canvas-wrap" ref={wrapRef}>
-        <div className="canvas-hint">Chưa có layout — chọn ảnh ở panel trái.</div>
+        <div className="canvas-hint">Chưa có layout — kéo ảnh từ khay dưới vào spread.</div>
       </div>
     );
   }
 
-  const pad = 56;
+  const pad = 28;
   const availW = Math.max(box.w - pad * 2, 10);
   const availH = Math.max(box.h - pad * 2, 10);
   // Render at the album's true page ratio (custom sizes stretch the template).
@@ -1075,6 +1090,11 @@ export function SpreadCanvas() {
 
   return (
     <div className="canvas-wrap" ref={wrapRef} onClick={() => setMenu(null)}>
+      {/* accent badge — pairs with the highlighted card in the filmstrip below */}
+      <div className="spread-chip">
+        Spread {currentIndex + 1}
+        <span className="spread-chip-sub">/{spreads.length} · phím ⟨ ⟩ để chuyển</span>
+      </div>
       <div
         className="stage-host"
         style={{ width: stageW, height: stageH }}
@@ -1135,10 +1155,11 @@ export function SpreadCanvas() {
               height={stageH}
               fill={bgColor}
               onClick={() => {
-                selectSlot(null);
+                // Click the spread background = select the LAYOUT (SmartAlbums).
+                useAlbum.getState().selectSpread();
                 setCropSlot(null);
               }}
-              onTap={() => selectSlot(null)}
+              onTap={() => useAlbum.getState().selectSpread()}
             />
             {spread.bgImageId ? (
               <SpreadBgPhoto
@@ -1493,6 +1514,7 @@ export function SpreadCanvas() {
       {swapSource !== null && (
         <div className="swap-hint">Đổi chỗ ảnh: bấm ô đích · Esc để huỷ</div>
       )}
+
 
       {saveTpl && (
         <div className="modal-overlay" onClick={() => setSaveTpl(null)}>

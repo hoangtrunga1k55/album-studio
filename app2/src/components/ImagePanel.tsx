@@ -154,6 +154,12 @@ export function ImagePanel() {
       } else if (e.key === "Enter") {
         e.preventDefault();
         st.addToSpread(st.selectedPhotos);
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        // Canvas owns Delete while a slot/text/typo is selected — don't double-fire.
+        if (st.selectedSlot === null && !st.selectedText && !st.selectedTypo) {
+          e.preventDefault();
+          st.removeImages(st.selectedPhotos);
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -165,6 +171,7 @@ export function ImagePanel() {
 
   return (
     <>
+      <div className="ip-head">
       <div className="panel-actions ip-actions">
         <button className="btn primary" onClick={pickImages} disabled={scanning}>
           <IconImagePlus />
@@ -235,17 +242,27 @@ export function ImagePanel() {
               {selected.length > 0 ? ` · chọn ${selected.length}` : ""}
             </span>
             {selected.length > 0 && (
-              <button
-                className="ip-tospread"
-                onClick={() => addToSpread(selected)}
-                title="Đưa các ảnh đang chọn vào spread hiện tại (Enter)"
-              >
-                → Spread ({selected.length})
-              </button>
+              <>
+                <button
+                  className="ip-tospread"
+                  onClick={() => addToSpread(selected)}
+                  title="Đưa các ảnh đang chọn vào spread hiện tại (Enter)"
+                >
+                  → Spread ({selected.length})
+                </button>
+                <button
+                  className="ip-remove"
+                  onClick={() => useAlbum.getState().removeImages(selected)}
+                  title="Xoá khỏi album (Delete) — file gốc trên máy không bị xoá"
+                >
+                  Xoá ({selected.length})
+                </button>
+              </>
             )}
           </div>
         )
       )}
+      </div>
 
       <div className="ip-grid" style={{ ["--cell" as string]: `${thumbSize}px` }}>
         {visible.map((img) => {

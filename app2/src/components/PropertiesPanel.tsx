@@ -1,8 +1,13 @@
+import { useState } from "react";
 import { getTemplate, spreadCmFor } from "../engine/templates";
 import { getTypo } from "../engine/typos";
+import { PhotoNavigator } from "./PhotoNavigator";
 import { useAlbum } from "../store/album";
 import { useFonts } from "../store/fonts";
+import { useTypos } from "../store/typos";
 import { pickAndLoadFonts, fontAliases } from "../ipc/fonts";
+import { importTypoLibrary } from "../flows/typoImport";
+import { TYPO_DND_KEY } from "../constants";
 import { FontPicker } from "./FontPicker";
 import { IconTrash } from "../icons";
 
@@ -27,7 +32,6 @@ export function PropertiesPanel() {
   const bgColor = useAlbum((s) => s.bgColor);
   const setBgColor = useAlbum((s) => s.setBgColor);
   const clearSlot = useAlbum((s) => s.clearSlot);
-  const beginSwap = useAlbum((s) => s.beginSwap);
   const setMargin = useAlbum((s) => s.setMargin);
   const editTplText = useAlbum((s) => s.editTplText);
   const deleteTplText = useAlbum((s) => s.deleteTplText);
@@ -35,8 +39,12 @@ export function PropertiesPanel() {
   const updateAddedText = useAlbum((s) => s.updateAddedText);
   const removeAddedText = useAlbum((s) => s.removeAddedText);
   const addText = useAlbum((s) => s.addText);
+  const tool = useAlbum((s) => s.tool);
+  const addTypoToSpread = useAlbum((s) => s.addTypo);
+  const typos = useTypos((s) => s.typos);
   const fonts = useFonts((s) => s.fonts);
   const addFonts = useFonts((s) => s.addFonts);
+  const [typoBusy, setTypoBusy] = useState(false);
 
   const spread = spreads[currentIndex];
   const tpl = getTemplate(spread?.templateId ?? null);
@@ -195,12 +203,175 @@ export function PropertiesPanel() {
   }
 
   // ---------- SLOT selected ----------
+  // SmartAlbums click model: photo clicked → PHOTO editing only; empty frame
+  // clicked → FRAME (layout) editing. Photos move between frames by dragging.
   if (selectedSlot !== null) {
     const imgId = spread?.imageIds[selectedSlot];
     const img = imgId ? images.find((im) => im.id === imgId) : undefined;
+    const st = useAlbum.getState();
+
+    if (img) {
+      const t = spread.transforms[selectedSlot] ?? { zoom: 1, panX: 0, panY: 0 };
+      // Frame geometry in real units — drives the navigator ratio + info block.
+      const size = st.size;
+      const cmAll = tpl ? spreadCmFor(tpl, size) : null;
+      const effRect =
+        tpl && selectedSlot < tpl.slots.length
+          ? { ...tpl.slots[selectedSlot], ...(spread?.slotRects?.[selectedSlot] ?? {}) }
+          : spread?.slotRects?.[selectedSlot];
+      const frameWcm = effRect && cmAll ? effRect.w * cmAll.w : null;
+      const frameHcm = effRect && cmAll ? effRect.h * cmAll.h : null;
+      const frameRatio = frameWcm && frameHcm ? frameWcm / frameHcm : 1;
+      const setT = (next: typeof t) => st.setSlotTransform(selectedSlot, next);
+      // Free rotation (SmartAlbums "Angle") — lives on the frame rect.
+      const angle = spread?.slotRects?.[selectedSlot]?.rotDeg ?? 0;
+      const setAngle = (deg: number) =>
+        st.setSlotRect(selectedSlot, {
+          ...(effRect ?? { x: 0, y: 0, w: 1, h: 1 }),
+          rotDeg: Math.round(deg),
+        });
+      // Effective PPI: photo pixels that end up in one printed inch (§10.3).
+      let ppi: number | null = null;
+      if (frameWcm && frameHcm) {
+        const rot = t.rot ?? 0;
+        const swapped = rot === 90 || rot === 270;
+        const iw = swapped ? img.height : img.width;
+        const ih = swapped ? img.width : img.height;
+        const fitScale =
+          t.fit === "contain"
+            ? Math.min(frameWcm / iw, frameHcm / ih)
+            : Math.max(frameWcm / iw, frameHcm / ih);
+        ppi = Math.round(2.54 / (fitScale * (t.zoom ?? 1))); // image px per inch
+      }
+      const usedCount = spreads.reduce(
+        (n, sp) => n + sp.imageIds.filter((x) => x === img.id).length,
+        0
+      );
+      const zoomPct = Math.round((t.zoom ?? 1) * 100);
+      return (
+        <aside className="props">
+          <h3 className="props-title" title={img.name}>
+            {img.name}
+            {ppi !== null && ppi < 200 && (
+              <span className="ppi-warn" title={`In sẽ mờ — ${ppi} PPI (nên ≥ 200)`}>⚠</span>
+            )}
+          </h3>
+
+          <div className="prop-label">Thiết kế</div>
+          {/* live preview — the frame stays fixed, the photo scales behind it */}
+          <PhotoNavigator
+            img={img}
+            frameRatio={frameRatio}
+            t={t}
+            trimFrac={
+              frameWcm && frameHcm
+                ? {
+                    x: st.settings.trimMm / 10 / frameWcm,
+                    y: st.settings.trimMm / 10 / frameHcm,
+                  }
+                : undefined
+            }
+            onChange={setT}
+          />
+
+          <div className="sa-rows">
+            <div className="sa-row">
+              <span className="sa-name">Scale:</span>
+              <input
+                type="range"
+                min={100}
+                max={600}
+                step={1}
+                value={zoomPct}
+                onChange={(e) => setT({ ...t, zoom: parseInt(e.target.value, 10) / 100 })}
+              />
+              <span className="sa-val">{zoomPct}%</span>
+              <button
+                className="sa-reset"
+                title="Về 100%"
+                disabled={zoomPct === 100}
+                onClick={() => setT({ ...t, zoom: 1, panX: 0, panY: 0 })}
+              >
+                ×
+              </button>
+            </div>
+            <div className="sa-row">
+              <span className="sa-name">Góc xoay:</span>
+              <input
+                type="range"
+                min={-180}
+                max={180}
+                step={1}
+                value={angle}
+                onChange={(e) => setAngle(parseInt(e.target.value, 10))}
+              />
+              <span className="sa-val">{Math.round(angle)}°</span>
+              <button
+                className="sa-reset"
+                title="Về 0°"
+                disabled={angle === 0}
+                onClick={() => setAngle(0)}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div className="prop-group" style={{ marginTop: 12 }}>
+            <div className="prop-row">
+              <button className="btn" onClick={() => st.rotateSlot(selectedSlot)} title="Xoay ảnh 90° trong khung">
+                ⟳ 90°
+              </button>
+              <button className="btn" onClick={() => st.flipSlot(selectedSlot, "h")} title="Lật ngang">
+                ⇋
+              </button>
+              <button className="btn" onClick={() => st.flipSlot(selectedSlot, "v")} title="Lật dọc">
+                ⇵
+              </button>
+              <button
+                className="btn"
+                onClick={() =>
+                  st.setSlotFit(selectedSlot, (t.fit ?? "cover") === "cover" ? "contain" : "cover")
+                }
+                title="Phủ kín khung / hiện trọn ảnh"
+              >
+                {(t.fit ?? "cover") === "cover" ? "Trọn ảnh" : "Phủ kín"}
+              </button>
+            </div>
+          </div>
+
+          <div className="prop-label" style={{ marginTop: 14 }}>Thông tin ảnh</div>
+          <div className="sa-info">
+            {frameWcm && frameHcm && (
+              <div><span>Khung R×C</span><b>{frameWcm.toFixed(1)} × {frameHcm.toFixed(1)} cm</b></div>
+            )}
+            {ppi !== null && (
+              <div>
+                <span>PPI hiệu dụng</span>
+                <b style={ppi < 200 ? { color: "#f59e0b" } : undefined}>{ppi}</b>
+              </div>
+            )}
+            <div><span>Kích thước gốc</span><b>{img.width} × {img.height} px</b></div>
+            <div><span>Đã dùng</span><b>{usedCount} lần</b></div>
+          </div>
+
+          <button
+            className="btn"
+            style={{ width: "100%", justifyContent: "center", marginTop: 12 }}
+            onClick={() => st.beginSwap(selectedSlot)}
+            title="Phím S — rồi bấm ô đích để hoán đổi 2 ảnh (kéo ảnh sang ô khác cũng được)"
+          >
+            ⇄ Đổi chỗ ảnh… (S)
+          </button>
+          <button className="danger" onClick={() => clearSlot(selectedSlot)} style={{ marginTop: 10 }}>
+            <IconTrash width={15} height={15} /> Gỡ ảnh khỏi khung
+          </button>
+        </aside>
+      );
+    }
 
     // §7.3 exact frame position/size in cm (spread coordinates).
-    const size = useAlbum.getState().size;
+    const size = st.size;
     const cm = tpl ? spreadCmFor(tpl, size) : null;
     const eff =
       tpl && selectedSlot < tpl.slots.length
@@ -219,7 +390,7 @@ export function PropertiesPanel() {
 
     return (
       <aside className="props">
-        <h3>Ô ảnh #{selectedSlot + 1}</h3>
+        <h3>Khung ảnh #{selectedSlot + 1}</h3>
         {eff && cm && (
           <div className="prop-group">
             <div className="prop-label">Khung (cm — toạ độ trên spread)</div>
@@ -240,39 +411,48 @@ export function PropertiesPanel() {
             </div>
           </div>
         )}
-        {img ? (
-          <>
-            <div className="prop-meta">
-              <div>Ảnh: <b>{img.name}</b></div>
-              <div>Kích thước: <b>{img.width}×{img.height}</b></div>
-            </div>
-            <button
-              className="btn"
-              style={{ width: "100%", justifyContent: "center", marginTop: 12 }}
-              onClick={() => beginSwap(selectedSlot)}
-            >
-              Đổi chỗ ảnh…
-            </button>
-            <div className="hint-sm">Bấm rồi chọn ô khác để hoán đổi 2 ảnh.</div>
-            <button className="danger" onClick={() => clearSlot(selectedSlot)} style={{ marginTop: 10 }}>
-              <IconTrash width={15} height={15} /> Gỡ ảnh
-            </button>
-          </>
-        ) : (
-          <div className="prop-empty">Ô trống. Cuộn để zoom, kéo để chỉnh khung sau khi có ảnh.</div>
-        )}
+        <div className="prop-empty">Khung trống — kéo ảnh từ khay dưới vào.</div>
       </aside>
     );
   }
 
-  // ---------- nothing selected: page ----------
+  // ---------- LAYOUT selected (click the spread background) ----------
   function add(content: string) {
     const family = fonts[0]?.family ?? "Be Vietnam Pro";
     addText({ content, font: family, color: "#222222", sizeFrac: 0.035, x: 0.4, y: 0.45 });
   }
+  async function importTypos() {
+    setTypoBusy(true);
+    try {
+      await importTypoLibrary();
+    } catch (e) {
+      alert("Nạp typo lỗi: " + String(e));
+    } finally {
+      setTypoBusy(false);
+    }
+  }
+  const st = useAlbum.getState();
   return (
     <aside className="props">
-      <h3>Trang</h3>
+      <h3>Layout · spread {currentIndex + 1}</h3>
+      <div className="prop-group">
+        <div className="prop-label">Bố cục</div>
+        <div className="prop-row">
+          <button className="btn" onClick={() => st.setLayoutDock(true)}>
+            Đổi layout…
+          </button>
+          <button className="btn" onClick={() => st.shuffleCurrent()} title="Space">
+            Ngẫu nhiên
+          </button>
+        </div>
+        <button
+          className={"btn" + (tool === "drawSlot" ? " primary" : "")}
+          style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+          onClick={() => st.setTool(tool === "drawSlot" ? "select" : "drawSlot")}
+        >
+          {tool === "drawSlot" ? "Đang vẽ — kéo trên spread (Esc thoát)" : "＋ Vẽ khung ảnh mới"}
+        </button>
+      </div>
       {missingList.length > 0 && (
         <div className="font-warn">
           <b>⚠ {missingList.length} font template chưa nạp</b>
@@ -347,7 +527,52 @@ export function PropertiesPanel() {
           ))}
         </div>
       </div>
-      <div className="prop-empty">Click chữ hoặc ô ảnh trên canvas để chỉnh.</div>
+      <div className="prop-group">
+        <div className="prop-label">Typo trang trí</div>
+        {typos.length > 0 ? (
+          <>
+            <div className="pp-typos">
+              {typos.map((t) => (
+                <figure
+                  key={t.id}
+                  className="pp-typo"
+                  title="Bấm để chèn vào spread (kéo thả cũng được)"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(TYPO_DND_KEY, t.id);
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
+                  onClick={() => addTypoToSpread(t.id, 0.34, 0.4)}
+                >
+                  <img src={t.preview} alt="" draggable={false} />
+                </figure>
+              ))}
+            </div>
+            <button
+              className="btn"
+              style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+              onClick={importTypos}
+              disabled={typoBusy}
+            >
+              {typoBusy ? "Đang nạp…" : "Đổi thư mục typo…"}
+            </button>
+          </>
+        ) : (
+          <button
+            className="btn"
+            style={{ width: "100%", justifyContent: "center" }}
+            onClick={importTypos}
+            disabled={typoBusy}
+          >
+            {typoBusy ? "Đang nạp…" : "Nạp kho typo…"}
+          </button>
+        )}
+      </div>
+      <div className="prop-empty">
+        Ở chế độ layout, ảnh chỉ để kéo đổi chỗ giữa các khung.
+        <br />
+        Click thẳng vào ảnh để chỉnh ảnh.
+      </div>
     </aside>
   );
 }

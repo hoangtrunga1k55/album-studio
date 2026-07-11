@@ -72,7 +72,8 @@ button {
 .app {
   height: 100vh;
   display: grid;
-  grid-template-rows: 56px 1fr;
+  /* topbar · workspace · photo tray (SmartAlbums layout) */
+  grid-template-rows: 56px 1fr auto;
   background: var(--bg-0);
   color: var(--text);
   overflow: hidden;
@@ -241,11 +242,67 @@ button.btn.icon {
   color: var(--text-dim);
 }
 
-/* ---- body 3-pane ---- */
+/* ---- body: [dock] · center · [props on selection] ---- */
 .body {
-  display: grid;
-  grid-template-columns: 300px 1fr 232px;
+  display: flex;
   min-height: 0;
+  /* grid item: never grow past the window (content scrolls inside) */
+  min-width: 0;
+  overflow: hidden;
+}
+.body > .left-panel {
+  width: 300px;
+  flex: none;
+}
+/* photos live in the bottom tray — the dock collapses to a slim rail */
+.body > .left-panel.collapsed {
+  width: 46px;
+}
+.left-panel.collapsed .panel-tabs {
+  flex-direction: column;
+}
+.left-panel.collapsed .tab {
+  writing-mode: vertical-rl;
+  padding: 14px 6px;
+  flex: none;
+}
+.body > .center {
+  flex: 1;
+  min-width: 0;
+}
+.props-host {
+  position: relative;
+  flex: none;
+  display: flex;
+  min-width: 0;
+}
+.props-host > .props {
+  flex: 1;
+  min-width: 0;
+}
+
+/* drag bars between panels */
+.rz {
+  position: absolute;
+  z-index: 35;
+  transition: background 0.12s ease;
+}
+.rz:hover {
+  background: var(--accent-soft);
+}
+.rz-h {
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 7px;
+  cursor: row-resize;
+}
+.rz-v {
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: col-resize;
 }
 
 .center {
@@ -263,8 +320,8 @@ button.btn.icon {
 .filmstrip2 {
   flex: none;
   height: 104px;
-  background: var(--bg-1);
-  border-top: 1px solid var(--border);
+  background: #c7c7c7;
+  border-top: 1px solid #b5b5b5;
   overflow: hidden;
 }
 .fs2-track {
@@ -285,11 +342,30 @@ button.btn.icon {
   transition: background 0.16s var(--ease), border-color 0.16s var(--ease);
 }
 .fs2-card:hover {
-  background: var(--bg-2);
+  background: #bdbdbd;
 }
 .fs2-card.active {
   border-color: var(--accent);
-  background: var(--bg-2);
+  background: #bdbdbd;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+/* caret in the SAME accent as the canvas badge — one visual pair */
+.fs2-card.active::before {
+  content: "";
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 7px solid transparent;
+  border-bottom-color: var(--accent);
+}
+.fs2-card.active .fs2-no {
+  color: #fff;
+  background: var(--accent);
+  border-radius: 4px;
+  padding: 0 4px;
+  top: 2px;
+  left: 2px;
 }
 .fs2-prev {
   height: 62px;
@@ -307,8 +383,8 @@ button.btn.icon {
   top: 1px;
   left: 6px;
   font-size: 9px;
-  font-weight: 600;
-  color: var(--text-faint);
+  font-weight: 700;
+  color: #5f5f5f;
 }
 .fs2-del {
   position: absolute;
@@ -922,4 +998,577 @@ button.danger:hover {
   background: var(--bg-3);
   border-color: var(--border);
   color: var(--text);
+}
+
+/* ================= SmartAlbums workspace (layout strip / zones / tray) ===== */
+
+.ls-thumb {
+  flex: none;
+  position: relative;
+  display: block;
+  padding: 4px;
+  background: #ffffff;
+  border: 1.5px solid #bfbfbf;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+.ls-thumb:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.ls-thumb.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.ls-box {
+  position: relative;
+  display: block;
+  height: 48px;
+  background: #fdfdfd;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ls-slot {
+  position: absolute;
+  background: #c9c9c9;
+  border-radius: 1px;
+}
+.ls-count {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  min-width: 15px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: #0009;
+  color: #fff;
+  font-size: 10px;
+  line-height: 15px;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* ---- middle: cover zone · canvas · next-spread zone ---- */
+.workzone {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+.workzone .canvas-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.side-zone {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 26px 16px;
+  background: #d9d9d9;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.side-zone.left {
+  width: 218px;
+  border-right: 1px solid #c4c4c4;
+}
+.side-zone.right {
+  width: 158px;
+  border-left: 1px solid #c4c4c4;
+}
+.side-zone.over,
+.side-zone:hover {
+  background: #d2d2d2;
+}
+.side-zone.over {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.sz-label {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #7d7d7d;
+  text-align: center;
+}
+/* the big dashed "drop images here to create a cover" box */
+.side-zone.left .sz-label {
+  align-self: stretch;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #a8a8a8;
+  border-radius: 6px;
+  padding: 12px;
+}
+/* right zone empty state: same dashed drop-box language as the cover zone */
+.side-zone.right .sz-add {
+  align-self: stretch;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 2px dashed #a8a8a8;
+  border-radius: 6px;
+  padding: 12px;
+}
+.side-zone.right:hover .sz-add,
+.side-zone.over .sz-add {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sz-cover {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.sz-cover img {
+  width: 130px;
+  border-radius: 4px;
+  display: block;
+  box-shadow: 0 3px 12px #0005;
+}
+.sz-x {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 0;
+  background: #0009;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sz-next {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sz-prev {
+  position: relative;
+  width: 100%;
+  background: #fff;
+  background-size: cover;
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px #0004;
+}
+.sz-prev .spread-slot {
+  position: absolute;
+  overflow: hidden;
+}
+.sz-prev .spread-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ---- center ▦ button + in-place layout grid ---- */
+.center-layout-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid #d5d0e2;
+  background: #ffffffe8;
+  color: #4b3f68;
+  font-size: 17px;
+  cursor: pointer;
+  z-index: 25;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 4px 16px #0004;
+}
+.stage-host:hover .center-layout-btn {
+  opacity: 0.92;
+}
+.center-layout-btn:hover {
+  opacity: 1 !important;
+  transform: translate(-50%, -50%) scale(1.08);
+}
+.layout-dock {
+  flex: none;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 14px 10px;
+}
+.lp-head {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+  padding: 2px 4px 10px;
+}
+/* one horizontal, scrollable row of layout thumbnails */
+.ld-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  min-height: 84px;
+}
+.ld-row .ls-box {
+  height: 68px;
+  min-width: 96px;
+}
+
+/* ---- bottom photo tray (horizontal ImagePanel) ---- */
+.photo-tray-host {
+  grid-row: 3;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+.photo-tray {
+  height: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 14px 10px;
+  background: #2e2e2e;
+  border-top: 1px solid #1f1f1f;
+}
+/* controls in one wrapping header row */
+.ip-head {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  min-width: 0;
+}
+.photo-tray .ip-actions,
+.photo-tray .ip-tools,
+.photo-tray .ip-filters,
+.photo-tray .panel-subbar,
+.photo-tray .ip-progress {
+  flex: none;
+  display: flex;
+  align-items: center;
+  width: auto;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.photo-tray .ip-actions .primary {
+  flex: none;
+}
+.photo-tray .ip-tools .search-wrap {
+  width: 190px;
+  flex: none;
+}
+.photo-tray .ip-zoom {
+  width: 110px;
+  flex: none;
+}
+.photo-tray .ip-grid {
+  flex: 1;
+  min-height: 0;
+  padding: 2px 0 6px;
+}
+.photo-tray .ip-empty {
+  flex: none;
+  padding: 14px 0;
+}
+
+
+.lp-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 2px 4px 10px;
+}
+.lp-bar .lp-head {
+  padding: 0;
+}
+.lp-tabs {
+  display: flex;
+  gap: 4px;
+}
+.lp-tab {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+.lp-tab:hover {
+  color: var(--text);
+}
+.lp-tab.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-hi);
+}
+.lp-empty {
+  grid-column: 1 / -1;
+  padding: 22px 10px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-dim);
+}
+.lp-hint {
+  padding: 10px 4px 2px;
+  font-size: 11px;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+/* SmartAlbums photo navigator (top of the photo panel) */
+.photo-nav-inline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+}
+.pn-box {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #101010;
+  user-select: none;
+}
+.pn-photo {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.pn-photo img {
+  pointer-events: none;
+}
+/* the fixed frame: yellow like SmartAlbums, overflow dimmed lightly */
+.pn-frame {
+  position: absolute;
+  border: 2px solid #f2c410;
+  box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+/* red trim strip: past this line the lab may cut */
+.pn-trim {
+  position: absolute;
+  border: 1px solid rgba(239, 68, 68, 0.85);
+  pointer-events: none;
+}
+.pn-label {
+  padding-top: 5px;
+  font-size: 10.5px;
+  color: #b9b9b9;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* quick-insert typo grid inside the Layout panel */
+.pp-typos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.pp-typo {
+  margin: 0;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px;
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+.pp-typo:hover {
+  border-color: var(--accent);
+}
+.pp-typo img {
+  width: 100%;
+  display: block;
+}
+
+/* SmartAlbums-style photo panel: label · slider · value · reset rows */
+.props-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ppi-warn {
+  flex: none;
+  color: #f59e0b;
+}
+.sa-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+}
+.sa-row {
+  display: grid;
+  grid-template-columns: 58px 1fr 40px 16px;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+}
+.sa-row input[type="range"] {
+  width: 100%;
+  min-width: 0;
+}
+.sa-name {
+  color: var(--text-dim);
+}
+.sa-val {
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.sa-reset {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-3);
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sa-reset:hover:not(:disabled) {
+  background: var(--bg-4);
+  color: var(--text);
+}
+.sa-reset:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.sa-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11.5px;
+}
+.sa-info > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sa-info span {
+  color: var(--text-dim);
+}
+
+/* rule-of-thirds grid inside the navigator frame */
+.pn-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, transparent calc(33.33% - 0.5px), #ffffff7a calc(33.33% - 0.5px), #ffffff7a calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px)),
+    linear-gradient(to right, transparent calc(66.66% - 0.5px), #ffffff7a calc(66.66% - 0.5px), #ffffff7a calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px)),
+    linear-gradient(to bottom, transparent calc(33.33% - 0.5px), #ffffff7a calc(33.33% - 0.5px), #ffffff7a calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px)),
+    linear-gradient(to bottom, transparent calc(66.66% - 0.5px), #ffffff7a calc(66.66% - 0.5px), #ffffff7a calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px));
+}
+
+/* canvas badge — same accent as the active filmstrip card below */
+.spread-chip {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 26;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 14px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.spread-chip-sub {
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* insertion marker while dragging a spread card to reorder */
+.fs2-card.drop-before::after,
+.fs2-card.drop-after::after {
+  content: "";
+  position: absolute;
+  top: 6%;
+  bottom: 6%;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+.fs2-card.drop-before::after {
+  left: -7px;
+}
+.fs2-card.drop-after::after {
+  right: -7px;
+}
+
+/* "add spread" dashed card at the end of the filmstrip */
+.fs2-addcard {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 132px;
+  height: 70px;
+  border: 2px dashed #9a9a9a;
+  border-radius: 8px;
+  color: #6b6b6b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.fs2-addcard small {
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+.fs2-addcard:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.fs2-addcard.over {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
 }

@@ -353,3 +353,17 @@
   color: var(--text-faint);
   margin-right: 2px;
 }
+
+/* remove-from-album (files on disk stay) */
+.ip-remove {
+  border: 1px solid #5b2530;
+  background: #2a151b;
+  color: #ff8585;
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.ip-remove:hover {
+  background: #3a1c24;
+}

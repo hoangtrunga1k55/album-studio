@@ -1,10 +1,50 @@
 import { useEffect, useState } from "react";
+
+const clampN = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+function loadPx(key: string, def: number): number {
+  const v = parseInt(localStorage.getItem(key) ?? "", 10);
+  return Number.isFinite(v) ? v : def;
+}
+
+/** Drag bar between panels — reports mouse deltas while held. */
+function ResizeHandle({
+  className,
+  onMove,
+}: {
+  className: string;
+  onMove: (dx: number, dy: number) => void;
+}) {
+  return (
+    <div
+      className={className}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        let px = e.clientX;
+        let py = e.clientY;
+        const mm = (ev: MouseEvent) => {
+          onMove(ev.clientX - px, ev.clientY - py);
+          px = ev.clientX;
+          py = ev.clientY;
+        };
+        const mu = () => {
+          window.removeEventListener("mousemove", mm);
+          window.removeEventListener("mouseup", mu);
+        };
+        window.addEventListener("mousemove", mm);
+        window.addEventListener("mouseup", mu);
+      }}
+    />
+  );
+}
 import { Welcome } from "./components/Welcome";
 import { LeftPanel } from "./components/LeftPanel";
 import { SpreadCanvas } from "./components/SpreadCanvas";
 import { SpreadsFilmstrip } from "./components/SpreadsFilmstrip";
 import { PropertiesPanel } from "./components/PropertiesPanel";
-import { LayoutGallery } from "./components/LayoutGallery";
+import { PhotoTray } from "./components/PhotoTray";
+import { CoverDropZone, NextSpreadZone } from "./components/WorkZones";
+import { LayoutDock } from "./components/LayoutStrip";
 import { ExportDialog } from "./components/ExportDialog";
 import { AutoDesignDialog } from "./components/AutoDesignDialog";
 import { getTemplate } from "./engine/templates";
@@ -16,15 +56,7 @@ import { useAlbum } from "./store/album";
 import { useFonts } from "./store/fonts";
 import { useTypos } from "./store/typos";
 import { useProject } from "./store/project";
-import {
-  IconExport,
-  IconLayout,
-  IconPlus,
-  IconSettings,
-  IconShuffle,
-  IconSparkle,
-  IconText,
-} from "./icons";
+import { IconExport, IconLayout, IconSettings, IconSparkle } from "./icons";
 import { DENSITY_LABELS } from "./engine/autoLayout";
 import { mod } from "./engine/platform";
 import "./App.css";
@@ -39,20 +71,30 @@ function App() {
   const spreads = useAlbum((s) => s.spreads);
   const currentIndex = useAlbum((s) => s.currentIndex);
   const images = useAlbum((s) => s.images);
-  const shuffleCurrent = useAlbum((s) => s.shuffleCurrent);
   const resetAlbum = useAlbum((s) => s.resetAlbum);
-  const addText = useAlbum((s) => s.addText);
   const density = useAlbum((s) => s.density);
   const setDensity = useAlbum((s) => s.setDensity);
   const addFonts = useFonts((s) => s.addFonts);
   const setFontIndex = useFonts((s) => s.setIndex);
-  const fonts = useFonts((s) => s.fonts);
   const setTypos = useTypos((s) => s.setTypos);
-  const tool = useAlbum((s) => s.tool);
-  const setTool = useAlbum((s) => s.setTool);
-  const [showGallery, setShowGallery] = useState(false);
+  // SmartAlbums minimal-action rule: the right panel only appears on click
+  // (photo/frame/text/typo selected) — otherwise the canvas gets the space.
+  const selectedSlot = useAlbum((s) => s.selectedSlot);
+  const selectedText = useAlbum((s) => s.selectedText);
+  const selectedTypo = useAlbum((s) => s.selectedTypo);
+  const spreadSelected = useAlbum((s) => s.spreadSelected);
+  const hasSelection =
+    selectedSlot !== null || selectedText !== null || selectedTypo !== null || spreadSelected;
+  const layoutDock = useAlbum((s) => s.layoutDockOpen);
+  const setLayoutDock = useAlbum((s) => s.setLayoutDock);
   const [showExport, setShowExport] = useState(false);
   const [showDesign, setShowDesign] = useState(false);
+
+  // Resizable panels (drag bars) — remembered across sessions.
+  const [trayH, setTrayH] = useState(() => loadPx("albumstudio2.ui.trayH", 190));
+  const [propsW, setPropsW] = useState(() => loadPx("albumstudio2.ui.propsW", 240));
+  useEffect(() => localStorage.setItem("albumstudio2.ui.trayH", String(trayH)), [trayH]);
+  useEffect(() => localStorage.setItem("albumstudio2.ui.propsW", String(propsW)), [propsW]);
 
   // Load the user-imported libraries (font kho, typo pack) once at startup.
   useEffect(() => {
@@ -167,39 +209,18 @@ function App() {
 
         <div className="toolbar">
           <div className="toolbar-row">
-            <button className="tbtn active" title="Layout" onClick={() => setShowGallery(true)}>
+            <button
+              className={"tbtn" + (layoutDock ? " active" : "")}
+              title="Layout (bấm lại để đóng)"
+              onClick={() => setLayoutDock(!layoutDock)}
+            >
               <IconLayout />
-            </button>
-            <button className="tbtn" title="Đổi layout (Space)" onClick={shuffleCurrent}>
-              <IconShuffle />
-            </button>
-            <span className="tbtn-sep" />
-            <button
-              className="tbtn"
-              title="Thêm chữ"
-              onClick={() =>
-                addText({
-                  content: "Nội dung mới",
-                  font: fonts[0]?.family ?? "Be Vietnam Pro",
-                  color: "#222222",
-                  sizeFrac: 0.035,
-                  x: 0.4,
-                  y: 0.45,
-                })
-              }
-            >
-              <IconText />
-            </button>
-            <button
-              className={"tbtn" + (tool === "drawSlot" ? " active" : "")}
-              title="Vẽ khung ảnh mới (kéo trên canvas · Esc thoát)"
-              onClick={() => setTool(tool === "drawSlot" ? "select" : "drawSlot")}
-            >
-              <IconPlus />
             </button>
           </div>
           <div className="toolbar-status">
-            {tpl ? `${tpl.name} · ${tpl.slotCount} ô` : "—"} · {spread?.imageIds.length ?? 0} ảnh · {images.length} đã nạp
+            {spreads.length} spread ({spreads.length * 2} trang) ·{" "}
+            {new Set(spreads.flatMap((sp) => sp.imageIds.filter(Boolean))).size}/{images.length} ảnh
+            đã dùng{tpl ? ` · ${tpl.name}` : ""}
           </div>
         </div>
 
@@ -237,13 +258,34 @@ function App() {
       <div className="body">
         <LeftPanel />
         <div className="center">
-          <SpreadCanvas />
+          {layoutDock && <LayoutDock onClose={() => setLayoutDock(false)} />}
+          <div className="workzone">
+            <CoverDropZone />
+            <SpreadCanvas />
+            <NextSpreadZone />
+          </div>
           <SpreadsFilmstrip />
         </div>
-        <PropertiesPanel />
+        {hasSelection && (
+          <div className="props-host" style={{ width: propsW }}>
+            <ResizeHandle
+              className="rz rz-v"
+              onMove={(dx) => setPropsW((w) => clampN(w - dx, 200, 460))}
+            />
+            <PropertiesPanel />
+          </div>
+        )}
       </div>
-
-      {showGallery && <LayoutGallery onClose={() => setShowGallery(false)} />}
+      {/* the photo tray yields its space while the layout dock is open */}
+      {!layoutDock && (
+        <div className="photo-tray-host" style={{ height: trayH }}>
+          <ResizeHandle
+            className="rz rz-h"
+            onMove={(_, dy) => setTrayH((h) => clampN(h - dy, 110, 460))}
+          />
+          <PhotoTray />
+        </div>
+      )}
       {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
       {showDesign && <AutoDesignDialog onClose={() => setShowDesign(false)} />}
     </div>

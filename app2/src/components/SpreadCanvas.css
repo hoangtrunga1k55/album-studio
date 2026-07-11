@@ -1,29 +1,25 @@
+/* SmartAlbums workspace: light gray, the white spread floats on it */
 .canvas-wrap {
   position: relative;
   display: flex;
   /* stage-host centers itself via margin:auto — safe with overflow scrolling */
   /* scrolls when the stage is view-zoomed (⌘+) beyond the viewport */
   overflow: auto;
-  background:
-    radial-gradient(1100px 700px at 50% 0%, #181429 0%, transparent 65%),
-    radial-gradient(900px 600px at 50% 120%, #14182a 0%, transparent 60%),
-    var(--bg-0);
+  background: #d9d9d9;
 }
 
 .stage-host {
   position: relative;
   margin: auto;
   flex-shrink: 0;
-  border-radius: 3px;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04),
-    0 30px 70px rgba(0, 0, 0, 0.62);
+  box-shadow: 0 6px 26px rgba(0, 0, 0, 0.35);
   background: #fff;
 }
 
 .canvas-hint {
-  color: var(--text-faint);
+  color: #8a8a8a;
   font-size: 13px;
+  margin: auto;
 }
 
 .swap-hint {

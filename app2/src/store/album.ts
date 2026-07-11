@@ -201,6 +201,9 @@ interface AlbumState {
 
   addImages: (images: ImageMeta[]) => void;
   clearImages: () => void;
+  /** Remove imported photos from the album (files on disk untouched):
+   *  slots empty out, backgrounds drop, ratings/labels forgotten. */
+  removeImages: (ids: string[]) => void;
 
   setSelectedPhotos: (ids: string[]) => void;
   /** Set the star rating (0–5) on every selected/named photo. */
@@ -222,6 +225,16 @@ interface AlbumState {
   shuffleCurrent: () => void;
   /** Explicitly set the current spread's template (from the gallery). */
   setTemplate: (templateId: string) => void;
+  /** Hover-preview a template on the current spread WITHOUT committing
+   *  (SmartAlbums layout strip / center grid). null = show the real one. */
+  previewTemplateId: string | null;
+  setPreviewTemplate: (templateId: string | null) => void;
+  /** Commit a template: photos refill in order, edits/crops reset. */
+  applyTemplate: (templateId: string) => void;
+  /** Add photos to ANY spread (drop on the next-spread zone). */
+  addToSpreadAt: (index: number, imageIds: string[]) => void;
+  /** Drop on the cover zone: photo becomes the spread's full-bleed background. */
+  setCoverImage: (imageId: string) => void;
   /** Empty a slot (no shift) on the current spread. */
   clearSlot: (slotIndex: number) => void;
   /** Place an image into a specific slot (drag-drop / replace). */
@@ -246,6 +259,10 @@ interface AlbumState {
   /** Active canvas tool (§7.2): select or draw a new photo frame. */
   tool: "select" | "drawSlot";
   setTool: (tool: "select" | "drawSlot") => void;
+  /** Layout dock (docked picker under the topbar) — shared open state so the
+   *  topbar button and the Layout panel both control it. */
+  layoutDockOpen: boolean;
+  setLayoutDock: (open: boolean) => void;
   /** Append a hand-drawn photo frame beyond the template's slots (§7.2). */
   addDrawnSlot: (rect: SlotRect) => void;
   /** Remove a hand-drawn frame (index >= template slot count). */
@@ -278,6 +295,8 @@ interface AlbumState {
   /** Duplicate a spread with all its edits (§6.7). */
   duplicateSpread: (index: number) => void;
   removeSpread: (index: number) => void;
+  /** Reorder: move a spread to a new position (filmstrip drag-drop). */
+  moveSpread: (from: number, to: number) => void;
   /** Auto redesign just the current spread: new random layout, same photos (§5.4). */
   redesignSpread: () => void;
   /** Change the current spread's slot count by ±1, keeping photos (§6.4). */
@@ -295,6 +314,10 @@ interface AlbumState {
   }) => void;
 
   selectSlot: (slot: number | null) => void;
+  /** SmartAlbums click model: click the spread background = select the LAYOUT
+   *  (page/frame editing; photos only swap) — click a photo = edit that photo. */
+  spreadSelected: boolean;
+  selectSpread: () => void;
 
   // ---- typography editing (current spread) ----
   selectText: (sel: TextSel) => void;
@@ -391,6 +414,36 @@ export const useAlbum = create<AlbumState>((set) => ({
 
   addImages: (imgs) => set((s) => ({ images: [...s.images, ...imgs] })),
   clearImages: () => set({ images: [] }),
+
+  removeImages: (ids) =>
+    set((s) => {
+      if (ids.length === 0) return s;
+      const gone = new Set(ids);
+      const images = s.images.filter((i) => !gone.has(i.id));
+      const spreads = s.spreads.map((sp) => {
+        const hit =
+          sp.imageIds.some((id) => id && gone.has(id)) ||
+          (sp.bgImageId && gone.has(sp.bgImageId));
+        if (!hit) return sp;
+        const transforms = { ...sp.transforms };
+        const imageIds = sp.imageIds.map((id, i) => {
+          if (id && gone.has(id)) {
+            delete transforms[i];
+            return "";
+          }
+          return id;
+        });
+        return {
+          ...sp,
+          imageIds,
+          transforms,
+          bgImageId: sp.bgImageId && gone.has(sp.bgImageId) ? null : sp.bgImageId,
+        };
+      });
+      const photoMeta = { ...s.photoMeta };
+      for (const id of ids) delete photoMeta[id];
+      return { images, spreads, photoMeta, selectedPhotos: [], selectedSlot: null };
+    }),
 
   setSelectedPhotos: (selectedPhotos) => set({ selectedPhotos }),
 
@@ -502,6 +555,56 @@ export const useAlbum = create<AlbumState>((set) => ({
       const spreads = [...s.spreads];
       spreads[s.currentIndex] = { ...spreads[s.currentIndex], templateId };
       return { spreads };
+    }),
+
+  previewTemplateId: null,
+  setPreviewTemplate: (previewTemplateId) => set({ previewTemplateId }),
+
+  applyTemplate: (templateId) =>
+    set((s) => {
+      const next = getTemplate(templateId);
+      if (!next) return s;
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const photos = cur.imageIds.filter(Boolean);
+      cur.templateId = templateId;
+      cur.imageIds = next.slots.map((_, i) => photos[i] ?? "");
+      cur.transforms = {};
+      cur.slotRects = {};
+      cur.textEdits = {};
+      spreads[s.currentIndex] = cur;
+      return { spreads, previewTemplateId: null, selectedSlot: null, selectedText: null };
+    }),
+
+  addToSpreadAt: (index, imageIds) =>
+    set((s) => {
+      if (!s.size || imageIds.length === 0 || !s.spreads[index]) return s;
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[index] };
+      const merged = [...cur.imageIds.filter(Boolean)];
+      for (const id of imageIds) if (!merged.includes(id)) merged.push(id);
+      if (merged.length === cur.imageIds.filter(Boolean).length) return s;
+      const targetCount = nearestSlotCount(s.size, merged.length);
+      const tpl = getTemplate(cur.templateId);
+      if (targetCount > 0 && (!tpl || tpl.slotCount !== targetCount)) {
+        const next = randomTemplate(s.size, targetCount);
+        if (next) cur.templateId = next.id;
+      }
+      cur.imageIds = merged.slice(0, targetCount || merged.length);
+      cur.transforms = {};
+      cur.slotRects = {};
+      spreads[index] = cur;
+      return { spreads, selectedPhotos: [] };
+    }),
+
+  setCoverImage: (imageId) =>
+    set((s) => {
+      if (!imageId) return s;
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      cur.bgImageId = imageId;
+      spreads[s.currentIndex] = cur;
+      return { spreads, selectedPhotos: [] };
     }),
 
   clearSlot: (slotIndex) =>
@@ -701,6 +804,18 @@ export const useAlbum = create<AlbumState>((set) => ({
       return { spreads, currentIndex, selectedSlot: null };
     }),
 
+  moveSpread: (from, to) =>
+    set((s) => {
+      const max = s.spreads.length - 1;
+      const dest = Math.max(0, Math.min(max, to));
+      if (from === dest || !s.spreads[from]) return s;
+      const spreads = [...s.spreads];
+      const [sp] = spreads.splice(from, 1);
+      spreads.splice(dest, 0, sp);
+      // keep the moved spread selected in its new position
+      return { spreads, currentIndex: dest, selectedSlot: null, previewTemplateId: null };
+    }),
+
   redesignSpread: () =>
     set((s) => {
       if (!s.size) return s;
@@ -752,6 +867,9 @@ export const useAlbum = create<AlbumState>((set) => ({
 
   tool: "select",
   setTool: (tool) => set({ tool }),
+
+  layoutDockOpen: false,
+  setLayoutDock: (layoutDockOpen) => set({ layoutDockOpen }),
 
   addDrawnSlot: (rect) =>
     set((s) => {
@@ -828,7 +946,14 @@ export const useAlbum = create<AlbumState>((set) => ({
     }),
 
   setCurrent: (index) =>
-    set({ currentIndex: index, selectedSlot: null, swapSource: null, cropSlot: null }),
+    set({
+      currentIndex: index,
+      selectedSlot: null,
+      swapSource: null,
+      cropSlot: null,
+      previewTemplateId: null,
+      spreadSelected: false,
+    }),
 
   density: "can",
   setDensity: (density) => set({ density }),
@@ -869,11 +994,18 @@ export const useAlbum = create<AlbumState>((set) => ({
       return { spreads, currentIndex: 0, selectedSlot: null, selectedText: null, selectedTypo: null };
     }),
 
-  selectSlot: (selectedSlot) => set({ selectedSlot, selectedText: null, selectedTypo: null, swapSource: null }),
+  selectSlot: (selectedSlot) =>
+    set({ selectedSlot, selectedText: null, selectedTypo: null, swapSource: null, spreadSelected: false }),
 
-  selectText: (selectedText) => set({ selectedText, selectedSlot: null, selectedTypo: null, swapSource: null }),
+  spreadSelected: false,
+  selectSpread: () =>
+    set({ spreadSelected: true, selectedSlot: null, selectedText: null, selectedTypo: null, swapSource: null }),
 
-  selectTypo: (selectedTypo) => set({ selectedTypo, selectedSlot: null, selectedText: null, swapSource: null }),
+  selectText: (selectedText) =>
+    set({ selectedText, selectedSlot: null, selectedTypo: null, swapSource: null, spreadSelected: false }),
+
+  selectTypo: (selectedTypo) =>
+    set({ selectedTypo, selectedSlot: null, selectedText: null, swapSource: null, spreadSelected: false }),
 
   addTypo: (typoId, x, y) =>
     set((s) => {
