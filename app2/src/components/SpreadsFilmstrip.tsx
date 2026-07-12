@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { getTemplate } from "../engine/templates";
-import { useAlbum } from "../store/album";
+import { getTemplate, parseSizeCm } from "../engine/templates";
+import { pagesOf, spreadLabel, useAlbum } from "../store/album";
 import { IMAGE_DND_KEY } from "../constants";
 import { IconPlus, IconClose } from "../icons";
 
@@ -54,11 +54,13 @@ export function SpreadsFilmstrip() {
   /** Insertion index from the pointer position over the card row. */
   function insertionAt(clientX: number): number {
     const cards = trackRef.current?.querySelectorAll(".fs2-card") ?? [];
+    // nothing ever lands before the cover
+    const min = useAlbum.getState().spreads[0]?.isCover ? 1 : 0;
     for (let i = 0; i < cards.length; i++) {
       const r = (cards[i] as HTMLElement).getBoundingClientRect();
-      if (clientX < r.left + r.width / 2) return i;
+      if (clientX < r.left + r.width / 2) return Math.max(min, i);
     }
-    return cards.length;
+    return Math.max(min, cards.length);
   }
 
   return (
@@ -125,8 +127,12 @@ export function SpreadsFilmstrip() {
       >
         {spreads.map((sp, idx) => {
           const tpl = getTemplate(sp.templateId);
-          const ratio = tpl?.ratioWH || 2;
+          const cm = parseSizeCm(useAlbum.getState().size);
+          const ratio = cm
+            ? (cm.w * pagesOf(sp, tpl?.ratioWH ?? 2)) / cm.h
+            : tpl?.ratioWH || 2;
           const bgImg = sp.bgImageId ? images.find((im) => im.id === sp.bgImageId) : undefined;
+          const pinned = idx === 0 && !!sp.isCover;
           const dropBefore = dragIdx !== null && dropAt === idx;
           const dropAfter =
             dragIdx !== null && dropAt === idx + 1 && idx === spreads.length - 1;
@@ -141,8 +147,13 @@ export function SpreadsFilmstrip() {
                 (dropAfter ? " drop-after" : "")
               }
               onClick={() => setCurrent(idx)}
-              title={`Spread ${idx + 1} — kéo để cuộn · giữ rồi kéo để đổi vị trí`}
+              title={
+                pinned
+                  ? "Bìa album — luôn ở đầu"
+                  : `${spreadLabel(spreads, idx)} — kéo để cuộn · giữ rồi kéo để đổi vị trí`
+              }
               onMouseDown={() => {
+                if (pinned) return; // the cover never reorders
                 // hold still ~0.3s → the card lifts and the drag reorders
                 window.clearTimeout(armTimer.current);
                 armTimer.current = window.setTimeout(() => {
@@ -177,8 +188,8 @@ export function SpreadsFilmstrip() {
                   );
                 })}
               </div>
-              <span className="fs2-no">{idx + 1}</span>
-              {spreads.length > 1 && (
+              <span className="fs2-no">{pinned ? "Bìa" : spreads[0]?.isCover ? idx : idx + 1}</span>
+              {spreads.length > 1 && !pinned && (
                 <button
                   className="fs2-del"
                   title="Xoá spread (Delete)"

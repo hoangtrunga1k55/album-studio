@@ -112,6 +112,24 @@ export interface Spread {
    *  first = bottom, last = top, so text/typo can sit UNDER photos too.
    *  Missing/partial → natural order (slots, tpl texts, added, typos). */
   zOrder?: string[];
+  /** Album cover — pinned at position 0, edited like any spread. */
+  isCover?: boolean;
+  /** Cover size: 1 = front only (1 page), 2 = full wrap (2-page spread). */
+  pages?: 1 | 2;
+}
+
+/** Display name of a spread ("Bìa" / "Spread N") — cover-aware numbering. */
+export function spreadLabel(spreads: Spread[], i: number): string {
+  const hasCover = !!spreads[0]?.isCover;
+  if (hasCover) return i === 0 ? "Bìa" : `Spread ${i}`;
+  return `Spread ${i + 1}`;
+}
+
+/** Effective page count of a spread (cover can be 1-page; others follow
+ *  the template: landscape = 2-page spread, portrait = single page). */
+export function pagesOf(spread: Spread | undefined, tplRatioWH: number): 1 | 2 {
+  if (spread?.isCover) return spread.pages ?? 2;
+  return tplRatioWH >= 1 ? 2 : 1;
 }
 
 export type ArrangeOp = "front" | "forward" | "backward" | "back";
@@ -299,6 +317,8 @@ interface AlbumState {
   /** Arrange (§6): move ANY element (`s<i>`/`t<i>`/`a<id>`/`y<id>`) in the
    *  unified paint order — text/typo can go under photos and vice versa. */
   arrangeZ: (key: string, op: ArrangeOp) => void;
+  /** Cover size: 1 = front only, 2 = full wrap (only the cover spread). */
+  setCoverPages: (pages: 1 | 2) => void;
   /** Align anchor (SmartAlbums): a slot marked as the reference frame —
    *  other frames align to its center/edges from the panel. Phím G. */
   alignAnchor: number | null;
@@ -435,13 +455,16 @@ export const useAlbum = create<AlbumState>((set) => ({
       // Suggestion pool must be narrowed BEFORE the spreads pick their templates.
       setPreferredSource(settings.layoutSource);
       const margin = gapFrac(size, settings.gapMm);
+      // The cover is a real spread pinned at position 0 (2-page wrap default).
+      const cover: Spread = { ...freshSpread(size, 1, margin), isCover: true, pages: 2 };
       return {
         size,
         settings,
         bgColor: opts?.bgColor ?? s.bgColor,
-        spreads: Array.from({ length: Math.max(1, spreadCount) }, () =>
-          freshSpread(size, 1, margin)
-        ),
+        spreads: [
+          cover,
+          ...Array.from({ length: Math.max(1, spreadCount) }, () => freshSpread(size, 1, margin)),
+        ],
         currentIndex: 0,
         selectedSlot: null,
         photoMeta: {},
@@ -584,10 +607,11 @@ export const useAlbum = create<AlbumState>((set) => ({
       if (merged.length === cur.imageIds.filter(Boolean).length) return s;
 
       // Re-pick a template that fits the new count (capped by the largest pool).
-      const targetCount = nearestSlotCount(s.size, merged.length);
+      const forCover = !!cur.isCover;
+      const targetCount = nearestSlotCount(s.size, merged.length, forCover);
       const tpl = getTemplate(cur.templateId);
       if (targetCount > 0 && (!tpl || tpl.slotCount !== targetCount)) {
-        const next = randomTemplate(s.size, targetCount);
+        const next = randomTemplate(s.size, targetCount, undefined, forCover);
         if (next) cur.templateId = next.id;
       }
       cur.imageIds = merged.slice(0, targetCount || merged.length);
@@ -604,13 +628,14 @@ export const useAlbum = create<AlbumState>((set) => ({
       const spreads = [...s.spreads];
       const cur = { ...spreads[s.currentIndex] };
       // No image chosen yet → browse ALL layouts; once N images chosen → only N-slot.
+      const forCover = !!cur.isCover;
       let next =
         cur.imageIds.length === 0
-          ? nextTemplateAny(s.size, cur.templateId)
+          ? nextTemplateAny(s.size, cur.templateId, forCover)
           : nextTemplateSameCount(cur.templateId);
       if (!next) {
-        const count = nearestSlotCount(s.size, cur.imageIds.length || 1);
-        next = randomTemplate(s.size, count);
+        const count = nearestSlotCount(s.size, cur.imageIds.length || 1, forCover);
+        next = randomTemplate(s.size, count, undefined, forCover);
       }
       if (next) {
         cur.templateId = next.id;
@@ -658,10 +683,11 @@ export const useAlbum = create<AlbumState>((set) => ({
       const merged = [...cur.imageIds.filter(Boolean)];
       for (const id of imageIds) if (!merged.includes(id)) merged.push(id);
       if (merged.length === cur.imageIds.filter(Boolean).length) return s;
-      const targetCount = nearestSlotCount(s.size, merged.length);
+      const forCover = !!cur.isCover;
+      const targetCount = nearestSlotCount(s.size, merged.length, forCover);
       const tpl = getTemplate(cur.templateId);
       if (targetCount > 0 && (!tpl || tpl.slotCount !== targetCount)) {
-        const next = randomTemplate(s.size, targetCount);
+        const next = randomTemplate(s.size, targetCount, undefined, forCover);
         if (next) cur.templateId = next.id;
       }
       cur.imageIds = merged.slice(0, targetCount || merged.length);
@@ -866,6 +892,9 @@ export const useAlbum = create<AlbumState>((set) => ({
       const copy: Spread = {
         ...structuredClone(src),
         id: newId("sp"),
+        // a duplicated cover is just a normal spread — one cover per album
+        isCover: undefined,
+        pages: undefined,
       };
       const spreads = [...s.spreads];
       spreads.splice(index + 1, 0, copy);
@@ -875,6 +904,8 @@ export const useAlbum = create<AlbumState>((set) => ({
   removeSpread: (index) =>
     set((s) => {
       if (s.spreads.length <= 1) return s;
+      // the cover can't be deleted (clear its content instead)
+      if (index === 0 && s.spreads[0]?.isCover) return s;
       const spreads = s.spreads.filter((_, i) => i !== index);
       const currentIndex = Math.min(s.currentIndex, spreads.length - 1);
       return { spreads, currentIndex, selectedSlot: null };
@@ -883,7 +914,10 @@ export const useAlbum = create<AlbumState>((set) => ({
   moveSpread: (from, to) =>
     set((s) => {
       const max = s.spreads.length - 1;
-      const dest = Math.max(0, Math.min(max, to));
+      // the cover is pinned at 0 — it never moves, nothing moves before it
+      const min = s.spreads[0]?.isCover ? 1 : 0;
+      if (from < min) return s;
+      const dest = Math.max(min, Math.min(max, to));
       if (from === dest || !s.spreads[from]) return s;
       const spreads = [...s.spreads];
       const [sp] = spreads.splice(from, 1);
@@ -899,7 +933,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       const cur = { ...spreads[s.currentIndex] };
       const tpl = getTemplate(cur.templateId);
       const count = tpl?.slotCount ?? Math.max(1, cur.imageIds.filter(Boolean).length);
-      const next = randomTemplate(s.size, count, cur.templateId);
+      const next = randomTemplate(s.size, count, cur.templateId, !!cur.isCover);
       if (!next) return s;
       // Same photos, fresh layout: refill in order, drop crop tweaks.
       const photos = cur.imageIds.filter(Boolean);
@@ -920,9 +954,10 @@ export const useAlbum = create<AlbumState>((set) => ({
       const cur = { ...spreads[s.currentIndex] };
       const tpl = getTemplate(cur.templateId);
       const count = tpl?.slotCount ?? 1;
-      const target = nearestSlotCount(s.size, count + delta);
+      const forCover = !!cur.isCover;
+      const target = nearestSlotCount(s.size, count + delta, forCover);
       if (target === count) return s;
-      const next = randomTemplate(s.size, target);
+      const next = randomTemplate(s.size, target, undefined, forCover);
       if (!next) return s;
       const photos = cur.imageIds.filter(Boolean);
       cur.templateId = next.id;
@@ -1105,6 +1140,15 @@ export const useAlbum = create<AlbumState>((set) => ({
       return { spreads };
     }),
 
+  setCoverPages: (pages) =>
+    set((s) => {
+      const cover = s.spreads[0];
+      if (!cover?.isCover || cover.pages === pages) return s;
+      const spreads = [...s.spreads];
+      spreads[0] = { ...cover, pages };
+      return { spreads };
+    }),
+
   arrangeZ: (key, op) =>
     set((s) => {
       const spreads = [...s.spreads];
@@ -1159,7 +1203,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       });
       if (plans.length === 0) return s;
       const margin = gapFrac(s.size, s.settings.gapMm);
-      const spreads = plans.map((p) => ({
+      const planned = plans.map((p) => ({
         id: newId("sp"),
         templateId: p.templateId,
         imageIds: p.imageIds,
@@ -1169,7 +1213,10 @@ export const useAlbum = create<AlbumState>((set) => ({
         typos: [],
         margin,
       }));
-      return { spreads, currentIndex: 0, selectedSlot: null, selectedText: null, selectedTypo: null };
+      // Auto Design fills the CONTENT spreads — the cover stays untouched.
+      const cover = s.spreads[0]?.isCover ? [s.spreads[0]] : [];
+      const spreads = [...cover, ...planned];
+      return { spreads, currentIndex: cover.length, selectedSlot: null, selectedText: null, selectedTypo: null };
     }),
 
   // NOTE: selecting a slot KEEPS the layout mode (spreadSelected) — in layout

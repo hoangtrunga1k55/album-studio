@@ -1862,3 +1862,9 @@ button.danger:hover {
   object-fit: cover;
   display: block;
 }
+
+/* cover page-count toggle in the layout bar */
+.lb-pages {
+  display: flex;
+  gap: 4px;
+}

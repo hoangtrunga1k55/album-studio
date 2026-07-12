@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  coverTemplates,
   suggestionTemplates,
   type Template,
   type TemplateSource,
@@ -48,7 +49,8 @@ function useStripTemplates(): { list: Template[]; currentId: string; photoCount:
   const currentId = spread?.templateId ?? "";
   const photoCount = spread?.imageIds.filter(Boolean).length ?? 0;
   if (!size) return { list: [], currentId, photoCount };
-  const all = suggestionTemplates(size);
+  // The cover browses its OWN layout pool, never the spread designs.
+  const all = spread?.isCover ? coverTemplates(size) : suggestionTemplates(size);
   const list = [...all].sort((a, b) => {
     if (photoCount > 0) {
       const am = a.slotCount === photoCount ? 0 : 1;

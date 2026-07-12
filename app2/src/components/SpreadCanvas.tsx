@@ -6,6 +6,7 @@ import { getDisplayImage, type ImageMeta } from "../ipc/import";
 import {
   BLANK_TEMPLATE,
   getTemplate,
+  parseSizeCm,
   saveCustomTemplate,
   spreadCmFor,
   type PhotoSlot,
@@ -14,6 +15,8 @@ import {
 import { getTypo, type Typo } from "../engine/typos";
 import {
   orderKeys,
+  pagesOf,
+  spreadLabel,
   zKeysOf,
   useAlbum,
   type SlotTransform,
@@ -1101,7 +1104,13 @@ export function SpreadCanvas() {
   const availW = Math.max(box.w - pad * 2, 10);
   const availH = Math.max(box.h - pad * 2, 10);
   // Render at the album's true page ratio (custom sizes stretch the template).
-  const cmDims = spreadCmFor(tpl, useAlbum.getState().size);
+  // Cover can be 1-page (front only) or a 2-page wrap; content spreads
+  // follow their template orientation.
+  const pagesEff = pagesOf(spread, tpl.ratioWH || 2);
+  const pageCmBase = parseSizeCm(useAlbum.getState().size);
+  const cmDims = pageCmBase
+    ? { w: pageCmBase.w * pagesEff, h: pageCmBase.h }
+    : spreadCmFor(tpl, useAlbum.getState().size);
   const ratio = cmDims ? cmDims.w / cmDims.h : tpl.ratioWH || 2;
   let stageW: number, stageH: number;
   if (availW / availH > ratio) {
@@ -1271,7 +1280,13 @@ export function SpreadCanvas() {
     if (!saveTpl) return;
     const size = useAlbum.getState().size ?? "25x35";
     const ratio = cmDims ? cmDims.w / cmDims.h : tpl!.ratioWH || 2;
-    saveCustomTemplate(size, saveTpl.name.trim() || "My Layout", ratio, effSlots.map((s) => ({ ...s })));
+    saveCustomTemplate(
+      size,
+      saveTpl.name.trim() || "My Layout",
+      ratio,
+      effSlots.map((s) => ({ ...s })),
+      spread.isCover ? "cover" : "spread"
+    );
     setSaveTpl(null);
   }
 
@@ -1316,9 +1331,28 @@ export function SpreadCanvas() {
               ←
             </button>
             <span className="lb-title">
-              Spread {currentIndex + 1}
-              <span className="lb-sub">/{spreads.length}</span>
+              {spreadLabel(spreads, currentIndex)}
+              <span className="lb-sub">/{spreads.length - (spreads[0]?.isCover ? 1 : 0)}</span>
             </span>
+            {/* cover size toggle — front only / full wrap */}
+            {spread.isCover && (
+              <span className="lb-pages">
+                <button
+                  className={"lb-btn" + ((spread.pages ?? 2) === 1 ? " primary" : "")}
+                  title="Bìa trước — 1 trang"
+                  onClick={() => useAlbum.getState().setCoverPages(1)}
+                >
+                  1 trang
+                </button>
+                <button
+                  className={"lb-btn" + ((spread.pages ?? 2) === 2 ? " primary" : "")}
+                  title="Bìa ôm — trải 2 trang (trước + sau)"
+                  onClick={() => useAlbum.getState().setCoverPages(2)}
+                >
+                  2 trang
+                </button>
+              </span>
+            )}
           </div>
           <div className="layout-bar lb-right">
             <button
@@ -1333,8 +1367,10 @@ export function SpreadCanvas() {
       ) : (
         /* accent badge — pairs with the highlighted card in the filmstrip below */
         <div className="spread-chip">
-          Spread {currentIndex + 1}
-          <span className="spread-chip-sub">/{spreads.length} · phím ⟨ ⟩ để chuyển</span>
+          {spreadLabel(spreads, currentIndex)}
+          <span className="spread-chip-sub">
+            /{spreads.length - (spreads[0]?.isCover ? 1 : 0)} · phím ⟨ ⟩ để chuyển
+          </span>
         </div>
       )}
       <div
@@ -1733,7 +1769,7 @@ export function SpreadCanvas() {
                     perfectDrawEnabled={false}
                   />
                 )}
-                {tpl.ratioWH >= 1 && (
+                {pagesEff === 2 && (
                   <>
                     <Rect
                       x={stageW / 2 - (GUTTER_CM * pxPerCm) / 2}

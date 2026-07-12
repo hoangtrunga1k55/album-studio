@@ -2,7 +2,7 @@ import { useState } from "react";
 import { getTemplate, spreadCmFor } from "../engine/templates";
 import { getTypo } from "../engine/typos";
 import { PhotoNavigator } from "./PhotoNavigator";
-import { useAlbum, type ArrangeOp } from "../store/album";
+import { spreadLabel, useAlbum, type ArrangeOp } from "../store/album";
 import { useFonts } from "../store/fonts";
 import { useTypos } from "../store/typos";
 import { pickAndLoadFonts, fontAliases } from "../ipc/fonts";
@@ -749,7 +749,27 @@ export function PropertiesPanel() {
   const st = useAlbum.getState();
   return (
     <aside className="props">
-      <h3>Layout · spread {currentIndex + 1}</h3>
+      <h3>Layout · {spreadLabel(spreads, currentIndex)}</h3>
+      {spread?.isCover && (
+        <div className="prop-group">
+          <div className="prop-label">Khổ bìa</div>
+          <div className="prop-row">
+            <button
+              className={"btn" + ((spread.pages ?? 2) === 1 ? " primary" : "")}
+              onClick={() => useAlbum.getState().setCoverPages(1)}
+            >
+              1 trang
+            </button>
+            <button
+              className={"btn" + ((spread.pages ?? 2) === 2 ? " primary" : "")}
+              onClick={() => useAlbum.getState().setCoverPages(2)}
+            >
+              2 trang (ôm)
+            </button>
+          </div>
+          <div className="hint-sm">1 trang = bìa trước · 2 trang = trải cả mặt trước + sau.</div>
+        </div>
+      )}
       <div className="prop-group">
         <div className="prop-label">Bố cục</div>
         <div className="prop-row">

@@ -1,5 +1,5 @@
 import Konva from "konva";
-import { orderKeys, zKeysOf, type Spread } from "../store/album";
+import { orderKeys, pagesOf, zKeysOf, type Spread } from "../store/album";
 import type { Template } from "./templates";
 import type { ImageMeta } from "../ipc/import";
 import { getExportImage } from "../ipc/export";
@@ -47,14 +47,11 @@ export async function renderSpread(
   borderMm = 0,
   borderColor = "#ffffff"
 ): Promise<RenderResult> {
-  // Print at the album's true page size (cm): landscape templates are 2-page
-  // spreads (2×w × h), portrait ones a single page (w × h) — the normalized
-  // layout stretches to that ratio, so custom sizes work too.
-  const spreadCm = pageCm
-    ? tpl.ratioWH >= 1
-      ? { w: pageCm.w * 2, h: pageCm.h }
-      : pageCm
-    : null;
+  // Print at the album's true page size (cm). The cover decides its own page
+  // count (1 = front only, 2 = wrap); content spreads follow the template
+  // orientation. The normalized layout stretches to that ratio.
+  const pages = pagesOf(spread, tpl.ratioWH);
+  const spreadCm = pageCm ? { w: pageCm.w * pages, h: pageCm.h } : null;
   let W: number, H: number;
   if (spreadCm) {
     W = Math.round((dpi * spreadCm.w) / 2.54);

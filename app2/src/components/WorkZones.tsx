@@ -1,6 +1,6 @@
 import { useState, type DragEvent } from "react";
 import { getTemplate } from "../engine/templates";
-import { useAlbum } from "../store/album";
+import { spreadLabel, useAlbum } from "../store/album";
 import { IMAGE_DND_KEY } from "../constants";
 import { IconPlus } from "../icons";
 
@@ -13,8 +13,8 @@ function acceptsImage(e: DragEvent): boolean {
 }
 
 /** Left rail: the PREVIOUS spread in miniature (like the right rail shows the
- *  next one). Only at the very first spread does the album-cover box show —
- *  the cover sits at position 0, before spread 1. */
+ *  next one). The cover IS position 0 — standing on it, there is nothing to
+ *  the left. */
 export function PrevSpreadZone() {
   const spreads = useAlbum((s) => s.spreads);
   const images = useAlbum((s) => s.images);
@@ -22,8 +22,8 @@ export function PrevSpreadZone() {
   const setCurrent = useAlbum((s) => s.setCurrent);
   const [over, setOver] = useState(false);
 
-  // First spread → the cover box (position 0 of the album).
-  if (currentIndex === 0) return <CoverDropZone />;
+  // Standing on the very first item (the cover) → nothing to show on the left.
+  if (currentIndex === 0) return null;
 
   const prev = spreads[currentIndex - 1];
   const tpl = prev ? getTemplate(prev.templateId) : undefined;
@@ -78,56 +78,8 @@ export function PrevSpreadZone() {
               );
             })}
           </div>
-          <span className="sz-label">← Spread {currentIndex}</span>
+          <span className="sz-label">← {spreadLabel(spreads, currentIndex - 1)}</span>
         </div>
-      )}
-    </div>
-  );
-}
-
-/** Cover box (position 0): drop a photo → the spread's full-bleed cover. */
-function CoverDropZone() {
-  const setCoverImage = useAlbum((s) => s.setCoverImage);
-  const removeBackground = useAlbum((s) => s.removeBackground);
-  const spreads = useAlbum((s) => s.spreads);
-  const currentIndex = useAlbum((s) => s.currentIndex);
-  const images = useAlbum((s) => s.images);
-  const [over, setOver] = useState(false);
-
-  const bgId = spreads[currentIndex]?.bgImageId;
-  const bg = bgId ? images.find((i) => i.id === bgId) : undefined;
-
-  return (
-    <div
-      className={"side-zone left" + (over ? " over" : "")}
-      title="Kéo ảnh vào đây → ảnh nền tràn spread"
-      onDragOver={(e) => {
-        if (!acceptsImage(e)) return;
-        e.preventDefault();
-        setOver(true);
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setOver(false);
-        const ids = draggedIds(e);
-        if (ids[0]) setCoverImage(ids[0]);
-      }}
-    >
-      {bg ? (
-        <div className="sz-cover">
-          <img src={bg.thumb} alt="" draggable={false} />
-          <button className="sz-x" title="Gỡ ảnh nền" onClick={removeBackground}>
-            ×
-          </button>
-          <span className="sz-label">Ảnh nền</span>
-        </div>
-      ) : (
-        <span className="sz-label sz-cover-hint">
-          Thả ảnh vào đây
-          <br />
-          để tạo bìa
-        </span>
       )}
     </div>
   );
@@ -212,7 +164,7 @@ export function NextSpreadZone() {
               );
             })}
           </div>
-          <span className="sz-label">Spread {currentIndex + 2} →</span>
+          <span className="sz-label">{spreadLabel(spreads, currentIndex + 1)} →</span>
         </div>
       ) : (
         <span className="sz-label sz-add">

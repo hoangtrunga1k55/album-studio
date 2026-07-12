@@ -67,6 +67,8 @@ export interface Template {
   bg?: string;
   /** basic = generated plain frames · tizino = PSD designs · custom = My Layouts. */
   source?: TemplateSource;
+  /** cover layouts live in their own pool — spreads never suggest them. */
+  kind?: "spread" | "cover";
 }
 
 interface RawTemplate {
@@ -246,6 +248,42 @@ const BASIC_TEMPLATES: Template[] = [
   basic("Lưới 4×2", grid(4, 2)),
 ];
 
+/* ---------- Cover library: generated basics (Tizino cover packs later
+   land in the same pool via kind "cover"). Normalized — they stretch to the
+   1-page (front only) or 2-page wrap cover canvas. ---------- */
+
+function coverTpl(name: string, slots: PhotoSlot[]): Template {
+  return {
+    id: `cover/${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${slots.length}`,
+    size: "*",
+    name,
+    ratioWH: 1.43,
+    slots,
+    texts: [],
+    slotCount: slots.length,
+    source: "basic",
+    kind: "cover",
+  };
+}
+
+const BASIC_COVERS: Template[] = [
+  coverTpl("Bìa tràn", [r(0, 0, 1, 1)]),
+  coverTpl("Bìa giữa", [r(0.28, 0.12, 0.44, 0.7)]),
+  coverTpl("Bìa dưới (chừa tiêu đề)", [r(0.08, 0.32, 0.84, 0.6)]),
+  // wrap cover: the FRONT face is the right half of the canvas
+  coverTpl("Mặt trước phải (bìa ôm)", [r(0.53, 0.07, 0.42, 0.86)]),
+  coverTpl("Bìa đôi", [r(0.06, 0.14, 0.42, 0.72), r(0.52, 0.14, 0.42, 0.72)]),
+];
+
+/** Layout pool for the COVER spread: generated basics + Tizino cover packs +
+ *  user-saved cover customs. Never mixed into the spread pools. */
+export function coverTemplates(size: AlbumSize): Template[] {
+  void size; // normalized covers stretch to any size — kept for future packs
+  const packs = TEMPLATES.filter((t) => t.kind === "cover");
+  const customs = CUSTOMS.filter((t) => t.kind === "cover");
+  return [...BASIC_COVERS, ...packs, ...customs];
+}
+
 /* ---------- My Layouts (§7.5): user-saved custom templates ---------- */
 
 const CUSTOM_KEY = "albumstudio2.customLayouts";
@@ -279,7 +317,8 @@ export function saveCustomTemplate(
   size: AlbumSize,
   name: string,
   ratioWH: number,
-  slots: PhotoSlot[]
+  slots: PhotoSlot[],
+  kind: "spread" | "cover" = "spread"
 ): Template {
   const tpl: Template = {
     id: `custom/${Date.now()}`,
@@ -290,6 +329,7 @@ export function saveCustomTemplate(
     texts: [],
     slotCount: slots.length,
     source: "custom",
+    kind,
   };
   CUSTOMS = [...CUSTOMS, tpl];
   persistCustoms();
@@ -318,6 +358,7 @@ export function getTemplate(id: string | null): Template | undefined {
   return (
     TEMPLATES.find((t) => t.id === id) ??
     BASIC_TEMPLATES.find((t) => t.id === id) ??
+    BASIC_COVERS.find((t) => t.id === id) ??
     CUSTOMS.find((t) => t.id === id)
   );
 }
@@ -342,8 +383,13 @@ export function suggestionTemplates(size: AlbumSize): Template[] {
 }
 
 export function templatesForSize(size: AlbumSize): Template[] {
-  const customs = CUSTOMS.filter((t) => t.size === size && t.slotCount > 0);
-  const exact = TEMPLATES.filter((t) => t.size === size && t.slotCount > 0);
+  // cover layouts never leak into the spread pools
+  const customs = CUSTOMS.filter(
+    (t) => t.size === size && t.slotCount > 0 && (t.kind ?? "spread") === "spread"
+  );
+  const exact = TEMPLATES.filter(
+    (t) => t.size === size && t.slotCount > 0 && (t.kind ?? "spread") === "spread"
+  );
   if (exact.length > 0) return [...BASIC_TEMPLATES, ...exact, ...customs];
 
   // Custom size → no dedicated pool. Fall back to the non-empty preset pool
@@ -369,16 +415,21 @@ export function templatesForSize(size: AlbumSize): Template[] {
   return [...BASIC_TEMPLATES, ...best, ...customs];
 }
 
+/** Suggestion pool: cover spread → cover layouts, others → spread layouts. */
+function pickPool(size: AlbumSize, forCover: boolean): Template[] {
+  return forCover ? coverTemplates(size) : suggestionTemplates(size);
+}
+
 /** Slot counts actually available for a size, ascending. */
-export function availableSlotCounts(size: AlbumSize): number[] {
-  return [...new Set(suggestionTemplates(size).map((t) => t.slotCount))].sort(
+export function availableSlotCounts(size: AlbumSize, forCover = false): number[] {
+  return [...new Set(pickPool(size, forCover).map((t) => t.slotCount))].sort(
     (a, b) => a - b
   );
 }
 
 /** Closest available slot count to `n` for a size (prefers exact). */
-export function nearestSlotCount(size: AlbumSize, n: number): number {
-  const counts = availableSlotCounts(size);
+export function nearestSlotCount(size: AlbumSize, n: number, forCover = false): number {
+  const counts = availableSlotCounts(size, forCover);
   if (counts.length === 0) return 0;
   return counts.reduce((best, c) =>
     Math.abs(c - n) < Math.abs(best - n) ? c : best
@@ -390,7 +441,7 @@ export function nearestSlotCount(size: AlbumSize, n: number): number {
 export function nextTemplateSameCount(currentId: string): Template | undefined {
   const cur = getTemplate(currentId);
   if (!cur) return undefined;
-  const pool = suggestionTemplates(cur.size)
+  const pool = pickPool(cur.size, cur.kind === "cover")
     .filter((t) => t.slotCount === cur.slotCount)
     .sort((a, b) => a.id.localeCompare(b.id));
   if (pool.length <= 1) return cur;
@@ -400,8 +451,12 @@ export function nextTemplateSameCount(currentId: string): Template | undefined {
 
 /** Next template (deterministic rotation) across ALL templates of a size,
  *  regardless of slot count — used by SPACE before any image is selected. */
-export function nextTemplateAny(size: AlbumSize, currentId: string): Template | undefined {
-  const pool = suggestionTemplates(size).sort((a, b) => a.id.localeCompare(b.id));
+export function nextTemplateAny(
+  size: AlbumSize,
+  currentId: string,
+  forCover = false
+): Template | undefined {
+  const pool = pickPool(size, forCover).sort((a, b) => a.id.localeCompare(b.id));
   if (pool.length === 0) return undefined;
   const i = pool.findIndex((t) => t.id === currentId);
   return pool[(i + 1) % pool.length];
@@ -411,9 +466,10 @@ export function nextTemplateAny(size: AlbumSize, currentId: string): Template | 
 export function randomTemplate(
   size: AlbumSize,
   count: number,
-  excludeId?: string
+  excludeId?: string,
+  forCover = false
 ): Template | undefined {
-  let pool = suggestionTemplates(size).filter((t) => t.slotCount === count);
+  let pool = pickPool(size, forCover).filter((t) => t.slotCount === count);
   if (pool.length === 0) return undefined;
   if (excludeId && pool.length > 1) {
     pool = pool.filter((t) => t.id !== excludeId);
