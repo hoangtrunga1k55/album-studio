@@ -104,18 +104,25 @@ export function NextSpreadZone() {
       onDragLeave={() => setOver(false)}
       onDrop={drop}
     >
-      {next && tpl ? (
+      {next ? (
         <div className="sz-next">
           <div
             className="sz-prev"
             style={{
-              aspectRatio: String(tpl.ratioWH || 2),
-              backgroundImage: tpl.bg ? `url(${tpl.bg})` : undefined,
+              aspectRatio: String(tpl?.ratioWH || 2),
+              backgroundImage: tpl?.bg ? `url(${tpl.bg})` : undefined,
             }}
           >
-            {tpl.slots.map((s, i) => {
+            {/* full-bleed background photo under everything (§6.5) */}
+            {next.bgImageId &&
+              (() => {
+                const bg = images.find((im) => im.id === next.bgImageId);
+                return bg ? <img className="fs2-bg" src={bg.thumb} alt="" draggable={false} /> : null;
+              })()}
+            {(tpl?.slots ?? []).map((s, i) => {
               const id = next.imageIds[i];
               const img = id ? images.find((im) => im.id === id) : undefined;
+              if (!img && next.bgImageId) return null;
               return (
                 <div
                   key={i}

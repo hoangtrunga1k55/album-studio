@@ -1,11 +1,25 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
-import type Konva from "konva";
+import Konva from "konva";
 import useImage from "use-image";
 import { getDisplayImage, type ImageMeta } from "../ipc/import";
-import { getTemplate, saveCustomTemplate, spreadCmFor, type PhotoSlot, type TemplateText } from "../engine/templates";
+import {
+  BLANK_TEMPLATE,
+  getTemplate,
+  saveCustomTemplate,
+  spreadCmFor,
+  type PhotoSlot,
+  type TemplateText,
+} from "../engine/templates";
 import { getTypo, type Typo } from "../engine/typos";
-import { useAlbum, type SlotTransform, type TextEdit, type PlacedTypo } from "../store/album";
+import {
+  orderKeys,
+  zKeysOf,
+  useAlbum,
+  type SlotTransform,
+  type TextEdit,
+  type PlacedTypo,
+} from "../store/album";
 import { useFonts } from "../store/fonts";
 import { sampleBgColor } from "../engine/sampleBg";
 import { fitFontSizeToWidth, isSingleLine } from "../engine/fitText";
@@ -417,8 +431,11 @@ function SlotFrame(props: {
   onWheelZoom: (deltaY: number) => void;
   onDblClick: () => void;
   onContext: (x: number, y: number) => void;
+  /** SmartAlbums smart guides: snap the frame live while dragging. */
+  onLiveSnap?: (r: Px) => { x: number; y: number; v: number[]; h: number[] };
+  onGuides?: (g: { v: number[]; h: number[] } | null) => void;
 }) {
-  const { px, rotDeg, onChange, onWheelZoom, onDblClick, onContext } = props;
+  const { px, rotDeg, onChange, onWheelZoom, onDblClick, onContext, onLiveSnap, onGuides } = props;
   const ref = useRef<Konva.Rect>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
@@ -443,9 +460,19 @@ function SlotFrame(props: {
         fill="#ffffff"
         opacity={0.001}
         draggable
-        onDragEnd={(e) =>
-          onChange({ x: e.target.x() - px.w / 2, y: e.target.y() - px.h / 2, w: px.w, h: px.h, rotDeg })
-        }
+        onDragMove={(e) => {
+          // live smart guides — only for unrotated frames (axis-aligned snap)
+          if (!onLiveSnap || Math.abs(rotDeg) > 0.5) return;
+          const n = e.target;
+          const s = onLiveSnap({ x: n.x() - px.w / 2, y: n.y() - px.h / 2, w: px.w, h: px.h });
+          n.x(s.x + px.w / 2);
+          n.y(s.y + px.h / 2);
+          onGuides?.(s.v.length || s.h.length ? { v: s.v, h: s.h } : null);
+        }}
+        onDragEnd={(e) => {
+          onGuides?.(null);
+          onChange({ x: e.target.x() - px.w / 2, y: e.target.y() - px.h / 2, w: px.w, h: px.h, rotDeg });
+        }}
         onTransformEnd={() => {
           const n = ref.current;
           if (!n) return;
@@ -541,39 +568,56 @@ function GuideLayer(props: {
   }, [!!drag, guides, stageW, stageH]);
 
   const cm = pxPerCm ?? 40;
-  const tick = (dir: "right" | "bottom") =>
-    `repeating-linear-gradient(to ${dir}, #ffffff2e 0, #ffffff2e 1px, transparent 1px, transparent ${cm}px)`;
+  const R = 18; // ruler thickness
+  // Don't crowd the numbers when a cm is only a few px wide.
+  const labelStep = cm >= 26 ? 1 : cm >= 13 ? 2 : 5;
+  const cmCountW = Math.floor(stageW / cm);
+  const cmCountH = Math.floor(stageH / cm);
+  /** major tick each cm (full) + minor each ½cm (short) — SmartAlbums look. */
+  const ticks = (dir: "right" | "bottom") => ({
+    backgroundImage:
+      `repeating-linear-gradient(to ${dir}, #8b8b8b 0 1px, transparent 1px ${cm}px),` +
+      `repeating-linear-gradient(to ${dir}, #b5b5b5 0 1px, transparent 1px ${cm / 2}px)`,
+    backgroundSize: dir === "right" ? "100% 100%, 100% 6px" : "100% 100%, 6px 100%",
+    backgroundPosition: dir === "right" ? "0 0, 0 100%" : "0 0, 100% 0",
+    backgroundRepeat: "no-repeat, no-repeat",
+  });
 
   return (
     <div ref={hostRef} style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 20 }}>
-      {/* rulers */}
+      {/* SmartAlbums rulers: numbered cm scale, drag out to create a guide */}
       <div
+        className="sa-ruler sa-ruler-h"
         title="Kéo xuống để tạo guide ngang"
-        style={{
-          position: "absolute", top: 0, left: 0, right: 0, height: 14,
-          background: `linear-gradient(#0f1015d8, #0f1015d8) , ${""}`.trim() || undefined,
-          backgroundColor: "#0f1015d8",
-          backgroundImage: tick("right"),
-          cursor: "row-resize", pointerEvents: "auto",
-        }}
+        style={{ height: R, left: R, ...ticks("right") }}
         onMouseDown={(e) => {
           e.preventDefault();
           setDrag({ axis: "h", pos: 0, idx: null });
         }}
-      />
+      >
+        {Array.from({ length: Math.floor(cmCountW / labelStep) + 1 }, (_, k) => (
+          <span key={k} className="sa-ruler-num" style={{ left: k * labelStep * cm + 2 }}>
+            {k * labelStep}
+          </span>
+        ))}
+      </div>
       <div
+        className="sa-ruler sa-ruler-v"
         title="Kéo sang phải để tạo guide dọc"
-        style={{
-          position: "absolute", top: 0, left: 0, bottom: 0, width: 14,
-          backgroundColor: "#0f1015d8",
-          backgroundImage: tick("bottom"),
-          cursor: "col-resize", pointerEvents: "auto",
-        }}
+        style={{ width: R, top: R, ...ticks("bottom") }}
         onMouseDown={(e) => {
           e.preventDefault();
           setDrag({ axis: "v", pos: 0, idx: null });
         }}
-      />
+      >
+        {Array.from({ length: Math.floor(cmCountH / labelStep) + 1 }, (_, k) => (
+          <span key={k} className="sa-ruler-num v" style={{ top: k * labelStep * cm + 2 }}>
+            {k * labelStep}
+          </span>
+        ))}
+      </div>
+      {/* corner box where the rulers meet */}
+      <div className="sa-ruler-corner" style={{ width: R, height: R }} title="cm" />
       {/* placed guides */}
       {guides.v.map((g, i) => (
         <div
@@ -638,6 +682,9 @@ function Slot(props: {
   /** album setting: border drawn around the photo (stage px; 0 = off). */
   borderPx?: number;
   borderColor?: string;
+  /** a full-bleed background photo sits behind: empty frames must not paint
+   *  their gray placeholder/number over it (§6.5). */
+  bgBehind?: boolean;
   /** free rotation of the whole frame (degrees). */
   frameRot?: number;
   transform: SlotTransform;
@@ -650,7 +697,7 @@ function Slot(props: {
 }) {
   const {
     index, px, img, selected, crop, dropTarget, ppi, frameRot = 0, transform: t,
-    borderPx = 0, borderColor = "#ffffff",
+    borderPx = 0, borderColor = "#ffffff", bgBehind = false,
     onSelect, onEnterCrop, onBeginMove, onTransform, onContext,
   } = props;
   const [uri, setUri] = useState<string>();
@@ -669,6 +716,19 @@ function Slot(props: {
   }, [img?.path]);
 
   const [image] = useImage(uri ?? "");
+
+  // Tone adjustments need the node cached (Konva filters render off a cache).
+  const imgRef = useRef<Konva.Image>(null);
+  const bright = t.brightness ?? 0;
+  const contr = t.contrast ?? 0;
+  const hasTone = bright !== 0 || contr !== 0;
+  useEffect(() => {
+    const n = imgRef.current;
+    if (!n) return;
+    if (hasTone) n.cache();
+    else n.clearCache();
+    n.getLayer()?.batchDraw();
+  }, [image, hasTone, bright, contr, px.w, px.h, t.zoom, t.rot]);
 
   let node: ReactNode;
   let maxX = 0;
@@ -694,6 +754,7 @@ function Slot(props: {
     if (ppi) dpi = ppi / scale;
     node = (
       <KonvaImage
+        ref={imgRef}
         image={image}
         x={px.x + px.w / 2 + t.panX * maxX}
         y={px.y + px.h / 2 + t.panY * maxY}
@@ -704,6 +765,24 @@ function Slot(props: {
         rotation={rot}
         scaleX={t.flipH ? -1 : 1}
         scaleY={t.flipV ? -1 : 1}
+        filters={hasTone ? [Konva.Filters.Brighten, Konva.Filters.Contrast] : undefined}
+        brightness={bright}
+        contrast={contr}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  } else if (bgBehind) {
+    // over a full-bleed background: just a faint dashed outline, no gray fill
+    node = (
+      <Rect
+        x={px.x}
+        y={px.y}
+        width={px.w}
+        height={px.h}
+        stroke="#ffffff88"
+        strokeWidth={1}
+        dash={[6, 5]}
         listening={false}
         perfectDrawEnabled={false}
       />
@@ -784,7 +863,7 @@ function Slot(props: {
           perfectDrawEnabled={false}
         />
       )}
-      {!img && (
+      {!img && !bgBehind && (
         <Text
           x={px.x}
           y={px.y + px.h / 2 - plus}
@@ -899,6 +978,32 @@ export function SpreadCanvas() {
   const [drawRect, setDrawRect] = useState<Px | null>(null);
   // §7.5 save-as-template naming dialog (window.prompt is a no-op in Tauri).
   const [saveTpl, setSaveTpl] = useState<{ name: string } | null>(null);
+  // Smart guides lighting up while a frame is being dragged (SmartAlbums).
+  const [liveGuides, setLiveGuides] = useState<{ v: number[]; h: number[] } | null>(null);
+  const alignAnchor = useAlbum((s) => s.alignAnchor);
+  // Layout mode (click the spread background): ruler + frame editing live
+  // here; photo-swap dragging belongs to the normal mode outside.
+  const spreadSelected = useAlbum((s) => s.spreadSelected);
+  // Multi-select group (Shift-click) — union box drags everything together.
+  const multiSel = useAlbum((s) => s.multiSel);
+  const shiftRef = useRef(false);
+  const [groupDrag, setGroupDrag] = useState<{ dx: number; dy: number } | null>(null);
+  // Marquee: drag on the empty background draws a selection rectangle.
+  const marqueeRef = useRef<Px | null>(null);
+  const [marquee, setMarquee] = useState<Px | null>(null);
+  // The click that follows a marquee release must never reach the element
+  // under the cursor (it would steal the selection) — swallowed at capture.
+  const justMarqueed = useRef(false);
+  useEffect(() => {
+    const dn = (e: KeyboardEvent) => e.key === "Shift" && (shiftRef.current = true);
+    const up = (e: KeyboardEvent) => e.key === "Shift" && (shiftRef.current = false);
+    window.addEventListener("keydown", dn);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", dn);
+      window.removeEventListener("keyup", up);
+    };
+  }, []);
   const setCropSlot = useAlbum((s) => s.setCropSlot);
   // Slot-to-slot photo move (§6.2): mousedown arms it, movement >6px starts it.
   const movePending = useRef<{ from: number; sx: number; sy: number } | null>(null);
@@ -914,7 +1019,11 @@ export function SpreadCanvas() {
     previewTemplateId && spreadReal
       ? { ...spreadReal, transforms: {}, slotRects: {}, textEdits: {} }
       : spreadReal;
-  const tpl = getTemplate(previewTemplateId ?? spread?.templateId ?? null);
+  // Blank page fallback: a new spread has no template — render a clean white
+  // spread; the real layout arrives with the first dropped photos.
+  const tpl = spread
+    ? getTemplate(previewTemplateId ?? spread.templateId ?? null) ?? BLANK_TEMPLATE
+    : undefined;
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -943,6 +1052,12 @@ export function SpreadCanvas() {
           e.preventDefault();
           st.beginSwap(st.selectedSlot);
         }
+      } else if (e.key.toLowerCase() === "g") {
+        // G = toggle the selected frame as the align anchor (mốc căn).
+        if (st.selectedSlot !== null) {
+          e.preventDefault();
+          st.setAlignAnchor(st.alignAnchor === st.selectedSlot ? null : st.selectedSlot);
+        }
       } else if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         if (st.selectedTypo) st.removeTypo(st.selectedTypo);
@@ -965,7 +1080,7 @@ export function SpreadCanvas() {
         if (st.currentIndex > 0) st.setCurrent(st.currentIndex - 1);
       } else if (e.key === "Escape") {
         st.cancelSwap();
-        st.selectSlot(null);
+        st.clearSelection(); // also leaves layout mode
         st.setCropSlot(null);
         st.setTool("select");
       }
@@ -1033,11 +1148,105 @@ export function SpreadCanvas() {
     h: s.h * innerH,
   });
 
+  /** Bounding rect (stage px) of any z-key — used by the group box and the
+   *  marquee hit-test. Text/typo boxes are close approximations. */
+  const keyRect = (k: string): Px | null => {
+    if (k[0] === "s") {
+      const i = parseInt(k.slice(1), 10);
+      return effSlots[i] ? toPx(effSlots[i]) : null;
+    }
+    if (k[0] === "t") {
+      const i = parseInt(k.slice(1), 10);
+      const tx = tpl.texts[i];
+      if (!tx || spread.textEdits[i]?.deleted) return null;
+      const ed = spread.textEdits[i];
+      return {
+        x: (tx.x + (ed?.dx ?? 0)) * stageW,
+        y: (tx.y + (ed?.dy ?? 0)) * stageH,
+        w: tx.w * stageW * (ed?.scaleX ?? 1),
+        h: tx.h * stageH * (ed?.scaleY ?? 1),
+      };
+    }
+    if (k[0] === "a") {
+      const a = spread.addedTexts.find((x) => x.id === k.slice(1));
+      if (!a) return null;
+      const fs = Math.max(8, a.sizeFrac * stageH);
+      const lines = Math.max(1, a.content.split("\n").length);
+      return {
+        x: a.x * stageW,
+        y: a.y * stageH,
+        w: stageW * 0.5 * (a.scaleX ?? 1),
+        h: fs * 1.12 * lines * (a.scaleY ?? 1),
+      };
+    }
+    const pt = (spread.typos ?? []).find((x) => x.id === k.slice(1));
+    if (!pt) return null;
+    const typo = getTypo(pt.typoId);
+    const w = pt.w * stageW * (pt.scaleX ?? 1);
+    return {
+      x: pt.x * stageW,
+      y: pt.y * stageH,
+      w,
+      h: ((pt.w * stageW) / (typo?.ratioWH || 1)) * (pt.scaleY ?? 1),
+    };
+  };
+
+  /** Smart-guide targets: page edges/center + ¼-½-¾ grid + user guides +
+   *  every OTHER frame's edges and centers (SmartAlbums alignment). */
+  const snapTargets = (excludeIdx: number | null) => {
+    const xs = [0, stageW / 4, stageW / 2, (3 * stageW) / 4, stageW, ...guides.v.map((g) => g * stageW)];
+    const ys = [0, stageH / 4, stageH / 2, (3 * stageH) / 4, stageH, ...guides.h.map((g) => g * stageH)];
+    effSlots.forEach((s, i) => {
+      if (i === excludeIdx) return;
+      const r = rawPx(s);
+      xs.push(r.x, r.x + r.w / 2, r.x + r.w);
+      ys.push(r.y, r.y + r.h / 2, r.y + r.h);
+    });
+    return { xs, ys };
+  };
+
+  /** Live snap while dragging: pulls the frame's edges/center onto the nearest
+   *  target (±6px) and reports which guide lines to light up. */
+  const liveSnapRect = (
+    r: Px,
+    excludeIdx: number | null
+  ): { x: number; y: number; v: number[]; h: number[] } => {
+    const { xs, ys } = snapTargets(excludeIdx);
+    const tol = 6;
+    let dx: number | null = null;
+    let gx: number | null = null;
+    for (const edge of [r.x, r.x + r.w / 2, r.x + r.w]) {
+      for (const t of xs) {
+        const d = t - edge;
+        if (Math.abs(d) <= tol && (dx === null || Math.abs(d) < Math.abs(dx))) {
+          dx = d;
+          gx = t;
+        }
+      }
+    }
+    let dy: number | null = null;
+    let gy: number | null = null;
+    for (const edge of [r.y, r.y + r.h / 2, r.y + r.h]) {
+      for (const t of ys) {
+        const d = t - edge;
+        if (Math.abs(d) <= tol && (dy === null || Math.abs(d) < Math.abs(dy))) {
+          dy = d;
+          gy = t;
+        }
+      }
+    }
+    return {
+      x: r.x + (dx ?? 0),
+      y: r.y + (dy ?? 0),
+      v: gx !== null ? [gx] : [],
+      h: gy !== null ? [gy] : [],
+    };
+  };
+
   /** §7.2 snap: pull frame edges onto guides / spread edges / center (±7px). */
   const snapRect = (r: Px): Px => {
     const t = 7;
-    const xs = [0, stageW / 2, stageW, ...guides.v.map((g) => g * stageW)];
-    const ys = [0, stageH / 2, stageH, ...guides.h.map((g) => g * stageH)];
+    const { xs, ys } = snapTargets(selectedSlot);
     const near = (v: number, cands: number[]) => {
       for (const c of cands) if (Math.abs(v - c) < t) return c;
       return v;
@@ -1095,14 +1304,51 @@ export function SpreadCanvas() {
 
   return (
     <div className="canvas-wrap" ref={wrapRef} onClick={() => setMenu(null)}>
-      {/* accent badge — pairs with the highlighted card in the filmstrip below */}
-      <div className="spread-chip">
-        Spread {currentIndex + 1}
-        <span className="spread-chip-sub">/{spreads.length} · phím ⟨ ⟩ để chuyển</span>
-      </div>
+      {spreadSelected ? (
+        /* layout mode: compact corner controls — back left, save right */
+        <>
+          <div className="layout-bar lb-left">
+            <button
+              className="lb-btn"
+              title="Về chế độ thường (Esc)"
+              onClick={() => useAlbum.getState().clearSelection()}
+            >
+              ←
+            </button>
+            <span className="lb-title">
+              Spread {currentIndex + 1}
+              <span className="lb-sub">/{spreads.length}</span>
+            </span>
+          </div>
+          <div className="layout-bar lb-right">
+            <button
+              className="lb-btn primary"
+              title="Lưu bố cục khung hiện tại vào Mẫu của tôi"
+              onClick={() => setSaveTpl({ name: "My Layout" })}
+            >
+              ⭳ Lưu mẫu
+            </button>
+          </div>
+        </>
+      ) : (
+        /* accent badge — pairs with the highlighted card in the filmstrip below */
+        <div className="spread-chip">
+          Spread {currentIndex + 1}
+          <span className="spread-chip-sub">/{spreads.length} · phím ⟨ ⟩ để chuyển</span>
+        </div>
+      )}
       <div
         className="stage-host"
         style={{ width: stageW, height: stageH }}
+        onClickCapture={(e) => {
+          // the click right after a marquee release must not reach Konva —
+          // it would re-select the element under the cursor and drop the group
+          if (justMarqueed.current) {
+            justMarqueed.current = false;
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
         onContextMenu={(e) => {
@@ -1159,6 +1405,63 @@ export function SpreadCanvas() {
               width={stageW}
               height={stageH}
               fill={bgColor}
+              onMouseDown={(e) => {
+                // Drag from the background = marquee selection. Window-level
+                // listeners own the whole gesture; the mouseup is blocked at
+                // CAPTURE so Konva never synthesizes a click that would
+                // select the element under the cursor / enter layout mode.
+                const host = e.target.getStage()?.container();
+                if (!host) return;
+                const box = host.getBoundingClientRect();
+                const sx = e.evt.clientX;
+                const sy = e.evt.clientY;
+                let movedFar = false;
+                const mm = (ev: MouseEvent) => {
+                  if (!movedFar && Math.hypot(ev.clientX - sx, ev.clientY - sy) <= 4) return;
+                  movedFar = true;
+                  const r = {
+                    x: Math.min(sx, ev.clientX) - box.left,
+                    y: Math.min(sy, ev.clientY) - box.top,
+                    w: Math.abs(ev.clientX - sx),
+                    h: Math.abs(ev.clientY - sy),
+                  };
+                  marqueeRef.current = r;
+                  setMarquee(r);
+                };
+                const mu = (ev: MouseEvent) => {
+                  window.removeEventListener("mousemove", mm);
+                  window.removeEventListener("mouseup", mu, true);
+                  if (!movedFar) return; // plain click → Konva click → layout mode
+                  ev.stopPropagation(); // Konva must not see this mouseup
+                  justMarqueed.current = true; // …nor the native click after it
+                  const mq = marqueeRef.current;
+                  marqueeRef.current = null;
+                  setMarquee(null);
+                  if (!mq) return;
+                  const st = useAlbum.getState();
+                  const hits = zKeysOf(spread, effSlots.length, tpl.texts.length).filter((k) => {
+                    const r = keyRect(k);
+                    return (
+                      !!r &&
+                      r.x < mq.x + mq.w &&
+                      r.x + r.w > mq.x &&
+                      r.y < mq.y + mq.h &&
+                      r.y + r.h > mq.y
+                    );
+                  });
+                  if (hits.length >= 2) st.setMultiSel(hits);
+                  else if (hits.length === 1) {
+                    const k = hits[0];
+                    if (k[0] === "s") st.selectSlot(parseInt(k.slice(1), 10));
+                    else if (k[0] === "t")
+                      st.selectText({ kind: "tpl", index: parseInt(k.slice(1), 10) });
+                    else if (k[0] === "a") st.selectText({ kind: "added", id: k.slice(1) });
+                    else st.selectTypo(k.slice(1));
+                  }
+                };
+                window.addEventListener("mousemove", mm);
+                window.addEventListener("mouseup", mu, true);
+              }}
               onClick={() => {
                 // Click the spread background = select the LAYOUT (SmartAlbums).
                 useAlbum.getState().selectSpread();
@@ -1196,7 +1499,14 @@ export function SpreadCanvas() {
               );
             })}
 
-            {effSlots.map((slot, i) => {
+            {/* unified paint order (Arrange): photos + texts + typos in ONE
+                stack — first = bottom, last = top */}
+            {orderKeys(spread.zOrder, zKeysOf(spread, effSlots.length, tpl.texts.length)).map((zk) => {
+              // ---- photo slot `s<i>`
+              if (zk[0] === "s") {
+              const i = parseInt(zk.slice(1), 10);
+              const slot = effSlots[i];
+              if (!slot) return null;
               const imgId = spread.imageIds[i];
               const img = imgId ? images.find((im) => im.id === imgId) : undefined;
               return (
@@ -1211,28 +1521,161 @@ export function SpreadCanvas() {
                   ppi={ppi}
                   borderPx={pxPerCm ? (settings.borderMm / 10) * pxPerCm : 0}
                   borderColor={settings.borderColor}
+                  bgBehind={!!spread.bgImageId}
                   frameRot={spread.slotRects?.[i]?.rotDeg ?? 0}
                   transform={spread.transforms[i] ?? DEFAULT_T}
-                  onSelect={() =>
-                    swapSource !== null && swapSource !== i
-                      ? swapImages(swapSource, i)
-                      : selectSlot(i)
-                  }
+                  onSelect={() => {
+                    if (shiftRef.current) {
+                      useAlbum.getState().toggleMultiSel(`s${i}`);
+                      return;
+                    }
+                    if (swapSource !== null && swapSource !== i) swapImages(swapSource, i);
+                    else selectSlot(i);
+                  }}
                   onEnterCrop={() => setCropSlot(cropSlot === i ? null : i)}
                   onBeginMove={(cx, cy) => {
+                    // layout mode owns the drag gesture (frames, not photos)
+                    if (useAlbum.getState().spreadSelected) return;
                     movePending.current = { from: i, sx: cx, sy: cy };
                   }}
                   onTransform={(t) => setSlotTransform(i, t)}
                   onContext={(cx, cy) => setMenu({ kind: "slot", slot: i, x: cx, y: cy })}
                 />
               );
+              }
+
+              // ---- template text `t<i>`: rasterized by default, click → editable
+              if (zk[0] === "t") {
+              const i = parseInt(zk.slice(1), 10);
+              const tx = tpl.texts[i];
+              if (!tx) return null;
+              const ed = spread.textEdits[i];
+              const content = ((ed?.content ?? tx.content) ?? "").replace(/\r/g, "\n");
+              const lines = Math.max(1, content.split("\n").length);
+              const font = ed?.font ?? tx.font ?? "";
+              const baseFs = textBaseFs(tx, font, stageW, stageH, fontsVersion);
+              const fs = Math.max(7, baseFs * (ed?.sizeScale ?? 1));
+              const dx = ed?.dx ?? 0;
+              const dy = ed?.dy ?? 0;
+              return (
+                <TplText
+                  key={`t${i}`}
+                  px={{ x: (tx.x + dx) * stageW, y: (tx.y + dy) * stageH, w: tx.w * stageW, h: tx.h * stageH }}
+                  ed={ed}
+                  content={content}
+                  font={ed?.font ?? tx.font ?? ""}
+                  color={ed?.color ?? tx.color ?? "#222222"}
+                  fs={fs}
+                  lines={lines}
+                  scaleX={ed?.scaleX ?? 1}
+                  scaleY={ed?.scaleY ?? 1}
+                  rotDeg={ed?.rotDeg ?? 0}
+                  selected={selectedText?.kind === "tpl" && selectedText.index === i}
+                  onEnter={() =>
+                    shiftRef.current
+                      ? useAlbum.getState().toggleMultiSel(`t${i}`)
+                      : selectText({ kind: "tpl", index: i })
+                  }
+                  onSelect={() =>
+                    shiftRef.current
+                      ? useAlbum.getState().toggleMultiSel(`t${i}`)
+                      : selectText({ kind: "tpl", index: i })
+                  }
+                  onMoved={(xp, yp) => editTplText(i, { dx: xp / stageW - tx.x, dy: yp / stageH - tx.y })}
+                  onTransformed={(t) =>
+                    editTplText(i, {
+                      scaleX: t.scaleX,
+                      scaleY: t.scaleY,
+                      rotDeg: t.rotDeg,
+                      dx: t.xPx / stageW - tx.x,
+                      dy: t.yPx / stageH - tx.y,
+                    })
+                  }
+                />
+              );
+              }
+
+              // ---- user-added text `a<id>`
+              if (zk[0] === "a") {
+              const a = spread.addedTexts.find((x) => x.id === zk.slice(1));
+              if (!a) return null;
+              const content = a.content.replace(/\r/g, "\n");
+              const lines = Math.max(1, content.split("\n").length);
+              const fs = Math.max(8, a.sizeFrac * stageH);
+              return (
+                <EditableText
+                  key={a.id}
+                  x={a.x * stageW}
+                  y={a.y * stageH}
+                  w={stageW * 0.5}
+                  fs={fs}
+                  lines={lines}
+                  content={content}
+                  font={a.font}
+                  color={a.color}
+                  scaleX={a.scaleX ?? 1}
+                  scaleY={a.scaleY ?? 1}
+                  rotDeg={a.rotDeg ?? 0}
+                  selected={selectedText?.kind === "added" && selectedText.id === a.id}
+                  onSelect={() =>
+                    shiftRef.current
+                      ? useAlbum.getState().toggleMultiSel(`a${a.id}`)
+                      : selectText({ kind: "added", id: a.id })
+                  }
+                  onMoved={(xp, yp) => updateAddedText(a.id, { x: xp / stageW, y: yp / stageH })}
+                  onTransformed={(t) =>
+                    updateAddedText(a.id, {
+                      scaleX: t.scaleX,
+                      scaleY: t.scaleY,
+                      rotDeg: t.rotDeg,
+                      x: t.xPx / stageW,
+                      y: t.yPx / stageH,
+                    })
+                  }
+                />
+              );
+              }
+
+              // ---- placed typo `y<id>`
+              const pt = (spread.typos ?? []).find((x) => x.id === zk.slice(1));
+              if (!pt) return null;
+              const typo = getTypo(pt.typoId);
+              if (!typo) return null;
+              return (
+                <TypoNode
+                  key={pt.id}
+                  typo={typo}
+                  pt={pt}
+                  stageW={stageW}
+                  stageH={stageH}
+                  selected={selectedTypo === pt.id}
+                  onSelect={() =>
+                    shiftRef.current
+                      ? useAlbum.getState().toggleMultiSel(`y${pt.id}`)
+                      : selectTypo(pt.id)
+                  }
+                  onMoved={(nx, ny) => updateTypo(pt.id, { x: nx, y: ny })}
+                  onResize={(w) => updateTypo(pt.id, { w })}
+                  onTransformed={(t) =>
+                    updateTypo(pt.id, {
+                      scaleX: t.scaleX,
+                      scaleY: t.scaleY,
+                      rotDeg: t.rotDeg,
+                      x: t.xPx / stageW,
+                      y: t.yPx / stageH,
+                    })
+                  }
+                />
+              );
             })}
 
             {/* 8-handle frame editor on the selected slot (hidden in crop mode) */}
-            {selectedSlot !== null && cropSlot !== selectedSlot && effSlots[selectedSlot] && (
+            {spreadSelected && selectedSlot !== null && cropSlot !== selectedSlot && effSlots[selectedSlot] && (
               <SlotFrame
                 px={rawPx(effSlots[selectedSlot])}
                 rotDeg={spread.slotRects?.[selectedSlot]?.rotDeg ?? 0}
+                onLiveSnap={(r) => liveSnapRect(r, selectedSlot)}
+                onGuides={setLiveGuides}
                 onChange={(raw) => {
                   const straight = Math.abs(((raw.rotDeg % 360) + 360) % 360) < 0.5;
                   const r = straight ? snapRect(raw) : raw;
@@ -1256,108 +1699,7 @@ export function SpreadCanvas() {
               />
             )}
 
-            {/* template typography: rasterized by default, click → editable */}
-            {tpl.texts.map((tx, i) => {
-              const ed = spread.textEdits[i];
-              const content = ((ed?.content ?? tx.content) ?? "").replace(/\r/g, "\n");
-              const lines = Math.max(1, content.split("\n").length);
-              const font = ed?.font ?? tx.font ?? "";
-              const baseFs = textBaseFs(tx, font, stageW, stageH, fontsVersion);
-              const fs = Math.max(7, baseFs * (ed?.sizeScale ?? 1));
-              const dx = ed?.dx ?? 0;
-              const dy = ed?.dy ?? 0;
-              return (
-                <TplText
-                  key={`t${i}`}
-                  px={{ x: (tx.x + dx) * stageW, y: (tx.y + dy) * stageH, w: tx.w * stageW, h: tx.h * stageH }}
-                  ed={ed}
-                  content={content}
-                  font={ed?.font ?? tx.font ?? ""}
-                  color={ed?.color ?? tx.color ?? "#222222"}
-                  fs={fs}
-                  lines={lines}
-                  scaleX={ed?.scaleX ?? 1}
-                  scaleY={ed?.scaleY ?? 1}
-                  rotDeg={ed?.rotDeg ?? 0}
-                  selected={selectedText?.kind === "tpl" && selectedText.index === i}
-                  onEnter={() => selectText({ kind: "tpl", index: i })}
-                  onSelect={() => selectText({ kind: "tpl", index: i })}
-                  onMoved={(xp, yp) => editTplText(i, { dx: xp / stageW - tx.x, dy: yp / stageH - tx.y })}
-                  onTransformed={(t) =>
-                    editTplText(i, {
-                      scaleX: t.scaleX,
-                      scaleY: t.scaleY,
-                      rotDeg: t.rotDeg,
-                      dx: t.xPx / stageW - tx.x,
-                      dy: t.yPx / stageH - tx.y,
-                    })
-                  }
-                />
-              );
-            })}
-
-            {/* user-added texts */}
-            {spread.addedTexts.map((a) => {
-              const content = a.content.replace(/\r/g, "\n");
-              const lines = Math.max(1, content.split("\n").length);
-              const fs = Math.max(8, a.sizeFrac * stageH);
-              return (
-                <EditableText
-                  key={a.id}
-                  x={a.x * stageW}
-                  y={a.y * stageH}
-                  w={stageW * 0.5}
-                  fs={fs}
-                  lines={lines}
-                  content={content}
-                  font={a.font}
-                  color={a.color}
-                  scaleX={a.scaleX ?? 1}
-                  scaleY={a.scaleY ?? 1}
-                  rotDeg={a.rotDeg ?? 0}
-                  selected={selectedText?.kind === "added" && selectedText.id === a.id}
-                  onSelect={() => selectText({ kind: "added", id: a.id })}
-                  onMoved={(xp, yp) => updateAddedText(a.id, { x: xp / stageW, y: yp / stageH })}
-                  onTransformed={(t) =>
-                    updateAddedText(a.id, {
-                      scaleX: t.scaleX,
-                      scaleY: t.scaleY,
-                      rotDeg: t.rotDeg,
-                      x: t.xPx / stageW,
-                      y: t.yPx / stageH,
-                    })
-                  }
-                />
-              );
-            })}
-
-            {/* placed typo designs */}
-            {(spread.typos ?? []).map((pt) => {
-              const typo = getTypo(pt.typoId);
-              if (!typo) return null;
-              return (
-                <TypoNode
-                  key={pt.id}
-                  typo={typo}
-                  pt={pt}
-                  stageW={stageW}
-                  stageH={stageH}
-                  selected={selectedTypo === pt.id}
-                  onSelect={() => selectTypo(pt.id)}
-                  onMoved={(nx, ny) => updateTypo(pt.id, { x: nx, y: ny })}
-                  onResize={(w) => updateTypo(pt.id, { w })}
-                  onTransformed={(t) =>
-                    updateTypo(pt.id, {
-                      scaleX: t.scaleX,
-                      scaleY: t.scaleY,
-                      rotDeg: t.rotDeg,
-                      x: t.xPx / stageW,
-                      y: t.yPx / stageH,
-                    })
-                  }
-                />
-              );
-            })}
+            
 
             {/* §10.1–10.2 quality overlays (⌘B): bleed frame + binding gutter */}
             {showBleed && pxPerCm && (
@@ -1419,8 +1761,119 @@ export function SpreadCanvas() {
           </Layer>
         </Stage>
 
+        {/* marquee rectangle while rubber-band selecting */}
+        {marquee && (
+          <div
+            className="marquee-box"
+            style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }}
+          />
+        )}
+
+        {/* multi-select group: union box — drag it to move every member */}
+        {multiSel.length >= 2 &&
+          (() => {
+            const rects = multiSel.map(keyRect).filter((r): r is Px => !!r);
+            if (rects.length < 2) return null;
+            const x1 = Math.min(...rects.map((r) => r.x));
+            const y1 = Math.min(...rects.map((r) => r.y));
+            const x2 = Math.max(...rects.map((r) => r.x + r.w));
+            const y2 = Math.max(...rects.map((r) => r.y + r.h));
+            const shift = groupDrag
+              ? `translate(${groupDrag.dx}px, ${groupDrag.dy}px)`
+              : undefined;
+            const startDrag = (e: React.MouseEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const sx = e.clientX;
+              const sy = e.clientY;
+              const mm = (ev: MouseEvent) =>
+                setGroupDrag({ dx: ev.clientX - sx, dy: ev.clientY - sy });
+              const mu = (ev: MouseEvent) => {
+                window.removeEventListener("mousemove", mm);
+                window.removeEventListener("mouseup", mu);
+                const dx = ev.clientX - sx;
+                const dy = ev.clientY - sy;
+                setGroupDrag(null);
+                if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+                  useAlbum.getState().moveGroup({
+                    slot: { dx: dx / innerW, dy: dy / innerH },
+                    stage: { dx: dx / stageW, dy: dy / stageH },
+                  });
+                }
+              };
+              window.addEventListener("mousemove", mm);
+              window.addEventListener("mouseup", mu);
+            };
+            // Moving things is a LAYOUT-mode job; outside it the group is for
+            // basic edits only (tone…), so the box is display-only there.
+            const canMove = spreadSelected;
+            return (
+              <>
+                {rects.map((r, i) => (
+                  <div
+                    key={`gm${i}`}
+                    className="group-member"
+                    style={{ left: r.x, top: r.y, width: r.w, height: r.h, transform: shift }}
+                  />
+                ))}
+                <div
+                  className={"group-box" + (canMove ? "" : " static")}
+                  style={{ left: x1 - 8, top: y1 - 8, width: x2 - x1 + 16, height: y2 - y1 + 16, transform: shift }}
+                  title={
+                    canMove
+                      ? "Kéo để di chuyển cả nhóm · Shift-click để thêm/bớt phần tử"
+                      : "Chỉnh nhóm ở panel phải · muốn DI CHUYỂN thì vào chế độ sửa layout (click nền spread)"
+                  }
+                  onMouseDown={canMove ? startDrag : undefined}
+                >
+                  <span className="group-count">
+                    {multiSel.length} đã chọn{canMove ? " — kéo để di chuyển" : ""}
+                  </span>
+                </div>
+              </>
+            );
+          })()}
+
+        {/* smart guides: accent lines while a frame snaps into alignment */}
+        {liveGuides &&
+          liveGuides.v.map((x) => (
+            <div
+              key={`sgv${x}`}
+              style={{
+                position: "absolute", left: x - 0.5, top: 0, bottom: 0, width: 1,
+                background: "var(--accent)", zIndex: 28, pointerEvents: "none",
+                boxShadow: "0 0 4px var(--accent)",
+              }}
+            />
+          ))}
+        {liveGuides &&
+          liveGuides.h.map((y) => (
+            <div
+              key={`sgh${y}`}
+              style={{
+                position: "absolute", top: y - 0.5, left: 0, right: 0, height: 1,
+                background: "var(--accent)", zIndex: 28, pointerEvents: "none",
+                boxShadow: "0 0 4px var(--accent)",
+              }}
+            />
+          ))}
+
+        {/* align anchor (G): the reference frame others align to */}
+        {alignAnchor !== null && effSlots[alignAnchor] && (
+          <div
+            className="anchor-badge"
+            style={{
+              left: rawPx(effSlots[alignAnchor]).x + 6,
+              top: rawPx(effSlots[alignAnchor]).y + 6,
+            }}
+            title="Khung mốc — các khung khác căn theo khung này (G để bỏ)"
+          >
+            ⚓ Mốc
+          </div>
+        )}
+
         {/* §7.4 rulers + guides */}
-        {showRuler && (
+        {spreadSelected && showRuler && (
           <GuideLayer
             stageW={stageW}
             stageH={stageH}
@@ -1557,6 +2010,20 @@ export function SpreadCanvas() {
           <button onClick={() => { useAlbum.getState().rotateSlot(menu.slot); setMenu(null); }}>Xoay 90°</button>
           <button onClick={() => { useAlbum.getState().flipSlot(menu.slot, "h"); setMenu(null); }}>Lật ngang</button>
           <button onClick={() => { useAlbum.getState().flipSlot(menu.slot, "v"); setMenu(null); }}>Lật dọc</button>
+          <div className="ctx-sep" />
+          {/* Arrange (SmartAlbums): paint order for overlapping frames */}
+          <button onClick={() => { useAlbum.getState().arrangeZ(`s${menu.slot}`, "front"); setMenu(null); }}>
+            ⬆ Lên trên cùng
+          </button>
+          <button onClick={() => { useAlbum.getState().arrangeZ(`s${menu.slot}`, "forward"); setMenu(null); }}>
+            ↑ Lên một lớp
+          </button>
+          <button onClick={() => { useAlbum.getState().arrangeZ(`s${menu.slot}`, "backward"); setMenu(null); }}>
+            ↓ Xuống một lớp
+          </button>
+          <button onClick={() => { useAlbum.getState().arrangeZ(`s${menu.slot}`, "back"); setMenu(null); }}>
+            ⬇ Xuống dưới cùng
+          </button>
           <div className="ctx-sep" />
           <button onClick={() => { setSlotFit(menu.slot, "cover"); setMenu(null); }}>Lấp đầy ô</button>
           <button onClick={() => { setSlotFit(menu.slot, "contain"); setMenu(null); }}>Vừa khít</button>

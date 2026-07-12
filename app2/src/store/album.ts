@@ -24,6 +24,10 @@ export interface SlotTransform {
   rot?: 0 | 90 | 180 | 270;
   flipH?: boolean;
   flipV?: boolean;
+  /** tone (SmartAlbums Tone Adjustments): brightness -1..1, 0 = off. */
+  brightness?: number;
+  /** contrast -100..100, 0 = off. */
+  contrast?: number;
 }
 
 /** User-adjusted slot frame (normalized), overriding the template's rect. */
@@ -103,6 +107,52 @@ export interface Spread {
   bgImageId?: string | null;
   /** slotIndex → user-moved/resized frame (normalized), overrides the template. */
   slotRects?: Record<number, SlotRect>;
+  /** Unified paint order (Arrange): photo slots (`s<i>`), template texts
+   *  (`t<i>`), added texts (`a<id>`) and typos (`y<id>`) all in ONE list —
+   *  first = bottom, last = top, so text/typo can sit UNDER photos too.
+   *  Missing/partial → natural order (slots, tpl texts, added, typos). */
+  zOrder?: string[];
+}
+
+export type ArrangeOp = "front" | "forward" | "backward" | "back";
+
+/** Normalized key order: keeps valid entries, appends missing in natural order. */
+export function orderKeys(order: string[] | undefined, all: string[]): string[] {
+  const valid = new Set(all);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const k of order ?? []) {
+    if (valid.has(k) && !seen.has(k)) {
+      seen.add(k);
+      out.push(k);
+    }
+  }
+  for (const k of all) if (!seen.has(k)) out.push(k);
+  return out;
+}
+
+/** All z-keys of a spread in natural (bottom→top) order:
+ *  photo slots first, then template texts, added texts, typos. */
+export function zKeysOf(spread: Spread, slotCount: number, tplTextCount: number): string[] {
+  return [
+    ...Array.from({ length: slotCount }, (_, i) => `s${i}`),
+    ...Array.from({ length: tplTextCount }, (_, i) => `t${i}`),
+    ...spread.addedTexts.map((a) => `a${a.id}`),
+    ...(spread.typos ?? []).map((t) => `y${t.id}`),
+  ];
+}
+
+/** Move `key` within an ordered list per the arrange op (later = on top). */
+function applyArrange(order: string[], key: string, op: ArrangeOp): string[] {
+  const pos = order.indexOf(key);
+  if (pos < 0) return order;
+  const out = [...order];
+  out.splice(pos, 1);
+  if (op === "front") out.push(key);
+  else if (op === "back") out.unshift(key);
+  else if (op === "forward") out.splice(Math.min(pos + 1, out.length), 0, key);
+  else out.splice(Math.max(pos - 1, 0), 0, key);
+  return out;
 }
 
 /** Album-wide print/design settings from the New Album wizard (SmartAlbums-style). */
@@ -141,13 +191,12 @@ function gapFrac(size: AlbumSize | null, gapMm: number): number {
 let counter = 0;
 const newId = (p: string) => `${p}_${++counter}`;
 
-function freshSpread(size: AlbumSize, slotCount = 1, margin = 0): Spread {
-  const t =
-    randomTemplate(size, nearestSlotCount(size, slotCount)) ??
-    randomTemplate(size, nearestSlotCount(size, 1));
+function freshSpread(_size: AlbumSize, _slotCount = 1, margin = 0): Spread {
+  // Blank white page (SmartAlbums): no suggested template — a layout is
+  // picked automatically the moment the user drops photos in.
   return {
     id: newId("sp"),
-    templateId: t ? t.id : "",
+    templateId: "",
     imageIds: [],
     transforms: {},
     textEdits: {},
@@ -247,6 +296,25 @@ interface AlbumState {
   setSlotRect: (slotIndex: number, rect: SlotRect) => void;
   /** Restore a slot frame to the template's position. */
   resetSlotRect: (slotIndex: number) => void;
+  /** Arrange (§6): move ANY element (`s<i>`/`t<i>`/`a<id>`/`y<id>`) in the
+   *  unified paint order — text/typo can go under photos and vice versa. */
+  arrangeZ: (key: string, op: ArrangeOp) => void;
+  /** Align anchor (SmartAlbums): a slot marked as the reference frame —
+   *  other frames align to its center/edges from the panel. Phím G. */
+  alignAnchor: number | null;
+  setAlignAnchor: (i: number | null) => void;
+
+  /** Multi-select (Shift-click): z-keys (`s<i>`/`t<i>`/`a<id>`/`y<id>`) of the
+   *  grouped elements — move them together, tone-adjust the photos in one go. */
+  multiSel: string[];
+  toggleMultiSel: (key: string) => void;
+  /** Marquee (kéo khung chọn): replace the whole group at once. */
+  setMultiSel: (keys: string[]) => void;
+  /** Move every grouped element. Slots normalize against the inner area,
+   *  texts/typos against the stage — hence the two delta pairs. */
+  moveGroup: (d: { slot: { dx: number; dy: number }; stage: { dx: number; dy: number } }) => void;
+  /** Apply photo edits (tone/fit) to every PHOTO in the group. */
+  adjustGroupPhotos: (patch: Partial<SlotTransform>) => void;
   /** Slot in crop mode (double-click a photo → pan/zoom it; Esc exits) §6.3. */
   cropSlot: number | null;
   setCropSlot: (slot: number | null) => void;
@@ -314,10 +382,12 @@ interface AlbumState {
   }) => void;
 
   selectSlot: (slot: number | null) => void;
-  /** SmartAlbums click model: click the spread background = select the LAYOUT
-   *  (page/frame editing; photos only swap) — click a photo = edit that photo. */
+  /** SmartAlbums click model: click the spread background = LAYOUT mode
+   *  (ruler + frame editing; photo-swap dragging off) — click a photo outside
+   *  layout mode = edit that photo. Esc leaves layout mode. */
   spreadSelected: boolean;
   selectSpread: () => void;
+  clearSelection: () => void;
 
   // ---- typography editing (current spread) ----
   selectText: (sel: TextSel) => void;
@@ -498,6 +568,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       }
       cur.transforms = {};
       cur.slotRects = {};
+      cur.zOrder = undefined;
       cur.textEdits = {};
       spreads[s.currentIndex] = cur;
       return { spreads, selectedSlot: null, selectedText: null };
@@ -522,6 +593,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       cur.imageIds = merged.slice(0, targetCount || merged.length);
       cur.transforms = {};
       cur.slotRects = {};
+      cur.zOrder = undefined;
       spreads[s.currentIndex] = cur;
       return { spreads, selectedSlot: null, selectedText: null, selectedPhotos: [] };
     }),
@@ -544,6 +616,7 @@ export const useAlbum = create<AlbumState>((set) => ({
         cur.templateId = next.id;
         cur.transforms = {};
       cur.slotRects = {};
+      cur.zOrder = undefined;
         cur.textEdits = {};
         spreads[s.currentIndex] = cur;
       }
@@ -571,6 +644,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       cur.imageIds = next.slots.map((_, i) => photos[i] ?? "");
       cur.transforms = {};
       cur.slotRects = {};
+      cur.zOrder = undefined;
       cur.textEdits = {};
       spreads[s.currentIndex] = cur;
       return { spreads, previewTemplateId: null, selectedSlot: null, selectedText: null };
@@ -593,6 +667,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       cur.imageIds = merged.slice(0, targetCount || merged.length);
       cur.transforms = {};
       cur.slotRects = {};
+      cur.zOrder = undefined;
       spreads[index] = cur;
       return { spreads, selectedPhotos: [] };
     }),
@@ -764,6 +839,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       cur.imageIds = ids;
       cur.transforms = {};
       cur.slotRects = {};
+      cur.zOrder = undefined;
       spreads[s.currentIndex] = cur;
       return { spreads, swapSource: null, selectedSlot: null, selectedText: null, selectedTypo: null };
     }),
@@ -831,6 +907,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       cur.imageIds = next.slots.map((_, i) => photos[i] ?? "");
       cur.transforms = {};
       cur.slotRects = {};
+      cur.zOrder = undefined;
       cur.textEdits = {};
       spreads[s.currentIndex] = cur;
       return { spreads, selectedSlot: null, selectedText: null };
@@ -852,6 +929,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       cur.imageIds = next.slots.map((_, i) => photos[i] ?? "");
       cur.transforms = {};
       cur.slotRects = {};
+      cur.zOrder = undefined;
       spreads[s.currentIndex] = cur;
       return { spreads, selectedSlot: null };
     }),
@@ -862,7 +940,7 @@ export const useAlbum = create<AlbumState>((set) => ({
   showBleed: true,
   toggleBleed: () => set((s) => ({ showBleed: !s.showBleed })),
 
-  showRuler: false,
+  showRuler: true,
   toggleRuler: () => set((s) => ({ showRuler: !s.showRuler })),
 
   tool: "select",
@@ -920,6 +998,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       cur.slotRects = keptRects;
       cur.imageIds = imageIds;
       cur.transforms = transforms;
+      cur.zOrder = undefined; // slot indices shifted — drop the custom paint order
       spreads[s.currentIndex] = cur;
       return { spreads, selectedSlot: null };
     }),
@@ -945,6 +1024,103 @@ export const useAlbum = create<AlbumState>((set) => ({
       return { spreads };
     }),
 
+  alignAnchor: null,
+  setAlignAnchor: (alignAnchor) => set({ alignAnchor }),
+
+  multiSel: [],
+  setMultiSel: (multiSel) =>
+    set({ multiSel, selectedSlot: null, selectedText: null, selectedTypo: null }),
+  toggleMultiSel: (key) =>
+    set((s) => {
+      let sel = s.multiSel;
+      // First Shift-click folds the current single selection into the group.
+      if (sel.length === 0) {
+        const seed: string[] = [];
+        if (s.selectedSlot !== null) seed.push(`s${s.selectedSlot}`);
+        if (s.selectedText)
+          seed.push(s.selectedText.kind === "tpl" ? `t${s.selectedText.index}` : `a${s.selectedText.id}`);
+        if (s.selectedTypo) seed.push(`y${s.selectedTypo}`);
+        sel = seed;
+      }
+      sel = sel.includes(key) ? sel.filter((k) => k !== key) : [...sel, key];
+      return { multiSel: sel, selectedSlot: null, selectedText: null, selectedTypo: null };
+    }),
+
+  moveGroup: (d) =>
+    set((s) => {
+      if (s.multiSel.length === 0) return s;
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const tpl = getTemplate(cur.templateId);
+      const slotRects = { ...cur.slotRects };
+      const textEdits = { ...cur.textEdits };
+      let addedTexts = cur.addedTexts;
+      let typos = cur.typos ?? [];
+      for (const k of s.multiSel) {
+        if (k[0] === "s") {
+          const i = parseInt(k.slice(1), 10);
+          const base =
+            tpl && i < tpl.slots.length
+              ? { ...tpl.slots[i], ...(slotRects[i] ?? {}) }
+              : slotRects[i];
+          if (!base) continue;
+          slotRects[i] = { ...base, x: base.x + d.slot.dx, y: base.y + d.slot.dy };
+        } else if (k[0] === "t") {
+          const i = parseInt(k.slice(1), 10);
+          const ed = textEdits[i] ?? {};
+          textEdits[i] = { ...ed, dx: (ed.dx ?? 0) + d.stage.dx, dy: (ed.dy ?? 0) + d.stage.dy };
+        } else if (k[0] === "a") {
+          addedTexts = addedTexts.map((a) =>
+            `a${a.id}` === k ? { ...a, x: a.x + d.stage.dx, y: a.y + d.stage.dy } : a
+          );
+        } else {
+          typos = typos.map((t) =>
+            `y${t.id}` === k ? { ...t, x: t.x + d.stage.dx, y: t.y + d.stage.dy } : t
+          );
+        }
+      }
+      cur.slotRects = slotRects;
+      cur.textEdits = textEdits;
+      cur.addedTexts = addedTexts;
+      cur.typos = typos;
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
+
+  adjustGroupPhotos: (patch) =>
+    set((s) => {
+      if (s.multiSel.length === 0) return s;
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const transforms = { ...cur.transforms };
+      for (const k of s.multiSel) {
+        if (k[0] !== "s") continue;
+        const i = parseInt(k.slice(1), 10);
+        if (!cur.imageIds[i]) continue;
+        const prev = transforms[i] ?? { zoom: 1, panX: 0, panY: 0 };
+        transforms[i] = { ...prev, ...patch };
+      }
+      cur.transforms = transforms;
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
+
+  arrangeZ: (key, op) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const tpl = getTemplate(cur.templateId);
+      const tplSlots = tpl?.slotCount ?? 0;
+      const extras = Object.keys(cur.slotRects ?? {})
+        .map(Number)
+        .filter((k) => k >= tplSlots).length;
+      const all = zKeysOf(cur, tplSlots + extras, tpl?.texts.length ?? 0);
+      if (!all.includes(key)) return s;
+      cur.zOrder = applyArrange(orderKeys(cur.zOrder, all), key, op);
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
+
   setCurrent: (index) =>
     set({
       currentIndex: index,
@@ -953,6 +1129,8 @@ export const useAlbum = create<AlbumState>((set) => ({
       cropSlot: null,
       previewTemplateId: null,
       spreadSelected: false,
+      alignAnchor: null,
+      multiSel: [],
     }),
 
   density: "can",
@@ -994,18 +1172,51 @@ export const useAlbum = create<AlbumState>((set) => ({
       return { spreads, currentIndex: 0, selectedSlot: null, selectedText: null, selectedTypo: null };
     }),
 
+  // NOTE: selecting a slot KEEPS the layout mode (spreadSelected) — in layout
+  // mode a click on a frame means "edit this frame", not "edit this photo".
   selectSlot: (selectedSlot) =>
-    set({ selectedSlot, selectedText: null, selectedTypo: null, swapSource: null, spreadSelected: false }),
+    set({ selectedSlot, selectedText: null, selectedTypo: null, swapSource: null, multiSel: [] }),
 
   spreadSelected: false,
   selectSpread: () =>
-    set({ spreadSelected: true, selectedSlot: null, selectedText: null, selectedTypo: null, swapSource: null }),
+    set({
+      spreadSelected: true,
+      selectedSlot: null,
+      selectedText: null,
+      selectedTypo: null,
+      swapSource: null,
+      multiSel: [],
+    }),
+  /** Esc / panel ✕: drop every selection AND leave layout mode. */
+  clearSelection: () =>
+    set({
+      selectedSlot: null,
+      selectedText: null,
+      selectedTypo: null,
+      swapSource: null,
+      spreadSelected: false,
+      multiSel: [],
+    }),
 
   selectText: (selectedText) =>
-    set({ selectedText, selectedSlot: null, selectedTypo: null, swapSource: null, spreadSelected: false }),
+    set({
+      selectedText,
+      selectedSlot: null,
+      selectedTypo: null,
+      swapSource: null,
+      spreadSelected: false,
+      multiSel: [],
+    }),
 
   selectTypo: (selectedTypo) =>
-    set({ selectedTypo, selectedSlot: null, selectedText: null, swapSource: null, spreadSelected: false }),
+    set({
+      selectedTypo,
+      selectedSlot: null,
+      selectedText: null,
+      swapSource: null,
+      spreadSelected: false,
+      multiSel: [],
+    }),
 
   addTypo: (typoId, x, y) =>
     set((s) => {

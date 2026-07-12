@@ -77,14 +77,7 @@ function App() {
   const addFonts = useFonts((s) => s.addFonts);
   const setFontIndex = useFonts((s) => s.setIndex);
   const setTypos = useTypos((s) => s.setTypos);
-  // SmartAlbums minimal-action rule: the right panel only appears on click
-  // (photo/frame/text/typo selected) — otherwise the canvas gets the space.
-  const selectedSlot = useAlbum((s) => s.selectedSlot);
-  const selectedText = useAlbum((s) => s.selectedText);
-  const selectedTypo = useAlbum((s) => s.selectedTypo);
   const spreadSelected = useAlbum((s) => s.spreadSelected);
-  const hasSelection =
-    selectedSlot !== null || selectedText !== null || selectedTypo !== null || spreadSelected;
   const layoutDock = useAlbum((s) => s.layoutDockOpen);
   const setLayoutDock = useAlbum((s) => s.setLayoutDock);
   const [showExport, setShowExport] = useState(false);
@@ -263,30 +256,22 @@ function App() {
         <LeftPanel />
         <div className="center">
           {layoutDock && <LayoutDock onClose={() => setLayoutDock(false)} />}
+          {/* layout mode = focused spread editor: side zones + filmstrip hide */}
           <div className="workzone">
-            <CoverDropZone />
+            {!spreadSelected && <CoverDropZone />}
             <SpreadCanvas />
-            <NextSpreadZone />
+            {!spreadSelected && <NextSpreadZone />}
           </div>
-          <SpreadsFilmstrip />
+          {!spreadSelected && <SpreadsFilmstrip />}
         </div>
-        {hasSelection && (
-          <div className="props-host" style={{ width: propsW }}>
-            <ResizeHandle
-              className="rz rz-v"
-              onMove={(dx) => setPropsW((w) => clampN(w - dx, 200, 460))}
-            />
-            {/* every panel needs an explicit way out — ✕ = deselect (Esc) */}
-            <button
-              className="props-close"
-              title="Đóng panel (Esc)"
-              onClick={() => useAlbum.getState().selectSlot(null)}
-            >
-              ✕
-            </button>
-            <PropertiesPanel />
-          </div>
-        )}
+        {/* the editing panel is ALWAYS visible — its content follows the selection */}
+        <div className="props-host" style={{ width: propsW }}>
+          <ResizeHandle
+            className="rz rz-v"
+            onMove={(dx) => setPropsW((w) => clampN(w - dx, 200, 460))}
+          />
+          <PropertiesPanel />
+        </div>
       </div>
       {/* the photo tray yields its space while the layout dock is open */}
       {!layoutDock &&

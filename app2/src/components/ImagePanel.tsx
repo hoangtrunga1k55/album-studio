@@ -273,7 +273,10 @@ export function ImagePanel() {
             <figure
               key={img.id}
               className={
-                "ip-cell" + (isSel ? " selected" : "") + (meta?.rejected ? " rejected" : "")
+                "ip-cell" +
+                (isSel ? " selected" : "") +
+                (meta?.rejected ? " rejected" : "") +
+                (used > 0 ? " used" : "")
               }
               title={`${img.name}\n${img.capturedAt}\nDouble-click: thêm/bỏ khỏi spread · 1–5: sao · X: loại`}
               draggable
@@ -293,7 +296,8 @@ export function ImagePanel() {
               {meta?.label && (
                 <span className="ip-label" style={{ background: LABEL_COLORS[meta.label] }} />
               )}
-              {used > 0 && <span className="ip-used" title={`Dùng ${used} lần trong album`}>{used}</span>}
+              {used > 1 && <span className="ip-used" title={`Dùng ${used} lần trong album`}>{used}</span>}
+              {used === 1 && <span className="ip-used one" title="Đã dùng trong album">✓</span>}
               {(meta?.rating ?? 0) > 0 && (
                 <span className="ip-stars">{"★".repeat(meta!.rating!)}</span>
               )}

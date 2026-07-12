@@ -126,6 +126,7 @@ export function SpreadsFilmstrip() {
         {spreads.map((sp, idx) => {
           const tpl = getTemplate(sp.templateId);
           const ratio = tpl?.ratioWH || 2;
+          const bgImg = sp.bgImageId ? images.find((im) => im.id === sp.bgImageId) : undefined;
           const dropBefore = dragIdx !== null && dropAt === idx;
           const dropAfter =
             dragIdx !== null && dropAt === idx + 1 && idx === spreads.length - 1;
@@ -152,9 +153,13 @@ export function SpreadsFilmstrip() {
               }}
             >
               <div className="fs2-prev" style={{ aspectRatio: String(ratio), backgroundImage: tpl?.bg ? `url(${tpl.bg})` : undefined }}>
+                {/* full-bleed background photo under everything (§6.5) */}
+                {bgImg && <img className="fs2-bg" src={bgImg.thumb} alt="" draggable={false} />}
                 {tpl?.slots.map((s, i) => {
                   const id = sp.imageIds[i];
                   const img = id ? images.find((im) => im.id === id) : undefined;
+                  // over a background photo, empty frames stay invisible
+                  if (!img && bgImg) return null;
                   return (
                     <div
                       key={i}

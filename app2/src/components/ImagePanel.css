@@ -367,3 +367,20 @@
 .ip-remove:hover {
   background: #3a1c24;
 }
+
+/* photos already placed in the album: dimmed so unused ones pop */
+.ip-cell.used img {
+  opacity: 0.38;
+  filter: grayscale(0.2);
+  transition: opacity 0.12s ease;
+}
+.ip-cell.used:hover img,
+.ip-cell.used.selected img {
+  opacity: 0.75;
+  filter: none;
+}
+/* used exactly once → small ✓; the count badge takes over from 2+ */
+.ip-used.one {
+  font-size: 11px;
+  font-weight: 800;
+}

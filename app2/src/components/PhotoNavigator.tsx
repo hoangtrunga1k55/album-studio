@@ -90,6 +90,11 @@ export function PhotoNavigator({
               width: swapped ? dh : dw,
               height: swapped ? dw : dh,
               transform: `rotate(${rot}deg)${t.flipH ? " scaleX(-1)" : ""}${t.flipV ? " scaleY(-1)" : ""}`,
+              // CSS approximation of the Konva tone filters — live preview
+              filter:
+                (t.brightness ?? 0) !== 0 || (t.contrast ?? 0) !== 0
+                  ? `brightness(${1 + (t.brightness ?? 0)}) contrast(${1 + (t.contrast ?? 0) / 100})`
+                  : undefined,
             }}
           />
         </div>

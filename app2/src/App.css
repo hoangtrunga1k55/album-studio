@@ -1683,3 +1683,182 @@ button.danger:hover {
   transform: scale(0.94);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
+
+/* align-anchor badge on the reference frame */
+.anchor-badge {
+  position: absolute;
+  z-index: 27;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* SmartAlbums-style numbered rulers (cm) along the spread edges */
+.sa-ruler {
+  position: absolute;
+  background-color: #efefefe8;
+  pointer-events: auto;
+  overflow: hidden;
+}
+.sa-ruler-h {
+  top: 0;
+  right: 0;
+  cursor: row-resize;
+  border-bottom: 1px solid #b5b5b5;
+}
+.sa-ruler-v {
+  left: 0;
+  bottom: 0;
+  cursor: col-resize;
+  border-right: 1px solid #b5b5b5;
+}
+.sa-ruler-num {
+  position: absolute;
+  top: 1px;
+  font-size: 8.5px;
+  line-height: 1;
+  color: #6b6b6b;
+  pointer-events: none;
+  user-select: none;
+}
+.sa-ruler-num.v {
+  top: auto;
+  left: 2px;
+}
+.sa-ruler-corner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: #e6e6e6;
+  border-right: 1px solid #b5b5b5;
+  border-bottom: 1px solid #b5b5b5;
+  pointer-events: auto;
+}
+
+/* layout-mode corner controls: back+info top-left, save top-right */
+.layout-bar {
+  position: absolute;
+  top: 8px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 9px;
+  background: #ffffffee;
+  border: 1px solid #c9c9c9;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
+}
+/* ruler is 18px — keep clear of it */
+.layout-bar.lb-left {
+  left: 26px;
+  top: 26px;
+}
+.layout-bar.lb-right {
+  right: 10px;
+  top: 26px;
+}
+.lb-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #333;
+  white-space: nowrap;
+}
+.lb-sub {
+  font-weight: 500;
+  font-size: 11.5px;
+  color: #888;
+}
+.lb-btn {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #c4c4c4;
+  border-radius: 8px;
+  background: #f4f4f4;
+  color: #333;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: 0.12s ease;
+}
+.lb-btn:hover {
+  background: #e9e9e9;
+}
+.lb-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.lb-btn.primary:hover {
+  filter: brightness(1.08);
+}
+
+/* multi-select group (Shift-click) */
+.group-member {
+  position: absolute;
+  z-index: 29;
+  border: 1.5px dashed var(--accent);
+  border-radius: 3px;
+  pointer-events: none;
+}
+.group-box {
+  position: absolute;
+  z-index: 29;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(110, 118, 255, 0.07);
+  cursor: grab;
+}
+.group-box:active {
+  cursor: grabbing;
+}
+.group-count {
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+/* rubber-band selection rectangle */
+.marquee-box {
+  position: absolute;
+  z-index: 32;
+  border: 1.5px dashed var(--accent);
+  background: rgba(110, 118, 255, 0.1);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+/* outside layout mode the group box is display-only (no move) */
+.group-box.static {
+  cursor: default;
+  background: transparent;
+  pointer-events: none;
+}
+
+/* full-bleed background photo inside the small spread previews */
+.fs2-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}

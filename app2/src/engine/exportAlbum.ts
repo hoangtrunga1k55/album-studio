@@ -1,6 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 import { renderSpread } from "./renderSpread";
-import { getTemplate } from "./templates";
+import { BLANK_TEMPLATE, getTemplate } from "./templates";
 import { writeExport, type ExportFile } from "../ipc/export";
 import { readLayoutBg, savedLayoutFolder } from "../ipc/layouts";
 import type { Spread } from "../store/album";
@@ -83,8 +83,8 @@ export async function exportAlbum(
   for (let i = 0; i < spreads.length; i++) {
     if (cancel.cancelled) throw new Error("cancelled");
     onProgress(i, spreads.length);
-    const tpl = getTemplate(spreads[i].templateId);
-    if (!tpl) continue;
+    // Blank pages print as clean white spreads.
+    const tpl = getTemplate(spreads[i].templateId) ?? BLANK_TEMPLATE;
     // Hi-res text-free plate from the imported layout pack, if available.
     let hiresBg: string | null = null;
     if (layoutFolder) {

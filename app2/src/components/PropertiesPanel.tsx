@@ -2,7 +2,7 @@ import { useState } from "react";
 import { getTemplate, spreadCmFor } from "../engine/templates";
 import { getTypo } from "../engine/typos";
 import { PhotoNavigator } from "./PhotoNavigator";
-import { useAlbum } from "../store/album";
+import { useAlbum, type ArrangeOp } from "../store/album";
 import { useFonts } from "../store/fonts";
 import { useTypos } from "../store/typos";
 import { pickAndLoadFonts, fontAliases } from "../ipc/fonts";
@@ -10,6 +10,133 @@ import { importTypoLibrary } from "../flows/typoImport";
 import { TYPO_DND_KEY } from "../constants";
 import { FontPicker } from "./FontPicker";
 import { IconTrash } from "../icons";
+
+/** Arrange (SmartAlbums): Bring to Front / Forward / Backward / Send to Back. */
+function ArrangeButtons({ label, onOp }: { label?: string; onOp: (op: ArrangeOp) => void }) {
+  return (
+    <div className="prop-group">
+      <div className="prop-label">{label ?? "Sắp lớp (khi chồng nhau)"}</div>
+      <div className="prop-row">
+        <button className="btn" title="Lên trên cùng" onClick={() => onOp("front")}>⬆</button>
+        <button className="btn" title="Lên một lớp" onClick={() => onOp("forward")}>↑</button>
+        <button className="btn" title="Xuống một lớp" onClick={() => onOp("backward")}>↓</button>
+        <button className="btn" title="Xuống dưới cùng" onClick={() => onOp("back")}>⬇</button>
+      </div>
+    </div>
+  );
+}
+
+/** Arrange row for photo frames (`s<i>` in the unified z-order). */
+function ArrangeRow({ slot }: { slot: number }) {
+  const arrange = useAlbum((s) => s.arrangeZ);
+  return <ArrangeButtons label="Sắp lớp (ảnh/chữ/typo chồng nhau)" onOp={(op) => arrange(`s${slot}`, op)} />;
+}
+
+/** Arrange row for texts and typos (same unified z-order as photos). */
+function ArrangeDecorRow({ decorKey }: { decorKey: string }) {
+  const arrange = useAlbum((s) => s.arrangeZ);
+  return <ArrangeButtons label="Sắp lớp (ảnh/chữ/typo chồng nhau)" onOp={(op) => arrange(decorKey, op)} />;
+}
+
+/** SmartAlbums align tools: to the page, and to the anchor frame (G). */
+function AlignRows({ slot }: { slot: number }) {
+  const spreads = useAlbum((s) => s.spreads);
+  const currentIndex = useAlbum((s) => s.currentIndex);
+  const alignAnchor = useAlbum((s) => s.alignAnchor);
+  const setAlignAnchor = useAlbum((s) => s.setAlignAnchor);
+  const setSlotRect = useAlbum((s) => s.setSlotRect);
+
+  const spread = spreads[currentIndex];
+  const tpl = getTemplate(spread?.templateId ?? null);
+  const rectOf = (i: number) =>
+    tpl && i < tpl.slots.length
+      ? { ...tpl.slots[i], ...(spread?.slotRects?.[i] ?? {}) }
+      : spread?.slotRects?.[i];
+
+  const me = rectOf(slot);
+  if (!me) return null;
+  const put = (x: number, y: number) => setSlotRect(slot, { ...me, x, y });
+
+  const anchor = alignAnchor !== null && alignAnchor !== slot ? rectOf(alignAnchor) : null;
+
+  return (
+    <>
+      <div className="prop-group">
+        <div className="prop-label">Căn theo trang</div>
+        <div className="prop-row">
+          <button className="btn" title="Mép trái trang" onClick={() => put(0, me.y)}>⇤</button>
+          <button className="btn" title="Giữa ngang trang" onClick={() => put((1 - me.w) / 2, me.y)}>↔</button>
+          <button className="btn" title="Mép phải trang" onClick={() => put(1 - me.w, me.y)}>⇥</button>
+          <button className="btn" title="Mép trên trang" onClick={() => put(me.x, 0)}>⤒</button>
+          <button className="btn" title="Giữa dọc trang" onClick={() => put(me.x, (1 - me.h) / 2)}>↕</button>
+          <button className="btn" title="Mép dưới trang" onClick={() => put(me.x, 1 - me.h)}>⤓</button>
+        </div>
+      </div>
+      <div className="prop-group">
+        <div className="prop-label">Căn theo khung mốc ⚓</div>
+        {alignAnchor === null || alignAnchor === slot ? (
+          <>
+            <button
+              className={"btn" + (alignAnchor === slot ? " primary" : "")}
+              style={{ width: "100%", justifyContent: "center" }}
+              onClick={() => setAlignAnchor(alignAnchor === slot ? null : slot)}
+            >
+              {alignAnchor === slot ? "⚓ Đang là mốc — bấm để bỏ (G)" : "⚓ Đặt khung này làm mốc (G)"}
+            </button>
+            {alignAnchor === null && (
+              <div className="hint-sm">Đặt mốc → chọn khung khác → căn giữa/trên/dưới theo mốc.</div>
+            )}
+          </>
+        ) : anchor ? (
+          <>
+            <div className="prop-row">
+              <button
+                className="btn"
+                title="Trùng tâm mốc"
+                onClick={() => put(anchor.x + (anchor.w - me.w) / 2, anchor.y + (anchor.h - me.h) / 2)}
+              >
+                ◎ Giữa
+              </button>
+              <button
+                className="btn"
+                title="Ngay trên mốc, giữa theo chiều ngang"
+                onClick={() => put(anchor.x + (anchor.w - me.w) / 2, anchor.y - me.h)}
+              >
+                ⬒ Trên
+              </button>
+              <button
+                className="btn"
+                title="Ngay dưới mốc, giữa theo chiều ngang"
+                onClick={() => put(anchor.x + (anchor.w - me.w) / 2, anchor.y + anchor.h)}
+              >
+                ⬓ Dưới
+              </button>
+            </div>
+            <div className="prop-row" style={{ marginTop: 6 }}>
+              <button
+                className="btn"
+                title="Bên trái mốc, giữa theo chiều dọc"
+                onClick={() => put(anchor.x - me.w, anchor.y + (anchor.h - me.h) / 2)}
+              >
+                ◧ Trái
+              </button>
+              <button
+                className="btn"
+                title="Bên phải mốc, giữa theo chiều dọc"
+                onClick={() => put(anchor.x + anchor.w, anchor.y + (anchor.h - me.h) / 2)}
+              >
+                ◨ Phải
+              </button>
+              <button className="btn" title="Bỏ khung mốc" onClick={() => setAlignAnchor(null)}>
+                ✕ Bỏ mốc
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </>
+  );
+}
 
 const SNIPPETS = [
   "Mãi mãi bên nhau",
@@ -27,6 +154,7 @@ export function PropertiesPanel() {
   const selectedSlot = useAlbum((s) => s.selectedSlot);
   const selectedText = useAlbum((s) => s.selectedText);
   const selectedTypo = useAlbum((s) => s.selectedTypo);
+  const spreadSelected = useAlbum((s) => s.spreadSelected);
   const updateTypo = useAlbum((s) => s.updateTypo);
   const removeTypo = useAlbum((s) => s.removeTypo);
   const bgColor = useAlbum((s) => s.bgColor);
@@ -70,6 +198,119 @@ export function PropertiesPanel() {
   }
 
 
+  // ---------- GROUP selected (Shift-click nhiều phần tử) ----------
+  const multiSel = useAlbum.getState().multiSel;
+  if (multiSel.length >= 2) {
+    const st = useAlbum.getState();
+    const photoIdx = multiSel
+      .filter((k) => k[0] === "s")
+      .map((k) => parseInt(k.slice(1), 10))
+      .filter((i) => !!spread?.imageIds[i]);
+    const first = photoIdx.length ? spread.transforms[photoIdx[0]] : undefined;
+    const gb = first?.brightness ?? 0;
+    const gc = first?.contrast ?? 0;
+    const counts = {
+      s: multiSel.filter((k) => k[0] === "s").length,
+      t: multiSel.filter((k) => k[0] === "t" || k[0] === "a").length,
+      y: multiSel.filter((k) => k[0] === "y").length,
+    };
+    return (
+      <aside className="props">
+        <h3>Nhóm · {multiSel.length} phần tử</h3>
+        <div className="prop-meta">
+          <div>
+            {counts.s > 0 && <>Ảnh: <b>{counts.s}</b> · </>}
+            {counts.t > 0 && <>Chữ: <b>{counts.t}</b> · </>}
+            {counts.y > 0 && <>Typo: <b>{counts.y}</b></>}
+          </div>
+        </div>
+        <div className="hint-sm" style={{ marginTop: 6 }}>
+          {spreadSelected
+            ? "Kéo khung tím trên canvas để di chuyển cả nhóm. Shift-click để thêm/bớt."
+            : "Nhóm để chỉnh cơ bản (tông màu…). Muốn DI CHUYỂN: vào chế độ sửa layout rồi quây lại."}
+        </div>
+
+        {photoIdx.length > 0 && (
+          <>
+            <div className="prop-label" style={{ marginTop: 14 }}>
+              Tông màu ({photoIdx.length} ảnh)
+            </div>
+            <div className="sa-rows">
+              <div className="sa-row">
+                <span className="sa-name">Sáng:</span>
+                <input
+                  type="range"
+                  min={-100}
+                  max={100}
+                  step={1}
+                  value={Math.round(gb * 100)}
+                  onChange={(e) =>
+                    st.adjustGroupPhotos({ brightness: parseInt(e.target.value, 10) / 100 })
+                  }
+                />
+                <span className="sa-val">{Math.round(gb * 100)}</span>
+                <button
+                  className="sa-reset"
+                  title="Về 0"
+                  disabled={gb === 0}
+                  onClick={() => st.adjustGroupPhotos({ brightness: 0 })}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="sa-row">
+                <span className="sa-name">T.phản:</span>
+                <input
+                  type="range"
+                  min={-100}
+                  max={100}
+                  step={1}
+                  value={gc}
+                  onChange={(e) => st.adjustGroupPhotos({ contrast: parseInt(e.target.value, 10) })}
+                />
+                <span className="sa-val">{gc}</span>
+                <button
+                  className="sa-reset"
+                  title="Về 0"
+                  disabled={gc === 0}
+                  onClick={() => st.adjustGroupPhotos({ contrast: 0 })}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="prop-group" style={{ marginTop: 10 }}>
+              <div className="prop-row">
+                <button
+                  className="btn"
+                  title="Phủ kín khung cho cả nhóm"
+                  onClick={() => st.adjustGroupPhotos({ fit: "cover", zoom: 1, panX: 0, panY: 0 })}
+                >
+                  Phủ kín
+                </button>
+                <button
+                  className="btn"
+                  title="Hiện trọn ảnh cho cả nhóm"
+                  onClick={() => st.adjustGroupPhotos({ fit: "contain", zoom: 1, panX: 0, panY: 0 })}
+                >
+                  Trọn ảnh
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        <button
+          className="btn"
+          style={{ width: "100%", justifyContent: "center", marginTop: 14 }}
+          onClick={() => st.clearSelection()}
+        >
+          Bỏ chọn nhóm (Esc)
+        </button>
+      </aside>
+    );
+  }
+
   // ---------- TYPO selected ----------
   if (selectedTypo) {
     const pt = (spread?.typos ?? []).find((t) => t.id === selectedTypo);
@@ -108,6 +349,7 @@ export function PropertiesPanel() {
             </div>
             <div className="hint-sm">“Gốc” = giữ màu từng chữ · chọn màu = tô 1 màu.</div>
           </div>
+          <ArrangeDecorRow decorKey={`y${pt.id}`} />
           <button className="danger" onClick={() => removeTypo(pt.id)}>
             <IconTrash width={15} height={15} /> Xoá typo
           </button>
@@ -154,6 +396,7 @@ export function PropertiesPanel() {
             <input type="color" className="swatch" value={color}
               onChange={(e) => editTplText(i, { color: e.target.value })} />
           </div>
+          <ArrangeDecorRow decorKey={`t${i}`} />
           {Object.keys(ed).length > 0 && (
             <button
               className="btn"
@@ -194,6 +437,7 @@ export function PropertiesPanel() {
             <input type="color" className="swatch" value={a.color}
               onChange={(e) => updateAddedText(a.id, { color: e.target.value })} />
           </div>
+          <ArrangeDecorRow decorKey={`a${a.id}`} />
           <button className="danger" onClick={() => removeAddedText(a.id)}>
             <IconTrash width={15} height={15} /> Xoá chữ này
           </button>
@@ -203,14 +447,15 @@ export function PropertiesPanel() {
   }
 
   // ---------- SLOT selected ----------
-  // SmartAlbums click model: photo clicked → PHOTO editing only; empty frame
-  // clicked → FRAME (layout) editing. Photos move between frames by dragging.
+  // Mode split (SmartAlbums): in LAYOUT mode a slot click = edit the FRAME
+  // (position/size/arrange/align); outside it = edit the PHOTO. Photo-swap
+  // dragging only exists outside layout mode.
   if (selectedSlot !== null) {
     const imgId = spread?.imageIds[selectedSlot];
     const img = imgId ? images.find((im) => im.id === imgId) : undefined;
     const st = useAlbum.getState();
 
-    if (img) {
+    if (!spreadSelected && img) {
       const t = spread.transforms[selectedSlot] ?? { zoom: 1, panX: 0, panY: 0 };
       // Frame geometry in real units — drives the navigator ratio + info block.
       const size = st.size;
@@ -317,6 +562,50 @@ export function PropertiesPanel() {
             </div>
           </div>
 
+          <div className="prop-label" style={{ marginTop: 12 }}>Tông màu</div>
+          <div className="sa-rows">
+            <div className="sa-row">
+              <span className="sa-name">Sáng:</span>
+              <input
+                type="range"
+                min={-100}
+                max={100}
+                step={1}
+                value={Math.round((t.brightness ?? 0) * 100)}
+                onChange={(e) => setT({ ...t, brightness: parseInt(e.target.value, 10) / 100 })}
+              />
+              <span className="sa-val">{Math.round((t.brightness ?? 0) * 100)}</span>
+              <button
+                className="sa-reset"
+                title="Về 0"
+                disabled={(t.brightness ?? 0) === 0}
+                onClick={() => setT({ ...t, brightness: 0 })}
+              >
+                ×
+              </button>
+            </div>
+            <div className="sa-row">
+              <span className="sa-name">T.phản:</span>
+              <input
+                type="range"
+                min={-100}
+                max={100}
+                step={1}
+                value={t.contrast ?? 0}
+                onChange={(e) => setT({ ...t, contrast: parseInt(e.target.value, 10) })}
+              />
+              <span className="sa-val">{t.contrast ?? 0}</span>
+              <button
+                className="sa-reset"
+                title="Về 0"
+                disabled={(t.contrast ?? 0) === 0}
+                onClick={() => setT({ ...t, contrast: 0 })}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
           <div className="prop-group" style={{ marginTop: 12 }}>
             <div className="prop-row">
               <button className="btn" onClick={() => st.rotateSlot(selectedSlot)} title="Xoay ảnh 90° trong khung">
@@ -339,6 +628,8 @@ export function PropertiesPanel() {
               </button>
             </div>
           </div>
+
+          <ArrangeRow slot={selectedSlot} />
 
           <div className="prop-label" style={{ marginTop: 14 }}>Thông tin ảnh</div>
           <div className="sa-info">
@@ -370,7 +661,25 @@ export function PropertiesPanel() {
       );
     }
 
-    // §7.3 exact frame position/size in cm (spread coordinates).
+    // Normal mode + empty frame: photo actions don't apply, frame editing
+    // belongs to layout mode — point the user there.
+    if (!spreadSelected) {
+      return (
+        <aside className="props">
+          <h3>Khung ảnh #{selectedSlot + 1}</h3>
+          <div className="prop-empty">
+            Khung trống — kéo ảnh từ khay dưới vào.
+            <br />
+            <br />
+            Muốn chỉnh khung (vị trí/kích thước/căn chỉnh)?
+            <br />
+            Click nền spread để vào <b>chế độ sửa layout</b>.
+          </div>
+        </aside>
+      );
+    }
+
+    // §7.3 LAYOUT mode: exact frame position/size in cm (spread coordinates).
     const size = st.size;
     const cm = tpl ? spreadCmFor(tpl, size) : null;
     const eff =
@@ -411,7 +720,13 @@ export function PropertiesPanel() {
             </div>
           </div>
         )}
-        <div className="prop-empty">Khung trống — kéo ảnh từ khay dưới vào.</div>
+        <ArrangeRow slot={selectedSlot} />
+        <AlignRows slot={selectedSlot} />
+        <div className="prop-empty">
+          {img
+            ? "Đang sửa KHUNG (chế độ layout) — Esc để thoát, click ảnh ngoài chế độ này để sửa ảnh."
+            : "Khung trống — kéo ảnh từ khay dưới vào."}
+        </div>
       </aside>
     );
   }

@@ -301,6 +301,19 @@ export function deleteCustomTemplate(id: string) {
   persistCustoms();
 }
 
+/** Trang trắng: album mới không gán mẫu (SmartAlbums) — canvas/export dùng
+ *  bản này khi spread chưa có template; layout thật vào khi user thả ảnh. */
+export const BLANK_TEMPLATE: Template = {
+  id: "",
+  size: "*",
+  name: "Trống",
+  ratioWH: 2,
+  slots: [],
+  texts: [],
+  slotCount: 0,
+  source: "basic",
+};
+
 export function getTemplate(id: string | null): Template | undefined {
   return (
     TEMPLATES.find((t) => t.id === id) ??

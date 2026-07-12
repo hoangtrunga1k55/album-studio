@@ -1,5 +1,5 @@
 import Konva from "konva";
-import type { Spread } from "../store/album";
+import { orderKeys, zKeysOf, type Spread } from "../store/album";
 import type { Template } from "./templates";
 import type { ImageMeta } from "../ipc/import";
 import { getExportImage } from "../ipc/export";
@@ -162,7 +162,11 @@ export async function renderSpread(
         .sort((a, b) => a[0] - b[0])
         .map(([, v]) => ({ ...v })),
     ];
-    for (let i = 0; i < allSlots.length; i++) {
+    // Unified paint order (Arrange): photos, template texts, added texts and
+    // typos in ONE stack (first = bottom) — matches the canvas exactly.
+    for (const zk of orderKeys(spread.zOrder, zKeysOf(spread, allSlots.length, tpl.texts.length))) {
+      if (zk[0] === "s") {
+      const i = parseInt(zk.slice(1), 10);
       const id = spread.imageIds[i];
       if (!id) continue;
       const meta = images.find((m) => m.id === id);
@@ -197,20 +201,26 @@ export async function renderSpread(
       const nh = img.height * scale;
       const g = new Konva.Group({ clipX: px.x, clipY: px.y, clipWidth: px.w, clipHeight: px.h });
       const frameRot = spread.slotRects?.[i]?.rotDeg ?? 0;
-      g.add(
-        new Konva.Image({
-          image: img,
-          x: px.x + px.w / 2 + (t.panX ?? 0) * maxX,
-          y: px.y + px.h / 2 + (t.panY ?? 0) * maxY,
-          width: nw,
-          height: nh,
-          offsetX: nw / 2,
-          offsetY: nh / 2,
-          rotation: rot,
-          scaleX: t.flipH ? -1 : 1,
-          scaleY: t.flipV ? -1 : 1,
-        })
-      );
+      const imgNode = new Konva.Image({
+        image: img,
+        x: px.x + px.w / 2 + (t.panX ?? 0) * maxX,
+        y: px.y + px.h / 2 + (t.panY ?? 0) * maxY,
+        width: nw,
+        height: nh,
+        offsetX: nw / 2,
+        offsetY: nh / 2,
+        rotation: rot,
+        scaleX: t.flipH ? -1 : 1,
+        scaleY: t.flipV ? -1 : 1,
+      });
+      // Tone adjustments — identical filters to the display canvas.
+      if ((t.brightness ?? 0) !== 0 || (t.contrast ?? 0) !== 0) {
+        imgNode.filters([Konva.Filters.Brighten, Konva.Filters.Contrast]);
+        imgNode.brightness(t.brightness ?? 0);
+        imgNode.contrast(t.contrast ?? 0);
+        imgNode.cache();
+      }
+      g.add(imgNode);
       // Wizard border setting — same geometry as the display canvas.
       const bw = (borderMm / 10 / 2.54) * dpi;
       const border =
@@ -236,18 +246,15 @@ export async function renderSpread(
         root.add(g);
         if (border) root.add(border);
       }
-    }
+      continue;
+      }
 
-    // Ensure imported fonts are ready before measuring/drawing text.
-    await document.fonts.ready;
-
-    // Template text. On a clean (text-free) hi-res plate every text is redrawn
-    // as vector. On the baked preview plate the original text is already there,
-    // so only edited texts need a cover + overlay, and deleted ones a cover.
-    for (let i = 0; i < tpl.texts.length; i++) {
+      if (zk[0] === "t") {
+      const i = parseInt(zk.slice(1), 10);
+      const tx = tpl.texts[i];
+      if (!tx) continue;
       const ed = spread.textEdits[i];
       if (!cleanBg && !ed) continue;
-      const tx = tpl.texts[i];
       const nx = tx.x + (ed?.dx ?? 0);
       const ny = tx.y + (ed?.dy ?? 0);
       const px = { x: nx * W, y: ny * H, w: tx.w * W, h: tx.h * H };
@@ -276,8 +283,12 @@ export async function renderSpread(
           lineHeight: 1.12,
         })
       );
-    }
-    spread.addedTexts.forEach((a) => {
+      continue;
+      }
+
+      if (zk[0] === "a") {
+      const a = spread.addedTexts.find((x) => x.id === zk.slice(1));
+      if (!a) continue;
       const content = a.content.replace(/\r/g, "\n");
       const fs = Math.max(8, a.sizeFrac * H);
       root.add(
@@ -296,10 +307,12 @@ export async function renderSpread(
           lineHeight: 1.12,
         })
       );
-    });
+      continue;
+      }
 
-    // placed typo designs (decoration + vector text)
-    for (const pt of spread.typos ?? []) {
+      // placed typo design `y<id>` (decoration + vector text)
+      const pt = (spread.typos ?? []).find((x) => x.id === zk.slice(1));
+      if (!pt) continue;
       const typo = getTypo(pt.typoId);
       if (!typo) continue;
       const tw = pt.w * W;
@@ -339,6 +352,10 @@ export async function renderSpread(
       }
       root.add(g);
     }
+
+    // Ensure imported fonts are ready before measuring/drawing text.
+    await document.fonts.ready;
+
 
     // Crop marks: corner ticks at the trim box, drawn in the bleed margin.
     if (cropMarks && bp > 0) {
