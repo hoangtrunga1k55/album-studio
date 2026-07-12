@@ -83,9 +83,11 @@ export function NextSpreadZone() {
     if (next) {
       st.addToSpreadAt(currentIndex + 1, ids);
     } else {
-      // No next spread yet → create one at the end and fill it.
+      // No next spread yet → create one at the end and fill it. `st` is a
+      // pre-add snapshot, so the appended spread lands at the OLD length.
+      const appendedIndex = st.spreads.length;
       st.addSpread();
-      st.addToSpreadAt(st.spreads.length - 1, ids);
+      st.addToSpreadAt(appendedIndex, ids);
     }
   }
 

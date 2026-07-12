@@ -174,9 +174,11 @@ export function SpreadsFilmstrip() {
             e.preventDefault();
             setAddOver(false);
             const ids = (e.dataTransfer.getData(IMAGE_DND_KEY) || "").split(",").filter(Boolean);
+            // `st` is a pre-add snapshot — the new spread lands at the OLD length.
             const st = useAlbum.getState();
+            const appendedIndex = st.spreads.length;
             st.addSpread();
-            if (ids.length) st.addToSpreadAt(st.spreads.length - 1, ids);
+            if (ids.length) st.addToSpreadAt(appendedIndex, ids);
           }}
         >
           <IconPlus width={16} height={16} />
