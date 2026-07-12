@@ -159,10 +159,12 @@
 }
 .wz-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 10px;
   margin-bottom: 10px;
+}
+.wz-head .wz-step {
+  margin-left: auto;
 }
 .wz-step {
   font-size: 11.5px;
@@ -351,4 +353,23 @@
 }
 .wz-unit-sel:focus {
   border-color: #6e76ff;
+}
+
+.wz-close {
+  margin-left: 4px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #33343d;
+  border-radius: 8px;
+  background: #202127;
+  color: #e8e9ee;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.12s ease;
+}
+.wz-close:hover:not(:disabled) {
+  background: #b33;
+  border-color: #b33;
+  color: #fff;
 }

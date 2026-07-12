@@ -111,6 +111,9 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
           ))}
         </span>
         <span className="lp-head">hover = xem trước · click = áp dụng</span>
+        <button className="lp-close" title="Đóng (Esc)" onClick={onClose}>
+          ✕
+        </button>
       </div>
       <div className="ld-row">
         {shown.map((t) => (

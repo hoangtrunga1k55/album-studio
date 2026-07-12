@@ -220,6 +220,9 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
         <div className="wz-head">
           <h2>Album mới</h2>
           <span className="wz-step">Bước {step}/2 · {step === 1 ? "Khổ album" : "Trang trí"}</span>
+          <button className="wz-close" title="Đóng" onClick={onClose} disabled={busy}>
+            ✕
+          </button>
         </div>
 
         {step === 1 ? (

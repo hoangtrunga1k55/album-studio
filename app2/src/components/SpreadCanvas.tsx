@@ -950,6 +950,11 @@ export function SpreadCanvas() {
           if (st.selectedText.kind === "tpl") st.deleteTplText(st.selectedText.index);
           else st.removeAddedText(st.selectedText.id);
         } else if (st.selectedSlot !== null) st.clearSlot(st.selectedSlot);
+        // nothing on the canvas selected (and no tray photos — the tray owns
+        // Delete then) → remove the CURRENT spread
+        else if (st.selectedPhotos.length === 0 && st.spreads.length > 1) {
+          st.removeSpread(st.currentIndex);
+        }
       } else if (
         e.key === "ArrowRight" || e.key === "PageDown" || e.key === "." || e.key === ">"
       ) {

@@ -4,11 +4,14 @@ import { useAlbum } from "../store/album";
 import { IMAGE_DND_KEY } from "../constants";
 import { IconPlus, IconClose } from "../icons";
 
-const SPREAD_DND_KEY = "application/x-spread-index";
+/** How long a card must be held still before it lifts for reordering —
+ *  a plain horizontal drag (SmartAlbums-style) pans the strip instead. */
+const HOLD_MS = 260;
+const MOVE_TOLERANCE = 6;
 
 /** Horizontal filmstrip of spreads under the canvas (add / remove / switch).
- *  Wheel scrolls it sideways; </> keys step spreads; drag a card to reorder;
- *  the active card carries the same accent marker as the canvas badge above. */
+ *  Drag anywhere (cards included) to PAN like SmartAlbums; hold a card ~0.3s
+ *  to lift it, then drag to REORDER. Wheel scrolls; </> keys step spreads. */
 export function SpreadsFilmstrip() {
   const spreads = useAlbum((s) => s.spreads);
   const images = useAlbum((s) => s.images);
@@ -18,9 +21,16 @@ export function SpreadsFilmstrip() {
   const removeSpread = useAlbum((s) => s.removeSpread);
   const moveSpread = useAlbum((s) => s.moveSpread);
   const trackRef = useRef<HTMLDivElement>(null);
-  // drag-to-scroll: >5px of movement scrolls and swallows the ensuing click.
+  // pan gesture: >6px of movement scrolls and swallows the ensuing click.
   const dragScroll = useRef<{ x: number; left: number; moved: boolean } | null>(null);
-  /** insertion point while dragging a card (index the spread would land BEFORE). */
+  // wheel accumulator: one spread per "notch", trackpad momentum tamed.
+  const wheelAcc = useRef(0);
+  // hold-to-reorder gesture
+  const armTimer = useRef<number | undefined>(undefined);
+  const justReordered = useRef(false);
+  /** card currently lifted for reordering (null = pan mode). */
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  /** insertion point while reordering (index the spread would land BEFORE). */
   const [dropAt, setDropAt] = useState<number | null>(null);
   /** photos hovering over the "add spread" card. */
   const [addOver, setAddOver] = useState(false);
@@ -32,28 +42,42 @@ export function SpreadsFilmstrip() {
       ?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
   }, [currentIndex]);
 
-  function finishDrop(e: React.DragEvent, at: number | null) {
-    const raw = e.dataTransfer.getData(SPREAD_DND_KEY);
+  useEffect(() => () => window.clearTimeout(armTimer.current), []);
+
+  function clearGestures() {
+    window.clearTimeout(armTimer.current);
+    dragScroll.current = null;
+    setDragIdx(null);
     setDropAt(null);
-    if (!raw || at === null) return;
-    e.preventDefault();
-    const from = parseInt(raw, 10);
-    if (!Number.isFinite(from)) return;
-    // removing the card first shifts later indices down by one
-    const to = at > from ? at - 1 : at;
-    moveSpread(from, to);
+  }
+
+  /** Insertion index from the pointer position over the card row. */
+  function insertionAt(clientX: number): number {
+    const cards = trackRef.current?.querySelectorAll(".fs2-card") ?? [];
+    for (let i = 0; i < cards.length; i++) {
+      const r = (cards[i] as HTMLElement).getBoundingClientRect();
+      if (clientX < r.left + r.width / 2) return i;
+    }
+    return cards.length;
   }
 
   return (
     <div className="filmstrip2">
       <div
-        className="fs2-track"
+        className={"fs2-track" + (dragIdx !== null ? " reordering" : "")}
         ref={trackRef}
         onWheel={(e) => {
-          // vertical wheel → horizontal scroll (the strip has no vertical axis)
-          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-            e.currentTarget.scrollLeft += e.deltaY;
-          }
+          // wheel = step ONE spread per notch, same as the ⟨ ⟩ keys
+          // (the strip follows via scrollIntoView on the active card)
+          const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+          wheelAcc.current += delta;
+          const STEP = 60;
+          if (Math.abs(wheelAcc.current) < STEP) return;
+          const dir = wheelAcc.current > 0 ? 1 : -1;
+          wheelAcc.current = 0;
+          const st = useAlbum.getState();
+          const next = st.currentIndex + dir;
+          if (next >= 0 && next < st.spreads.length) st.setCurrent(next);
         }}
         onMouseDown={(e) => {
           dragScroll.current = {
@@ -63,63 +87,69 @@ export function SpreadsFilmstrip() {
           };
         }}
         onMouseMove={(e) => {
+          if (dragIdx !== null) {
+            setDropAt(insertionAt(e.clientX));
+            return;
+          }
           const d = dragScroll.current;
           if (!d) return;
           const dx = e.clientX - d.x;
-          if (Math.abs(dx) > 5) d.moved = true;
+          if (Math.abs(dx) > MOVE_TOLERANCE) {
+            d.moved = true;
+            window.clearTimeout(armTimer.current); // moving = panning, not holding
+          }
           if (d.moved) e.currentTarget.scrollLeft = d.left - dx;
         }}
-        onMouseLeave={() => (dragScroll.current = null)}
+        onMouseUp={(e) => {
+          window.clearTimeout(armTimer.current);
+          if (dragIdx !== null) {
+            const at = dropAt ?? insertionAt(e.clientX);
+            // removing the card first shifts later indices down by one
+            const to = at > dragIdx ? at - 1 : at;
+            moveSpread(dragIdx, to);
+            justReordered.current = true;
+            setDragIdx(null);
+            setDropAt(null);
+          }
+        }}
+        onMouseLeave={clearGestures}
         onClickCapture={(e) => {
-          // a drag must not select the card under the cursor on release
-          if (dragScroll.current?.moved) {
+          // a pan or a reorder must not select the card under the cursor
+          if (dragScroll.current?.moved || justReordered.current) {
             e.preventDefault();
             e.stopPropagation();
           }
           dragScroll.current = null;
-        }}
-        onDragOver={(e) => {
-          // over the empty tail of the strip → drop at the very end
-          if (!e.dataTransfer.types.includes(SPREAD_DND_KEY)) return;
-          if ((e.target as HTMLElement).closest(".fs2-card")) return;
-          e.preventDefault();
-          setDropAt(spreads.length);
-        }}
-        onDrop={(e) => {
-          if ((e.target as HTMLElement).closest(".fs2-card")) return;
-          finishDrop(e, spreads.length);
+          justReordered.current = false;
         }}
       >
         {spreads.map((sp, idx) => {
           const tpl = getTemplate(sp.templateId);
           const ratio = tpl?.ratioWH || 2;
-          const dropBefore = dropAt === idx;
-          const dropAfter = dropAt === idx + 1 && idx === spreads.length - 1;
+          const dropBefore = dragIdx !== null && dropAt === idx;
+          const dropAfter =
+            dragIdx !== null && dropAt === idx + 1 && idx === spreads.length - 1;
           return (
             <div
               key={sp.id}
               className={
                 "fs2-card" +
                 (idx === currentIndex ? " active" : "") +
+                (idx === dragIdx ? " lifted" : "") +
                 (dropBefore ? " drop-before" : "") +
                 (dropAfter ? " drop-after" : "")
               }
               onClick={() => setCurrent(idx)}
-              title={`Spread ${idx + 1} — kéo để đổi vị trí`}
-              draggable
-              onDragStart={(e) => {
-                dragScroll.current = null; // native drag owns this gesture
-                e.dataTransfer.setData(SPREAD_DND_KEY, String(idx));
-                e.dataTransfer.effectAllowed = "move";
+              title={`Spread ${idx + 1} — kéo để cuộn · giữ rồi kéo để đổi vị trí`}
+              onMouseDown={() => {
+                // hold still ~0.3s → the card lifts and the drag reorders
+                window.clearTimeout(armTimer.current);
+                armTimer.current = window.setTimeout(() => {
+                  dragScroll.current = null; // reorder owns this gesture now
+                  setDragIdx(idx);
+                  setDropAt(idx);
+                }, HOLD_MS);
               }}
-              onDragOver={(e) => {
-                if (!e.dataTransfer.types.includes(SPREAD_DND_KEY)) return;
-                e.preventDefault();
-                const r = e.currentTarget.getBoundingClientRect();
-                setDropAt(e.clientX < r.left + r.width / 2 ? idx : idx + 1);
-              }}
-              onDrop={(e) => finishDrop(e, dropAt)}
-              onDragEnd={() => setDropAt(null)}
             >
               <div className="fs2-prev" style={{ aspectRatio: String(ratio), backgroundImage: tpl?.bg ? `url(${tpl.bg})` : undefined }}>
                 {tpl?.slots.map((s, i) => {
@@ -146,13 +176,14 @@ export function SpreadsFilmstrip() {
               {spreads.length > 1 && (
                 <button
                   className="fs2-del"
-                  title="Xoá spread"
+                  title="Xoá spread (Delete)"
+                  onMouseDown={(e) => e.stopPropagation()} // no pan/hold from the ✕
                   onClick={(e) => {
                     e.stopPropagation();
                     removeSpread(idx);
                   }}
                 >
-                  <IconClose width={11} height={11} />
+                  <IconClose width={13} height={13} />
                 </button>
               )}
             </div>

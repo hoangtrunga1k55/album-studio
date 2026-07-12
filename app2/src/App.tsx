@@ -93,8 +93,12 @@ function App() {
   // Resizable panels (drag bars) — remembered across sessions.
   const [trayH, setTrayH] = useState(() => loadPx("albumstudio2.ui.trayH", 190));
   const [propsW, setPropsW] = useState(() => loadPx("albumstudio2.ui.propsW", 240));
+  const [trayMin, setTrayMin] = useState(
+    () => localStorage.getItem("albumstudio2.ui.trayMin") === "1"
+  );
   useEffect(() => localStorage.setItem("albumstudio2.ui.trayH", String(trayH)), [trayH]);
   useEffect(() => localStorage.setItem("albumstudio2.ui.propsW", String(propsW)), [propsW]);
+  useEffect(() => localStorage.setItem("albumstudio2.ui.trayMin", trayMin ? "1" : "0"), [trayMin]);
 
   // Load the user-imported libraries (font kho, typo pack) once at startup.
   useEffect(() => {
@@ -272,20 +276,40 @@ function App() {
               className="rz rz-v"
               onMove={(dx) => setPropsW((w) => clampN(w - dx, 200, 460))}
             />
+            {/* every panel needs an explicit way out — ✕ = deselect (Esc) */}
+            <button
+              className="props-close"
+              title="Đóng panel (Esc)"
+              onClick={() => useAlbum.getState().selectSlot(null)}
+            >
+              ✕
+            </button>
             <PropertiesPanel />
           </div>
         )}
       </div>
       {/* the photo tray yields its space while the layout dock is open */}
-      {!layoutDock && (
-        <div className="photo-tray-host" style={{ height: trayH }}>
-          <ResizeHandle
-            className="rz rz-h"
-            onMove={(_, dy) => setTrayH((h) => clampN(h - dy, 110, 460))}
-          />
-          <PhotoTray />
-        </div>
-      )}
+      {!layoutDock &&
+        (trayMin ? (
+          <button className="tray-restore" onClick={() => setTrayMin(false)} title="Mở khay ảnh">
+            ▴ Ảnh ({images.length})
+          </button>
+        ) : (
+          <div className="photo-tray-host" style={{ height: trayH }}>
+            <ResizeHandle
+              className="rz rz-h"
+              onMove={(_, dy) => setTrayH((h) => clampN(h - dy, 110, 460))}
+            />
+            <button
+              className="tray-min"
+              title="Thu gọn khay ảnh"
+              onClick={() => setTrayMin(true)}
+            >
+              −
+            </button>
+            <PhotoTray />
+          </div>
+        ))}
       {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
       {showDesign && <AutoDesignDialog onClose={() => setShowDesign(false)} />}
     </div>
