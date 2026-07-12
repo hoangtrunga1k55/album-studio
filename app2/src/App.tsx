@@ -43,7 +43,7 @@ import { SpreadCanvas } from "./components/SpreadCanvas";
 import { SpreadsFilmstrip } from "./components/SpreadsFilmstrip";
 import { PropertiesPanel } from "./components/PropertiesPanel";
 import { PhotoTray } from "./components/PhotoTray";
-import { CoverDropZone, NextSpreadZone } from "./components/WorkZones";
+import { NextSpreadZone, PrevSpreadZone } from "./components/WorkZones";
 import { LayoutDock } from "./components/LayoutStrip";
 import { ExportDialog } from "./components/ExportDialog";
 import { AutoDesignDialog } from "./components/AutoDesignDialog";
@@ -258,7 +258,7 @@ function App() {
           {layoutDock && <LayoutDock onClose={() => setLayoutDock(false)} />}
           {/* layout mode = focused spread editor: side zones + filmstrip hide */}
           <div className="workzone">
-            {!spreadSelected && <CoverDropZone />}
+            {!spreadSelected && <PrevSpreadZone />}
             <SpreadCanvas />
             {!spreadSelected && <NextSpreadZone />}
           </div>

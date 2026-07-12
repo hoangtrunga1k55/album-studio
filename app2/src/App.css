@@ -1098,7 +1098,7 @@ button.danger:hover {
   text-align: center;
 }
 /* the big dashed "drop images here to create a cover" box */
-.side-zone.left .sz-label {
+.side-zone.left .sz-cover-hint {
   align-self: stretch;
   flex: 1;
   display: flex;

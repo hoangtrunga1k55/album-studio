@@ -12,8 +12,81 @@ function acceptsImage(e: DragEvent): boolean {
   return e.dataTransfer.types.includes(IMAGE_DND_KEY);
 }
 
-/** Left rail: drop a photo here → it becomes the spread's full-bleed cover. */
-export function CoverDropZone() {
+/** Left rail: the PREVIOUS spread in miniature (like the right rail shows the
+ *  next one). Only at the very first spread does the album-cover box show —
+ *  the cover sits at position 0, before spread 1. */
+export function PrevSpreadZone() {
+  const spreads = useAlbum((s) => s.spreads);
+  const images = useAlbum((s) => s.images);
+  const currentIndex = useAlbum((s) => s.currentIndex);
+  const setCurrent = useAlbum((s) => s.setCurrent);
+  const [over, setOver] = useState(false);
+
+  // First spread → the cover box (position 0 of the album).
+  if (currentIndex === 0) return <CoverDropZone />;
+
+  const prev = spreads[currentIndex - 1];
+  const tpl = prev ? getTemplate(prev.templateId) : undefined;
+  const bg = prev?.bgImageId ? images.find((im) => im.id === prev.bgImageId) : undefined;
+
+  return (
+    <div
+      className={"side-zone left" + (over ? " over" : "")}
+      title="Spread trước — click để chuyển, thả ảnh để thêm"
+      onClick={() => setCurrent(currentIndex - 1)}
+      onDragOver={(e) => {
+        if (!acceptsImage(e)) return;
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        const ids = draggedIds(e);
+        if (ids.length) useAlbum.getState().addToSpreadAt(currentIndex - 1, ids);
+      }}
+    >
+      {prev && (
+        <div className="sz-next">
+          <div
+            className="sz-prev"
+            style={{
+              aspectRatio: String(tpl?.ratioWH || 2),
+              backgroundImage: tpl?.bg ? `url(${tpl.bg})` : undefined,
+            }}
+          >
+            {bg && <img className="fs2-bg" src={bg.thumb} alt="" draggable={false} />}
+            {(tpl?.slots ?? []).map((s, i) => {
+              const id = prev.imageIds[i];
+              const img = id ? images.find((im) => im.id === id) : undefined;
+              if (!img && prev.bgImageId) return null;
+              return (
+                <div
+                  key={i}
+                  className="spread-slot"
+                  style={{
+                    left: `${s.x * 100}%`,
+                    top: `${s.y * 100}%`,
+                    width: `${s.w * 100}%`,
+                    height: `${s.h * 100}%`,
+                    background: img ? undefined : "#eceaf2",
+                  }}
+                >
+                  {img && <img src={img.thumb} alt="" draggable={false} />}
+                </div>
+              );
+            })}
+          </div>
+          <span className="sz-label">← Spread {currentIndex}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Cover box (position 0): drop a photo → the spread's full-bleed cover. */
+function CoverDropZone() {
   const setCoverImage = useAlbum((s) => s.setCoverImage);
   const removeBackground = useAlbum((s) => s.removeBackground);
   const spreads = useAlbum((s) => s.spreads);
@@ -50,11 +123,10 @@ export function CoverDropZone() {
           <span className="sz-label">Ảnh nền</span>
         </div>
       ) : (
-        <span className="sz-label">
-          Thả ảnh
-          <br />→ nền tràn
+        <span className="sz-label sz-cover-hint">
+          Thả ảnh vào đây
           <br />
-          spread
+          để tạo bìa
         </span>
       )}
     </div>
