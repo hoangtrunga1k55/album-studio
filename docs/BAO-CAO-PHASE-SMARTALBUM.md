@@ -1,6 +1,6 @@
-# Báo cáo Phase "SmartAlbum Base" — Album Studio v0.4
+# Báo cáo Phase "SmartAlbum Base" — Album Studio v0.5
 
-**Ngày:** 13/07/2026 · **Bản build:** v0.4.0 · **Người thực hiện:** Trung (+ AI pair-programming)
+**Ngày:** 13/07/2026 · **Bản build:** v0.5.0 · **Người thực hiện:** Trung (+ AI pair-programming)
 **Tài liệu gốc đối chiếu:** `SmartAlbum_Phan_Tich_Chi_Tiet.docx` (nghiên cứu Pixellu SmartAlbum, 18 chương)
 
 ## 1. Mục tiêu phase
@@ -65,15 +65,35 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 
 **Khác:** ảnh đã dùng mờ đi trong khay (✓/số lần dùng); xoá ảnh chọn khỏi album (Delete); lăn chuột trên dải spread = chuyển từng spread; kéo thumbnail đổi thứ tự spread; xoá spread bằng Delete; fix nền full-bleed hiển thị đúng ở thumbnail.
 
-## 5. Ngoài tài liệu — tính năng riêng đã tích hợp sẵn
+## 5. Mới trong v0.5.0 — Font lấy trực tiếp từ máy tính + hoàn thiện
 
-- **Kho font Việt 5168 font** — quét thư mục 1 lần, nạp theo nhu cầu, khớp font PSD tự động (khoảng trống 1 của doc)
+**Font — thay đổi cách bàn giao (quan trọng với leader):**
+- App **không còn đóng gói font sẵn** và **không cần trỏ thư mục kho font** nữa. Thay vào đó app **tự quét thư mục font của hệ điều hành** khi khởi động (macOS `~/Library/Fonts`, Windows `C:\Windows\Fonts`, kể cả font cài riêng cho user).
+- Cách dùng: **cài font pack Tizino vào máy** (Mac: kéo vào Font Book / `~/Library/Fonts`; Windows: chọn tất cả → chuột phải → *Install*) → mở app là dùng được ngay. Cài thêm font sau thì bấm **⟳ Quét lại font máy**.
+- Tab **Font** làm lại: tìm kiếm, lọc **font có dấu tiếng Việt**, xem trước từng font, và **cảnh báo danh sách font mẫu chưa cài trên máy** để biết cần cài thêm gì.
+- Lợi ích: font dùng chung với Photoshop/Illustrator trên cùng máy, không nhân bản kho font, bản cài app nhẹ hơn.
+
+**Đơn vị in ấn:**
+- **Viền quanh ảnh** và **khoảng cách giữa ảnh** đổi sang **pt** (chuẩn nhà in) — mặc định **viền 8pt · khoảng cách 12pt**; project cũ tự quy đổi.
+- **Đường canh in ấn** (đỏ = mép xén, xanh = vùng an toàn) giờ **chỉnh được trong panel Layout** cho mọi khổ (trước chỉ đặt được ở wizard khổ tuỳ chỉnh).
+
+**Thao tác & hiệu năng:**
+- **Double-click bất kỳ đâu trên spread → vào chế độ sửa layout** (kể cả khi ảnh phủ kín toàn trang — trước không có chỗ để click).
+- **Thu ảnh nền full-bleed về khung** (chuột phải hoặc panel) để thu nhỏ/chỉnh như ảnh thường.
+- Trong chế độ sửa layout, **click ảnh có đủ bộ công cụ sửa ảnh** (Scale, góc xoay, tông màu…) chứ không chỉ khung.
+- **Thước cm nằm sát mép vùng làm việc** (kiểu Photoshop) thay vì ôm mép trang.
+- **Chuyển spread mượt hơn**: ảnh hiện ngay bằng bản nhẹ rồi thay bằng ảnh nét; ảnh của spread trước/sau được tải sẵn.
+- Căn theo **khung mốc ⚓** làm lại đúng chuẩn: chỉ tịnh tiến một trục, trục kia giữ nguyên.
+
+## 6. Ngoài tài liệu — tính năng riêng đã tích hợp sẵn
+
+- **Kho font Việt** — cài vào máy, app tự nhận và khớp tên font PSD tự động (khoảng trống 1 của doc)
 - **Typo pack** (bóc từ PSD kho typo) — chèn, kéo, resize, đổi màu, chữ vector sắc nét
 - **Layout pack in nét cao** — nền full-res 300DPI + chữ render vector khi xuất
 - **Khổ tuỳ chỉnh** đúng cm thật từ thiết kế đến file in (SmartAlbum Custom Lab tương đương)
 - Toàn bộ **tiếng Việt**, chạy **offline**, **không subscription** (khoảng trống 2)
 
-## 6. Chưa làm (roadmap tiếp)
+## 7. Chưa làm (roadmap tiếp)
 
 | Hạng mục | Ghi chú |
 |---|---|
@@ -83,26 +103,28 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 | Ký số app (Mac notarize / Win cert) | Trước launch chính thức — hiện cài được nhưng OS cảnh báo |
 | HEIC trên Windows | Mac đọc HEIC OK; Windows tạm dùng JPG/PNG |
 
-## 7. Bản build để test
+## 8. Bản build để test
 
 | Nền tảng | File | Nguồn |
 |---|---|---|
-| **Windows 10/11 x64** | `Album Studio 2_0.4.0_x64-setup.exe` | https://github.com/hoangtrunga1k55/album-studio/releases/latest |
-| macOS (Apple Silicon) | `Album Studio 2_0.4.0_aarch64.dmg` | build local (`app2/src-tauri/target/release/bundle/dmg/`) |
+| **Windows 10/11 x64** | `Album Studio 2_0.5.0_x64-setup.exe` | https://github.com/hoangtrunga1k55/album-studio/releases/latest |
+| macOS (Apple Silicon) | `Album Studio 2_0.5.0_aarch64.dmg` | build local (`app2/src-tauri/target/release/bundle/dmg/`) |
 
-**Setup test (1 lần):** cài app → trỏ 3 thư mục do team cấp: ① kho font (rail **Font** bên trái) ② kho typo (panel **Layout** → *Nạp kho typo*) ③ layout pack in nét (hộp thoại Xuất album). App nhớ vĩnh viễn.
+**Setup test (1 lần):**
+1. **Cài font pack Tizino vào máy** (Mac: Font Book / kéo vào `~/Library/Fonts` · Windows: chọn tất cả file font → chuột phải → *Install*) — app tự nhận, không cần trỏ folder.
+2. Cài app → nạp **kho typo** (panel **Layout** → *Nạp kho typo*) và **layout pack in nét** (hộp thoại Xuất album). App nhớ vĩnh viễn.
 
 **Lưu ý khi cài:** app chưa ký số → Windows SmartScreen bấm *More info → Run anyway*; Mac chuột phải → *Open*.
 
-## 8. Kịch bản test đề xuất cho leader (15 phút)
+## 9. Kịch bản test đề xuất cho leader (15 phút)
 
-1. Tạo album mới — **wizard 2 bước**: bước 1 chọn khổ trong select (thử *Tuỳ chỉnh* xem hiện DPI/đơn vị/kích thước spread/vùng an toàn/trim, hình minh hoạ đổi theo tỉ lệ) → bước 2 đặt **viền ảnh 2mm trắng + khoảng cách 3mm** → tạo.
+1. Tạo album mới — **wizard 2 bước**: bước 1 chọn khổ (thử *Tuỳ chỉnh* xem DPI/đơn vị/kích thước spread/vùng an toàn/trim) → bước 2 giữ mặc định **viền 8pt · khoảng cách 12pt** → tạo. Album mới có **spread Bìa** ghim đầu (thử đổi 1 trang / 2 trang).
 2. Import 1 thư mục ~50 ảnh vào **khay ngang dưới** → chấm sao 5 (phím 5) → nhãn màu (6–9) → lọc; thử **kéo mép trên khay** cho cao lên, chọn vài ảnh bấm **Xoá** thử.
 3. **⌘D** Auto Design: Dày + 40% full-bleed → ảnh 5★ nằm spread 1-ảnh-lớn.
 4. Duyệt spread bằng phím **⟨ ⟩** — badge tím trên canvas khớp thumbnail viền tím dưới; **kéo thumbnail đổi thứ tự spread**; kéo ảnh thả vào card nét đứt *"Thêm spread"* cuối dải.
 5. Bấm nút **Layout** trên topbar → dock mẫu trượt xuống, **hover từng mẫu xem spread đổi thử trực tiếp**, click áp dụng, bấm Layout đóng.
 6. **Click nền spread** → panel Layout (đổi màu nền, khoảng cách, thêm chữ, chèn typo); **click ảnh** → panel Ảnh: kéo **Scale** xem ảnh phóng to sau khung vàng đứng yên, kéo ảnh trong preview chỉnh vị trí, kéo **Góc xoay**, xem **PPI hiệu dụng** đổi vàng khi zoom sâu; phím **S** đổi chỗ 2 ảnh.
-7. Click chữ trên layout Tizino → sửa nội dung/đổi font từ kho → kéo/resize/xoay icon ↻ (chữ + typo vẫn xoay trên canvas).
+7. Mở tab **Font**: xem app đã nhận font đã cài trên máy (tìm kiếm, lọc *Có dấu*); nếu có cảnh báo **font mẫu chưa cài** thì cài thêm rồi bấm *Quét lại*. Click chữ trên layout Tizino → sửa nội dung/đổi font → kéo/resize/xoay ↻.
 8. **⌘R** thước + guides; vẽ khung mới (panel Layout → *Vẽ khung*); lưu layout thành mẫu → dock tab *Mẫu của tôi*; **⌘B** bleed/safe/gáy.
-9. **⌘E** xuất: preset *Hùng Hương* (bleed 5mm) + crop marks + JPG trang đơn + nạp layout pack → kiểm tra **viền ảnh 2mm** ra đúng trên file in.
+9. Thử **double-click vào ảnh phủ kín trang** → vào chế độ sửa layout; chuột phải → *Thu ảnh nền về khung*. **⌘E** xuất: preset *Hùng Hương* (bleed 5mm) + crop marks + JPG trang đơn + nạp layout pack → kiểm tra **viền ảnh 8pt** ra đúng trên file in.
 10. Đóng app mở lại → project trong *Gần đây*, mọi thứ còn nguyên (kể cả settings wizard, thứ tự spread mới, kích thước panel đã kéo).
