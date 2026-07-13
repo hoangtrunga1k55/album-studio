@@ -112,7 +112,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
         {
           format, dpi, quality, prefix, folder,
           pageCm: parseSizeCm(size), pageMode, bleedMm, cropMarks,
-          borderMm: settings.borderMm, borderColor: settings.borderColor,
+          borderPt: settings.borderPt, borderColor: settings.borderColor,
         },
         (done, total) => setProgress({ done, total }),
         cancelRef.current

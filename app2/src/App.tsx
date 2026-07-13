@@ -48,8 +48,7 @@ import { LayoutDock } from "./components/LayoutStrip";
 import { ExportDialog } from "./components/ExportDialog";
 import { AutoDesignDialog } from "./components/AutoDesignDialog";
 import { getTemplate } from "./engine/templates";
-import { registerBundledFonts } from "./engine/bundledFonts";
-import { loadTemplateFontsFromFolder, savedFontFolder } from "./engine/fontLibrary";
+import { loadSystemFonts } from "./engine/fontLibrary";
 import { loadTypoFolder, savedTypoFolder } from "./ipc/typos";
 import { openProject, saveNow, startAutosave } from "./flows/projectIO";
 import { useAlbum } from "./store/album";
@@ -93,10 +92,11 @@ function App() {
   useEffect(() => localStorage.setItem("albumstudio2.ui.propsW", String(propsW)), [propsW]);
   useEffect(() => localStorage.setItem("albumstudio2.ui.trayMin", trayMin ? "1" : "0"), [trayMin]);
 
-  // Load the user-imported libraries (font kho, typo pack) once at startup.
+  // Fonts come entirely from the machine now. Load the typo pack first so its
+  // font names count as "needed", then index the OS font folders and load
+  // everything templates + typos require.
   useEffect(() => {
     (async () => {
-      addFonts(await registerBundledFonts());
       const typoFolder = savedTypoFolder();
       if (typoFolder) {
         try {
@@ -105,15 +105,12 @@ function App() {
           /* ignore */
         }
       }
-      const folder = savedFontFolder();
-      if (folder) {
-        try {
-          const r = await loadTemplateFontsFromFolder(folder);
-          addFonts(r.loaded);
-          setFontIndex(r.entries);
-        } catch {
-          /* ignore */
-        }
+      try {
+        const sys = await loadSystemFonts();
+        addFonts(sys.loaded);
+        setFontIndex(sys.entries);
+      } catch {
+        /* ignore */
       }
     })();
   }, [addFonts, setFontIndex, setTypos]);

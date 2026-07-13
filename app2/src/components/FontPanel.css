@@ -52,3 +52,54 @@
   line-height: 1.3;
   color: var(--text);
 }
+
+/* missing-font warning card (fonts the machine doesn't have) */
+.font-missing {
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid #6b4a1e;
+  background: #2a2113;
+  border-radius: 9px;
+}
+.fm-head {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #f5c46b;
+}
+.fm-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #c9b48c;
+}
+.fm-list {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.fm-chip {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #3a2f1a;
+  color: #e7d4a8;
+}
+.fm-more {
+  font-size: 10.5px;
+  color: #c9b48c;
+  align-self: center;
+}
+.fp-more {
+  padding: 10px 4px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.font-tag.no {
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #3a2330;
+  color: #ff9a9a;
+}

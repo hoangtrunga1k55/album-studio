@@ -22,8 +22,8 @@ export interface ExportOpts {
   bleedMm?: number;
   /** corner crop marks (needs bleed > 0) §12.3. */
   cropMarks?: boolean;
-  /** album setting: border around every photo, mm (0 = off). */
-  borderMm?: number;
+  /** album setting: border around every photo, points (0 = off). */
+  borderPt?: number;
   borderColor?: string;
 }
 
@@ -103,7 +103,7 @@ export async function exportAlbum(
         opts.pageCm,
         (opts.bleedMm ?? 0) / 10,
         opts.cropMarks ?? false,
-        opts.borderMm ?? 0,
+        opts.borderPt ?? 0,
         opts.borderColor ?? "#ffffff"
       )
     );

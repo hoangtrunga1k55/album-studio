@@ -115,40 +115,56 @@ fn read_font_meta(path: &Path) -> Option<ScannedFont> {
     })
 }
 
+/// Cache wrapper: the font list plus a fingerprint (candidate-file count) so a
+/// stale cache is detected when the user adds/removes fonts in the folder.
+#[derive(Serialize, Deserialize)]
+struct FontIndexCache {
+    count: usize,
+    fonts: Vec<ScannedFont>,
+}
+
+fn is_font_file(p: &Path) -> bool {
+    let ext = p
+        .extension()
+        .and_then(|x| x.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    ext == "ttf" || ext == "otf" || ext == "ttc"
+}
+
 /// Recursively index a font folder (Layer 3). Reads only name tables (fast),
-/// caches the result to `.font_index.json` so the next scan is instant.
+/// caches the result next to the folder — and re-scans automatically when the
+/// number of font files changes (adding a font pack invalidates the cache).
 #[tauri::command]
 pub async fn scan_font_folder(path: String) -> Result<Vec<ScannedFont>, String> {
     let root = Path::new(&path);
     if !root.is_dir() {
         return Err(format!("Không phải thư mục: {path}"));
     }
-    let cache = root.join(".font_index.json");
-    if let Ok(txt) = std::fs::read_to_string(&cache) {
-        if let Ok(list) = serde_json::from_str::<Vec<ScannedFont>>(&txt) {
-            if !list.is_empty() {
-                return Ok(list);
-            }
-        }
-    }
+
     let files: Vec<_> = WalkDir::new(root)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
-        .filter(|e| {
-            let ext = e
-                .path()
-                .extension()
-                .and_then(|x| x.to_str())
-                .unwrap_or("")
-                .to_lowercase();
-            ext == "ttf" || ext == "otf"
-        })
+        .filter(|e| is_font_file(e.path()))
         .map(|e| e.path().to_path_buf())
         .collect();
 
+    // Fresh cache only if the file count still matches the folder.
+    let cache = root.join(".font_index.json");
+    if let Ok(txt) = std::fs::read_to_string(&cache) {
+        if let Ok(c) = serde_json::from_str::<FontIndexCache>(&txt) {
+            if c.count == files.len() && !c.fonts.is_empty() {
+                return Ok(c.fonts);
+            }
+        }
+    }
+
     let list: Vec<ScannedFont> = files.par_iter().filter_map(|p| read_font_meta(p)).collect();
-    if let Ok(txt) = serde_json::to_string(&list) {
+    if let Ok(txt) = serde_json::to_string(&FontIndexCache {
+        count: files.len(),
+        fonts: list.clone(),
+    }) {
         let _ = std::fs::write(&cache, txt);
     }
     Ok(list)

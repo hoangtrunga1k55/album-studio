@@ -1707,6 +1707,7 @@ button.danger:hover {
   background-color: #efefefe8;
   pointer-events: auto;
   overflow: hidden;
+  z-index: 21;
 }
 .sa-ruler-h {
   top: 0;
@@ -1867,4 +1868,9 @@ button.danger:hover {
 .lb-pages {
   display: flex;
   gap: 4px;
+}
+
+/* layout mode: keep the spread clear of the canvas-edge rulers */
+.canvas-wrap.ruler-on {
+  padding: 20px 0 0 20px;
 }

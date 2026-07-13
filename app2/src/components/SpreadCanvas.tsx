@@ -21,6 +21,7 @@ import { getTypo, type Typo } from "../engine/typos";
 import {
   orderKeys,
   pagesOf,
+  PT_TO_CM,
   spreadLabel,
   zKeysOf,
   useAlbum,
@@ -546,16 +547,25 @@ function GuideLayer(props: {
   pxPerCm: number | null;
   guides: { v: number[]; h: number[] };
   onChange: (g: { v: number[]; h: number[] }) => void;
+  /** Ruler placement: rulers hug the CANVAS edges, not the spread — these are
+   *  the spread's offsets inside the canvas so the scale still starts at 0
+   *  on the spread's edge. */
+  offsetX?: number;
+  offsetY?: number;
 }) {
-  const { stageW, stageH, pxPerCm, guides, onChange } = props;
+  const { stageW, stageH, pxPerCm, guides, onChange, offsetX = 0, offsetY = 0 } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ axis: "v" | "h"; pos: number; idx: number | null } | null>(null);
 
   useEffect(() => {
     if (!drag) return;
     const posFrom = (e: MouseEvent, axis: "v" | "h") => {
+      // the layer spans the CANVAS now — subtract the spread's offset so guide
+      // positions stay normalized to the spread itself
       const r = hostRef.current!.getBoundingClientRect();
-      return axis === "v" ? (e.clientX - r.left) / stageW : (e.clientY - r.top) / stageH;
+      return axis === "v"
+        ? (e.clientX - r.left - offsetX) / stageW
+        : (e.clientY - r.top - offsetY) / stageH;
     };
     const move = (e: MouseEvent) => setDrag((d) => (d ? { ...d, pos: posFrom(e, d.axis) } : d));
     const up = (e: MouseEvent) => {
@@ -607,14 +617,24 @@ function GuideLayer(props: {
       <div
         className="sa-ruler sa-ruler-h"
         title="Kéo xuống để tạo guide ngang"
-        style={{ height: R, left: R, ...ticks("right") }}
+        style={{
+          height: R,
+          left: R,
+          // ticks start at the spread's left edge, not the canvas edge
+          backgroundPositionX: `${offsetX - R}px`,
+          ...ticks("right"),
+        }}
         onMouseDown={(e) => {
           e.preventDefault();
           setDrag({ axis: "h", pos: 0, idx: null });
         }}
       >
         {Array.from({ length: Math.floor(cmCountW / labelStep) + 1 }, (_, k) => (
-          <span key={k} className="sa-ruler-num" style={{ left: k * labelStep * cm + 2 }}>
+          <span
+            key={k}
+            className="sa-ruler-num"
+            style={{ left: offsetX - R + k * labelStep * cm + 2 }}
+          >
             {k * labelStep}
           </span>
         ))}
@@ -622,14 +642,23 @@ function GuideLayer(props: {
       <div
         className="sa-ruler sa-ruler-v"
         title="Kéo sang phải để tạo guide dọc"
-        style={{ width: R, top: R, ...ticks("bottom") }}
+        style={{
+          width: R,
+          top: R,
+          backgroundPositionY: `${offsetY - R}px`,
+          ...ticks("bottom"),
+        }}
         onMouseDown={(e) => {
           e.preventDefault();
           setDrag({ axis: "v", pos: 0, idx: null });
         }}
       >
         {Array.from({ length: Math.floor(cmCountH / labelStep) + 1 }, (_, k) => (
-          <span key={k} className="sa-ruler-num v" style={{ top: k * labelStep * cm + 2 }}>
+          <span
+            key={k}
+            className="sa-ruler-num v"
+            style={{ top: offsetY - R + k * labelStep * cm + 2 }}
+          >
             {k * labelStep}
           </span>
         ))}
@@ -641,7 +670,7 @@ function GuideLayer(props: {
         <div
           key={`v${i}`}
           style={{
-            position: "absolute", top: 0, bottom: 0, left: g * stageW - 1, width: 3,
+            position: "absolute", top: offsetY, height: stageH, left: offsetX + g * stageW - 1, width: 3,
             cursor: "col-resize", pointerEvents: "auto",
             background: "linear-gradient(to right, transparent 1px, #22d3ee 1px, #22d3ee 2px, transparent 2px)",
           }}
@@ -659,7 +688,7 @@ function GuideLayer(props: {
         <div
           key={`h${i}`}
           style={{
-            position: "absolute", left: 0, right: 0, top: g * stageH - 1, height: 3,
+            position: "absolute", left: offsetX, width: stageW, top: offsetY + g * stageH - 1, height: 3,
             cursor: "row-resize", pointerEvents: "auto",
             background: "linear-gradient(to bottom, transparent 1px, #22d3ee 1px, #22d3ee 2px, transparent 2px)",
           }}
@@ -676,9 +705,9 @@ function GuideLayer(props: {
       {/* live drag preview */}
       {drag &&
         (drag.axis === "v" ? (
-          <div style={{ position: "absolute", top: 0, bottom: 0, left: drag.pos * stageW, width: 1, background: "#22d3ee" }} />
+          <div style={{ position: "absolute", top: offsetY, height: stageH, left: offsetX + drag.pos * stageW, width: 1, background: "#22d3ee" }} />
         ) : (
-          <div style={{ position: "absolute", left: 0, right: 0, top: drag.pos * stageH, height: 1, background: "#22d3ee" }} />
+          <div style={{ position: "absolute", left: offsetX, width: stageW, top: offsetY + drag.pos * stageH, height: 1, background: "#22d3ee" }} />
         ))}
     </div>
   );
@@ -863,7 +892,13 @@ function Slot(props: {
       onMouseMove={onMove}
       onMouseUp={onUp}
       onMouseLeave={onUp}
-      onDblClick={() => img && onEnterCrop()}
+      onDblClick={(e) => {
+        if (!img) return;
+        // a photo's double-click = crop mode; don't also enter layout mode
+        e.cancelBubble = true;
+        e.evt.stopPropagation();
+        onEnterCrop();
+      }}
       onContextMenu={(e) => {
         e.evt.preventDefault();
         if (img) {
@@ -956,7 +991,11 @@ function Slot(props: {
 
 export function SpreadCanvas() {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
+  /** where the spread sits inside the canvas — the rulers hug the canvas
+   *  edges but their scale must still start at the spread's edge. */
+  const [stageOff, setStageOff] = useState({ x: 0, y: 0 });
 
   const images = useAlbum((s) => s.images);
   const spreads = useAlbum((s) => s.spreads);
@@ -1059,10 +1098,37 @@ export function SpreadCanvas() {
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setBox({ w: el.clientWidth, h: el.clientHeight }));
+    // content box (padding excluded) — layout mode pads the canvas for rulers
+    const measure = () => {
+      const cs = getComputedStyle(el);
+      const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+      const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      setBox({ w: el.clientWidth - padX, h: el.clientHeight - padY });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [spreadSelected, showRuler]);
+
+  // Track where the spread sits inside the canvas (it is centered by margin
+  // auto and moves with zoom / panel resizes) — the rulers need this offset.
+  useEffect(() => {
+    const measure = () => {
+      const w = wrapRef.current;
+      const h = hostRef.current;
+      if (!w || !h) return;
+      const wr = w.getBoundingClientRect();
+      const hr = h.getBoundingClientRect();
+      const next = { x: hr.left - wr.left, y: hr.top - wr.top };
+      setStageOff((p) => (p.x === next.x && p.y === next.y ? p : next));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    if (hostRef.current) ro.observe(hostRef.current);
+    return () => ro.disconnect();
+  });
 
   // Warm the display-image cache for this spread AND its neighbours — by the
   // time the user steps ⟨/⟩, the sharp images are already decoded.
@@ -1364,7 +1430,11 @@ export function SpreadCanvas() {
   }
 
   return (
-    <div className="canvas-wrap" ref={wrapRef} onClick={() => setMenu(null)}>
+    <div
+      className={"canvas-wrap" + (spreadSelected && showRuler ? " ruler-on" : "")}
+      ref={wrapRef}
+      onClick={() => setMenu(null)}
+    >
       {spreadSelected ? (
         /* layout mode: compact corner controls — back left, save right */
         <>
@@ -1415,13 +1485,22 @@ export function SpreadCanvas() {
         <div className="spread-chip">
           {spreadLabel(spreads, currentIndex)}
           <span className="spread-chip-sub">
-            /{spreads.length - (spreads[0]?.isCover ? 1 : 0)} · phím ⟨ ⟩ để chuyển
+            /{spreads.length - (spreads[0]?.isCover ? 1 : 0)} · double-click = sửa layout
           </span>
         </div>
       )}
       <div
         className="stage-host"
+        ref={hostRef}
         style={{ width: stageW, height: stageH }}
+        onDoubleClick={(e) => {
+          // SmartAlbums: double-click anywhere on the spread → layout editing.
+          // Works even when a full-bleed photo covers every pixel. A photo's
+          // own double-click (crop mode) stops propagation, so it wins there.
+          if (useAlbum.getState().spreadSelected) return;
+          e.stopPropagation();
+          useAlbum.getState().selectSpread();
+        }}
         onClickCapture={(e) => {
           // the click right after a marquee release must not reach Konva —
           // it would re-select the element under the cursor and drop the group
@@ -1601,7 +1680,7 @@ export function SpreadCanvas() {
                   crop={cropSlot === i}
                   dropTarget={!!slotDrag && slotDrag.target === i && slotDrag.from !== i}
                   ppi={ppi}
-                  borderPx={pxPerCm ? (settings.borderMm / 10) * pxPerCm : 0}
+                  borderPx={pxPerCm ? settings.borderPt * PT_TO_CM * pxPerCm : 0}
                   borderColor={settings.borderColor}
                   bgBehind={!!spread.bgImageId}
                   frameRot={spread.slotRects?.[i]?.rotDeg ?? 0}
@@ -1954,16 +2033,6 @@ export function SpreadCanvas() {
           </div>
         )}
 
-        {/* §7.4 rulers + guides */}
-        {spreadSelected && showRuler && (
-          <GuideLayer
-            stageW={stageW}
-            stageH={stageH}
-            pxPerCm={pxPerCm}
-            guides={guides}
-            onChange={setGuides}
-          />
-        )}
 
         {/* §7.2 rectangle tool — drag to draw a new photo frame */}
         {tool === "drawSlot" && (
@@ -2050,6 +2119,19 @@ export function SpreadCanvas() {
           />
         ) : null;
       })()}
+
+      {/* §7.4 rulers + guides — rulers hug the CANVAS edges (outside the spread) */}
+      {spreadSelected && showRuler && (
+        <GuideLayer
+          stageW={stageW}
+          stageH={stageH}
+          pxPerCm={pxPerCm}
+          guides={guides}
+          onChange={setGuides}
+          offsetX={stageOff.x}
+          offsetY={stageOff.y}
+        />
+      )}
 
       {swapSource !== null && (
         <div className="swap-hint">Đổi chỗ ảnh: bấm ô đích · Esc để huỷ</div>
@@ -2139,7 +2221,14 @@ export function SpreadCanvas() {
           <button onClick={() => { useAlbum.getState().changeSlotCount(1); setMenu(null); }}>+ Thêm 1 ô ảnh</button>
           <button onClick={() => { useAlbum.getState().changeSlotCount(-1); setMenu(null); }}>− Bớt 1 ô ảnh</button>
           {spread.bgImageId && (
-            <button onClick={() => { useAlbum.getState().removeBackground(); setMenu(null); }}>Gỡ ảnh nền</button>
+            <>
+              <button onClick={() => { useAlbum.getState().backgroundToSlot(); setMenu(null); }}>
+                ⤡ Thu ảnh nền về khung
+              </button>
+              <button onClick={() => { useAlbum.getState().removeBackground(); setMenu(null); }}>
+                Gỡ ảnh nền
+              </button>
+            </>
           )}
           <div className="ctx-sep" />
           <button

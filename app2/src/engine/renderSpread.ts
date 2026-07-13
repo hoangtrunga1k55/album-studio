@@ -43,8 +43,8 @@ export async function renderSpread(
   bleedCm = 0,
   /** draw corner crop marks in the bleed margin (§12.3). */
   cropMarks = false,
-  /** album setting: border around every photo, mm (0 = off). */
-  borderMm = 0,
+  /** album setting: border around every photo, points (0 = off). */
+  borderPt = 0,
   borderColor = "#ffffff"
 ): Promise<RenderResult> {
   // Print at the album's true page size (cm). The cover decides its own page
@@ -219,7 +219,7 @@ export async function renderSpread(
       }
       g.add(imgNode);
       // Wizard border setting — same geometry as the display canvas.
-      const bw = (borderMm / 10 / 2.54) * dpi;
+      const bw = (borderPt / 72) * dpi; // points → inch → px
       const border =
         bw > 0
           ? new Konva.Rect({

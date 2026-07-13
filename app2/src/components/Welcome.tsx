@@ -128,9 +128,9 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
 
   // Step 2 — decoration.
   const [bgColor, setBgColor] = useState("#ffffff");
-  const [borderMm, setBorderMm] = useState(String(DEFAULT_SETTINGS.borderMm));
+  const [borderPt, setBorderPt] = useState(String(DEFAULT_SETTINGS.borderPt));
   const [borderColor, setBorderColor] = useState(DEFAULT_SETTINGS.borderColor);
-  const [gapMm, setGapMm] = useState(String(DEFAULT_SETTINGS.gapMm));
+  const [gapPt, setGapPt] = useState(String(DEFAULT_SETTINGS.gapPt));
   const [layoutSource, setLayoutSource] = useState<LayoutSourceFilter>(
     DEFAULT_SETTINGS.layoutSource
   );
@@ -189,9 +189,9 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
           dpi,
           trimMm: mmVal(trimMm),
           safeMm: mmVal(safeMm),
-          borderMm: mmVal(borderMm),
+          borderPt: mmVal(borderPt, 200),
           borderColor,
-          gapMm: mmVal(gapMm),
+          gapPt: mmVal(gapPt, 200),
           layoutSource,
         },
         bgColor,
@@ -403,12 +403,12 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
                     className="wz-cm"
                     type="number"
                     min={0}
-                    max={30}
-                    step={0.5}
-                    value={borderMm}
-                    onChange={(e) => setBorderMm(e.target.value)}
+                    max={200}
+                    step={1}
+                    value={borderPt}
+                    onChange={(e) => setBorderPt(e.target.value)}
                   />
-                  <span className="wz-mm-unit">mm</span>
+                  <span className="wz-mm-unit">pt</span>
                   <input
                     className="wz-color"
                     type="color"
@@ -425,12 +425,12 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
                     className="wz-cm"
                     type="number"
                     min={0}
-                    max={30}
-                    step={0.5}
-                    value={gapMm}
-                    onChange={(e) => setGapMm(e.target.value)}
+                    max={200}
+                    step={1}
+                    value={gapPt}
+                    onChange={(e) => setGapPt(e.target.value)}
                   />
-                  <span className="wz-mm-unit">mm</span>
+                  <span className="wz-mm-unit">pt</span>
                 </span>
               </div>
             </div>

@@ -181,29 +181,32 @@ export interface AlbumSettings {
   trimMm: number;
   /** safe zone from the page edge, mm (green dashed guide; 0 = off). */
   safeMm: number;
-  /** border drawn around every photo, mm (0 = off). */
-  borderMm: number;
+  /** border drawn around every photo, points (0 = off). */
+  borderPt: number;
   borderColor: string;
-  /** gap between photos, mm — default margin of every new spread. */
-  gapMm: number;
+  /** gap between photos, points — default margin of every new spread. */
+  gapPt: number;
   /** which layout set drives suggestions (Space / Auto Design). */
   layoutSource: LayoutSourceFilter;
 }
+
+/** 1 point = 1/72 inch = 2.54/72 cm. */
+export const PT_TO_CM = 2.54 / 72;
 
 export const DEFAULT_SETTINGS: AlbumSettings = {
   dpi: 300,
   trimMm: 3,
   safeMm: 5,
-  borderMm: 0,
+  borderPt: 8,
   borderColor: "#ffffff",
-  gapMm: 0,
+  gapPt: 12,
   layoutSource: "all",
 };
 
-/** Gap in mm → margin as a fraction of the page height (0 when size unknown). */
-function gapFrac(size: AlbumSize | null, gapMm: number): number {
+/** Gap in points → margin as a fraction of the page height (0 if size unknown). */
+function gapFrac(size: AlbumSize | null, gapPt: number): number {
   const cm = parseSizeCm(size);
-  return cm && gapMm > 0 ? gapMm / 10 / cm.h : 0;
+  return cm && gapPt > 0 ? (gapPt * PT_TO_CM) / cm.h : 0;
 }
 
 let counter = 0;
@@ -368,6 +371,9 @@ interface AlbumState {
   /** Full bleed: move a slot's photo to the spread background (§6.5). */
   setAsBackground: (slotIndex: number) => void;
   removeBackground: () => void;
+  /** Bring the full-bleed background photo back into a normal frame — a
+   *  full-bleed photo has no handles, so this is how the user shrinks it. */
+  backgroundToSlot: () => void;
 
   /** Swap: pick a source slot, then swap with the next slot clicked. */
   swapSource: number | null;
@@ -454,7 +460,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       const settings = opts?.settings ?? s.settings;
       // Suggestion pool must be narrowed BEFORE the spreads pick their templates.
       setPreferredSource(settings.layoutSource);
-      const margin = gapFrac(size, settings.gapMm);
+      const margin = gapFrac(size, settings.gapPt);
       // The cover is a real spread pinned at position 0 (2-page wrap default).
       const cover: Spread = { ...freshSpread(size, 1, margin), isCover: true, pages: 2 };
       return {
@@ -488,6 +494,14 @@ export const useAlbum = create<AlbumState>((set) => ({
 
   applyProject: (p) => {
     const settings = { ...DEFAULT_SETTINGS, ...p.settings };
+    // Legacy projects stored border/gap in mm — convert to points (and keep 0).
+    const legacy = p.settings as (Partial<AlbumSettings> & { borderMm?: number; gapMm?: number }) | undefined;
+    if (legacy && legacy.borderPt === undefined && legacy.borderMm !== undefined) {
+      settings.borderPt = (legacy.borderMm * 72) / 25.4;
+    }
+    if (legacy && legacy.gapPt === undefined && legacy.gapMm !== undefined) {
+      settings.gapPt = (legacy.gapMm * 72) / 25.4;
+    }
     setPreferredSource(settings.layoutSource);
     set({
       size: p.size,
@@ -824,6 +838,32 @@ export const useAlbum = create<AlbumState>((set) => ({
       return { spreads };
     }),
 
+  backgroundToSlot: () =>
+    set((s) => {
+      if (!s.size) return s;
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const id = cur.bgImageId;
+      if (!id) return s;
+      const photos = [...cur.imageIds.filter(Boolean), id];
+      // Re-pick a layout that fits the photo count (cover uses its own pool).
+      const forCover = !!cur.isCover;
+      const target = nearestSlotCount(s.size, photos.length, forCover);
+      const next = randomTemplate(s.size, target || 1, undefined, forCover);
+      if (next) {
+        cur.templateId = next.id;
+        cur.imageIds = next.slots.map((_, i) => photos[i] ?? "");
+      } else {
+        cur.imageIds = photos;
+      }
+      cur.bgImageId = null;
+      cur.transforms = {};
+      cur.slotRects = {};
+      cur.zOrder = undefined;
+      spreads[s.currentIndex] = cur;
+      return { spreads, selectedSlot: null };
+    }),
+
   beginSwap: (slotIndex) => set({ swapSource: slotIndex }),
   cancelSwap: () => set({ swapSource: null }),
   swapImages: (a, b) =>
@@ -873,7 +913,7 @@ export const useAlbum = create<AlbumState>((set) => ({
   addSpread: () =>
     set((s) => {
       if (!s.size) return s;
-      const spreads = [...s.spreads, freshSpread(s.size, 1, gapFrac(s.size, s.settings.gapMm))];
+      const spreads = [...s.spreads, freshSpread(s.size, 1, gapFrac(s.size, s.settings.gapPt))];
       return { spreads, currentIndex: spreads.length - 1, selectedSlot: null };
     }),
 
@@ -881,7 +921,7 @@ export const useAlbum = create<AlbumState>((set) => ({
     set((s) => {
       if (!s.size) return s;
       const spreads = [...s.spreads];
-      spreads.splice(index + 1, 0, freshSpread(s.size, 1, gapFrac(s.size, s.settings.gapMm)));
+      spreads.splice(index + 1, 0, freshSpread(s.size, 1, gapFrac(s.size, s.settings.gapPt)));
       return { spreads, currentIndex: index + 1, selectedSlot: null };
     }),
 
@@ -1202,7 +1242,7 @@ export const useAlbum = create<AlbumState>((set) => ({
         ratings,
       });
       if (plans.length === 0) return s;
-      const margin = gapFrac(s.size, s.settings.gapMm);
+      const margin = gapFrac(s.size, s.settings.gapPt);
       const planned = plans.map((p) => ({
         id: newId("sp"),
         templateId: p.templateId,

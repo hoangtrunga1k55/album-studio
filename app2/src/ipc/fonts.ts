@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 
 export interface LoadedFont {
   family: string;
@@ -46,18 +45,4 @@ export async function registerLoaded(f: LoadedFont): Promise<void> {
       /* skip */
     }
   }
-}
-
-/** Open a font picker, load + register the chosen fonts, return them. */
-export async function pickAndLoadFonts(): Promise<LoadedFont[]> {
-  const paths = await open({
-    multiple: true,
-    directory: false,
-    filters: [{ name: "Font", extensions: ["ttf", "otf", "woff", "woff2"] }],
-  });
-  if (!paths) return [];
-  const list = Array.isArray(paths) ? paths : [paths];
-  const loaded = await loadFontFiles(list);
-  await Promise.all(loaded.map((f) => registerLoaded(f)));
-  return loaded;
 }

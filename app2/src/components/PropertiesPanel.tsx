@@ -5,7 +5,8 @@ import { PhotoNavigator } from "./PhotoNavigator";
 import { spreadLabel, useAlbum, type ArrangeOp } from "../store/album";
 import { useFonts } from "../store/fonts";
 import { useTypos } from "../store/typos";
-import { pickAndLoadFonts, fontAliases } from "../ipc/fonts";
+import { fontAliases } from "../ipc/fonts";
+import { loadSystemFonts } from "../engine/fontLibrary";
 import { importTypoLibrary } from "../flows/typoImport";
 import { TYPO_DND_KEY } from "../constants";
 import { FontPicker } from "./FontPicker";
@@ -404,6 +405,8 @@ export function PropertiesPanel() {
   const removeTypo = useAlbum((s) => s.removeTypo);
   const bgColor = useAlbum((s) => s.bgColor);
   const setBgColor = useAlbum((s) => s.setBgColor);
+  const settings = useAlbum((s) => s.settings);
+  const showBleed = useAlbum((s) => s.showBleed);
   const setMargin = useAlbum((s) => s.setMargin);
   const editTplText = useAlbum((s) => s.editTplText);
   const deleteTplText = useAlbum((s) => s.deleteTplText);
@@ -437,8 +440,17 @@ export function PropertiesPanel() {
   }
   const missingList = [...missing];
 
-  async function importFonts() {
-    addFonts(await pickAndLoadFonts());
+  // Fonts come from the machine now — re-scan after the user installs the
+  // missing ones (no more manual per-file loading).
+  const [fontBusy, setFontBusy] = useState(false);
+  async function rescanFonts() {
+    setFontBusy(true);
+    try {
+      const r = await loadSystemFonts();
+      addFonts(r.loaded);
+    } finally {
+      setFontBusy(false);
+    }
   }
 
 
@@ -625,8 +637,10 @@ export function PropertiesPanel() {
             <FontPicker value={font} onPick={(v) => editTplText(i, { font: v })} />
             {font && !loadedSet.has(font) && (
               <div className="font-warn-sm">
-                Font “{font}” chưa nạp → đang thay thế.{" "}
-                <button onClick={importFonts}>Nạp font</button>
+                Font “{font}” chưa cài trên máy → đang thay thế. Cài font này vào máy rồi{" "}
+                <button onClick={rescanFonts} disabled={fontBusy}>
+                  {fontBusy ? "đang quét…" : "quét lại"}
+                </button>
               </div>
             )}
           </div>
@@ -834,13 +848,21 @@ export function PropertiesPanel() {
       </div>
       {missingList.length > 0 && (
         <div className="font-warn">
-          <b>⚠ {missingList.length} font template chưa nạp</b>
+          <b>⚠ {missingList.length} font mẫu chưa cài trên máy</b>
           <div className="font-warn-list">
             {missingList.slice(0, 8).join(", ")}
             {missingList.length > 8 ? "…" : ""}
           </div>
-          <button className="btn" style={{ width: "100%", justifyContent: "center", marginTop: 8 }} onClick={importFonts}>
-            Nạp font gốc để đúng kiểu chữ
+          <div className="hint-sm" style={{ marginTop: 6 }}>
+            Cài các font này vào máy (Library/Fonts · Windows Fonts) để chữ đúng kiểu.
+          </div>
+          <button
+            className="btn"
+            style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+            onClick={rescanFonts}
+            disabled={fontBusy}
+          >
+            {fontBusy ? "Đang quét…" : "⟳ Quét lại font máy"}
           </button>
         </div>
       )}
@@ -849,6 +871,51 @@ export function PropertiesPanel() {
         <div className="prop-row">
           <input type="color" className="swatch" value={bgColor} onChange={(e) => setBgColor(e.target.value)} />
           <input className="input" value={bgColor.toUpperCase()} onChange={(e) => setBgColor(e.target.value)} />
+        </div>
+      </div>
+
+      {/* print guides (⌘B): red = trim (lab cut), green = safe zone */}
+      <div className="prop-group">
+        <div className="prop-label">Đường canh in ấn</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5 }}>
+            <span style={{ width: 60, color: "#ef6666" }}>▦ Xén (đỏ)</span>
+            <input
+              className="input"
+              type="number"
+              step={0.5}
+              min={0}
+              value={settings.trimMm}
+              onChange={(e) =>
+                useAlbum.getState().setSettings({ trimMm: Math.max(0, parseFloat(e.target.value) || 0) })
+              }
+            />
+            <span style={{ color: "var(--text-faint)" }}>mm</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5 }}>
+            <span style={{ width: 66, color: "#3ec78a" }}>▢ An toàn</span>
+            <input
+              className="input"
+              type="number"
+              step={0.5}
+              min={0}
+              value={settings.safeMm}
+              onChange={(e) =>
+                useAlbum.getState().setSettings({ safeMm: Math.max(0, parseFloat(e.target.value) || 0) })
+              }
+            />
+            <span style={{ color: "var(--text-faint)" }}>mm</span>
+          </label>
+        </div>
+        <button
+          className={"btn" + (showBleed ? " primary" : "")}
+          style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+          onClick={() => useAlbum.getState().toggleBleed()}
+        >
+          {showBleed ? "Đang hiện đường canh (⌘B)" : "Hiện đường canh (⌘B)"}
+        </button>
+        <div className="hint-sm">
+          Đỏ = mép lab có thể xén · Xanh = vùng an toàn giữ mặt/chữ bên trong. Chỉ hiển thị, không in ra.
         </div>
       </div>
       <div className="prop-group">
@@ -886,8 +953,16 @@ export function PropertiesPanel() {
         <div className="prop-group">
           <div className="prop-label">Ảnh nền (full-bleed)</div>
           <button
-            className="btn"
+            className="btn primary"
             style={{ width: "100%", justifyContent: "center" }}
+            title="Đưa ảnh nền vào khung để thu nhỏ / chỉnh như ảnh thường"
+            onClick={() => useAlbum.getState().backgroundToSlot()}
+          >
+            ⤡ Thu về khung ảnh
+          </button>
+          <button
+            className="btn"
+            style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
             onClick={() => useAlbum.getState().removeBackground()}
           >
             Gỡ ảnh nền
