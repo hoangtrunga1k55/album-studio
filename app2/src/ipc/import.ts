@@ -45,14 +45,31 @@ export async function importFiles(
 }
 
 const displayCache = new Map<string, Promise<string>>();
+/** Resolved data URLs — lets a mounting component pick the image up
+ *  SYNCHRONOUSLY (no async frame) when it was already decoded. */
+const displayReady = new Map<string, string>();
 
 /** Decode an image at display resolution (~1600px) for sharp canvas rendering.
  *  Cached per path so re-renders / re-mounts never re-decode. */
 export function getDisplayImage(path: string): Promise<string> {
   let p = displayCache.get(path);
   if (!p) {
-    p = invoke<string>("get_display_image", { path });
+    p = invoke<string>("get_display_image", { path }).then((u) => {
+      displayReady.set(path, u);
+      return u;
+    });
     displayCache.set(path, p);
   }
   return p;
+}
+
+/** Already-decoded display image, if any — for instant mounts. */
+export function getDisplayImageSync(path: string): string | undefined {
+  return displayReady.get(path);
+}
+
+/** Warm the cache for a set of photos (e.g. the neighbouring spreads) so
+ *  switching spreads shows sharp images immediately. Fire-and-forget. */
+export function prefetchDisplayImages(paths: string[]): void {
+  for (const p of paths) void getDisplayImage(p).catch(() => {});
 }

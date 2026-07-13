@@ -2,7 +2,12 @@ import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
 import Konva from "konva";
 import useImage from "use-image";
-import { getDisplayImage, type ImageMeta } from "../ipc/import";
+import {
+  getDisplayImage,
+  getDisplayImageSync,
+  prefetchDisplayImages,
+  type ImageMeta,
+} from "../ipc/import";
 import {
   BLANK_TEMPLATE,
   getTemplate,
@@ -78,10 +83,17 @@ const BgImage = memo(function BgImage(props: { url: string; w: number; h: number
 /** Full-bleed background photo covering the whole spread (§6.5). */
 const SpreadBgPhoto = memo(function SpreadBgPhoto(props: { img?: ImageMeta; w: number; h: number }) {
   const { img, w, h } = props;
-  const [uri, setUri] = useState<string>();
+  // already decoded → picked up synchronously, no async frame
+  const [uri, setUri] = useState<string | undefined>(() =>
+    img ? getDisplayImageSync(img.path) : undefined
+  );
   useEffect(() => {
     if (!img) {
       setUri(undefined);
+      return;
+    }
+    if (getDisplayImageSync(img.path)) {
+      setUri(getDisplayImageSync(img.path));
       return;
     }
     let live = true;
@@ -90,7 +102,10 @@ const SpreadBgPhoto = memo(function SpreadBgPhoto(props: { img?: ImageMeta; w: n
       live = false;
     };
   }, [img?.path]);
-  const [image] = useImage(uri ?? "");
+  const [display] = useImage(uri ?? "");
+  // thumbnail stands in while the sharp version decodes
+  const [thumb] = useImage(img?.thumb ?? "");
+  const image = display ?? thumb;
   if (!img || !image) return null;
   const scale = Math.max(w / image.width, h / image.height);
   const dw = image.width * scale;
@@ -703,12 +718,20 @@ function Slot(props: {
     borderPx = 0, borderColor = "#ffffff", bgBehind = false,
     onSelect, onEnterCrop, onBeginMove, onTransform, onContext,
   } = props;
-  const [uri, setUri] = useState<string>();
+  // already decoded → picked up synchronously, no async frame on remounts
+  const [uri, setUri] = useState<string | undefined>(() =>
+    img ? getDisplayImageSync(img.path) : undefined
+  );
   const drag = useRef<{ cx: number; cy: number; panX: number; panY: number } | null>(null);
 
   useEffect(() => {
     if (!img) {
       setUri(undefined);
+      return;
+    }
+    const ready = getDisplayImageSync(img.path);
+    if (ready) {
+      setUri(ready);
       return;
     }
     let live = true;
@@ -718,7 +741,11 @@ function Slot(props: {
     };
   }, [img?.path]);
 
-  const [image] = useImage(uri ?? "");
+  const [display] = useImage(uri ?? "");
+  // thumbnail (already in memory) stands in while the sharp version decodes
+  const [thumb] = useImage(img?.thumb ?? "");
+  const image = display ?? thumb;
+  const isPreviewQuality = !display && !!thumb;
 
   // Tone adjustments need the node cached (Konva filters render off a cache).
   const imgRef = useRef<Konva.Image>(null);
@@ -754,7 +781,8 @@ function Slot(props: {
     const nw = image.width * scale;
     const nh = image.height * scale;
     // image px per stage px = 1/scale → DPI = stage-px-per-inch / scale (§10.3).
-    if (ppi) dpi = ppi / scale;
+    // never judge DPI from the low-res thumbnail stand-in
+    if (ppi && !isPreviewQuality) dpi = ppi / scale;
     node = (
       <KonvaImage
         ref={imgRef}
@@ -1035,6 +1063,24 @@ export function SpreadCanvas() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Warm the display-image cache for this spread AND its neighbours — by the
+  // time the user steps ⟨/⟩, the sharp images are already decoded.
+  useEffect(() => {
+    const byId = new Map(images.map((m) => [m.id, m.path]));
+    const paths: string[] = [];
+    for (const idx of [currentIndex, currentIndex + 1, currentIndex - 1]) {
+      const sp = spreads[idx];
+      if (!sp) continue;
+      for (const id of sp.imageIds) {
+        const p = id ? byId.get(id) : undefined;
+        if (p) paths.push(p);
+      }
+      const bg = sp.bgImageId ? byId.get(sp.bgImageId) : undefined;
+      if (bg) paths.push(bg);
+    }
+    prefetchDisplayImages(paths);
+  }, [currentIndex, spreads, images]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

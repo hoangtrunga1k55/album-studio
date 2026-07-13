@@ -89,53 +89,298 @@ function AlignRows({ slot }: { slot: number }) {
           </>
         ) : anchor ? (
           <>
+            {/* single-axis translate only — the other coordinate stays put */}
             <div className="prop-row">
               <button
                 className="btn"
-                title="Trùng tâm mốc"
-                onClick={() => put(anchor.x + (anchor.w - me.w) / 2, anchor.y + (anchor.h - me.h) / 2)}
+                title="Thẳng mép TRÁI với mốc (giữ nguyên chiều dọc)"
+                onClick={() => put(anchor.x, me.y)}
               >
-                ◎ Giữa
+                ⇤ Trái
               </button>
               <button
                 className="btn"
-                title="Ngay trên mốc, giữa theo chiều ngang"
-                onClick={() => put(anchor.x + (anchor.w - me.w) / 2, anchor.y - me.h)}
+                title="Thẳng TÂM NGANG với mốc (giữ nguyên chiều dọc)"
+                onClick={() => put(anchor.x + (anchor.w - me.w) / 2, me.y)}
               >
-                ⬒ Trên
+                ↔ Giữa
               </button>
               <button
                 className="btn"
-                title="Ngay dưới mốc, giữa theo chiều ngang"
-                onClick={() => put(anchor.x + (anchor.w - me.w) / 2, anchor.y + anchor.h)}
+                title="Thẳng mép PHẢI với mốc (giữ nguyên chiều dọc)"
+                onClick={() => put(anchor.x + anchor.w - me.w, me.y)}
               >
-                ⬓ Dưới
+                ⇥ Phải
               </button>
             </div>
             <div className="prop-row" style={{ marginTop: 6 }}>
               <button
                 className="btn"
-                title="Bên trái mốc, giữa theo chiều dọc"
-                onClick={() => put(anchor.x - me.w, anchor.y + (anchor.h - me.h) / 2)}
+                title="Thẳng mép TRÊN với mốc (giữ nguyên chiều ngang)"
+                onClick={() => put(me.x, anchor.y)}
               >
-                ◧ Trái
+                ⤒ Trên
               </button>
               <button
                 className="btn"
-                title="Bên phải mốc, giữa theo chiều dọc"
-                onClick={() => put(anchor.x + anchor.w, anchor.y + (anchor.h - me.h) / 2)}
+                title="Thẳng TÂM DỌC với mốc (giữ nguyên chiều ngang)"
+                onClick={() => put(me.x, anchor.y + (anchor.h - me.h) / 2)}
               >
-                ◨ Phải
+                ↕ Giữa
               </button>
-              <button className="btn" title="Bỏ khung mốc" onClick={() => setAlignAnchor(null)}>
-                ✕ Bỏ mốc
+              <button
+                className="btn"
+                title="Thẳng mép DƯỚI với mốc (giữ nguyên chiều ngang)"
+                onClick={() => put(me.x, anchor.y + anchor.h - me.h)}
+              >
+                ⤓ Dưới
               </button>
             </div>
+            <button
+              className="btn"
+              style={{ width: "100%", justifyContent: "center", marginTop: 6 }}
+              title="Bỏ khung mốc"
+              onClick={() => setAlignAnchor(null)}
+            >
+              ✕ Bỏ mốc
+            </button>
           </>
         ) : null}
       </div>
     </>
   );
+}
+
+/** Photo-editing sections for a slot — shared by the normal-mode photo panel
+ *  and the layout-mode frame panel (the frame panel appends them below). */
+function PhotoEditSections({
+  slot,
+  header = false,
+  withArrange = false,
+}: {
+  slot: number;
+  header?: boolean;
+  withArrange?: boolean;
+}) {
+  const spreads = useAlbum((s) => s.spreads);
+  const currentIndex = useAlbum((s) => s.currentIndex);
+  const images = useAlbum((s) => s.images);
+  const spread = spreads[currentIndex];
+  const tpl = getTemplate(spread?.templateId ?? null);
+  const imgId = spread?.imageIds[slot];
+  const img = imgId ? images.find((im) => im.id === imgId) : undefined;
+  const st = useAlbum.getState();
+  if (!img || !spread) return null;
+  {
+      const t = spread.transforms[slot] ?? { zoom: 1, panX: 0, panY: 0 };
+      // Frame geometry in real units — drives the navigator ratio + info block.
+      const size = st.size;
+      const cmAll = tpl ? spreadCmFor(tpl, size) : null;
+      const effRect =
+        tpl && slot < tpl.slots.length
+          ? { ...tpl.slots[slot], ...(spread?.slotRects?.[slot] ?? {}) }
+          : spread?.slotRects?.[slot];
+      const frameWcm = effRect && cmAll ? effRect.w * cmAll.w : null;
+      const frameHcm = effRect && cmAll ? effRect.h * cmAll.h : null;
+      const frameRatio = frameWcm && frameHcm ? frameWcm / frameHcm : 1;
+      const setT = (next: typeof t) => st.setSlotTransform(slot, next);
+      // Free rotation (SmartAlbums "Angle") — lives on the frame rect.
+      const angle = spread?.slotRects?.[slot]?.rotDeg ?? 0;
+      const setAngle = (deg: number) =>
+        st.setSlotRect(slot, {
+          ...(effRect ?? { x: 0, y: 0, w: 1, h: 1 }),
+          rotDeg: Math.round(deg),
+        });
+      // Effective PPI: photo pixels that end up in one printed inch (§10.3).
+      let ppi: number | null = null;
+      if (frameWcm && frameHcm) {
+        const rot = t.rot ?? 0;
+        const swapped = rot === 90 || rot === 270;
+        const iw = swapped ? img.height : img.width;
+        const ih = swapped ? img.width : img.height;
+        const fitScale =
+          t.fit === "contain"
+            ? Math.min(frameWcm / iw, frameHcm / ih)
+            : Math.max(frameWcm / iw, frameHcm / ih);
+        ppi = Math.round(2.54 / (fitScale * (t.zoom ?? 1))); // image px per inch
+      }
+      const usedCount = spreads.reduce(
+        (n, sp) => n + sp.imageIds.filter((x) => x === img.id).length,
+        0
+      );
+      const zoomPct = Math.round((t.zoom ?? 1) * 100);
+      return (
+        <>
+          {header ? (
+            <h3 className="props-title" title={img.name}>
+              {img.name}
+              {ppi !== null && ppi < 200 && (
+                <span className="ppi-warn" title={`In sẽ mờ — ${ppi} PPI (nên ≥ 200)`}>⚠</span>
+              )}
+            </h3>
+          ) : (
+            <div className="prop-label" style={{ marginTop: 14 }}>Ảnh trong khung</div>
+          )}
+
+          <div className="prop-label">Thiết kế</div>
+          {/* live preview — the frame stays fixed, the photo scales behind it */}
+          <PhotoNavigator
+            img={img}
+            frameRatio={frameRatio}
+            t={t}
+            trimFrac={
+              frameWcm && frameHcm
+                ? {
+                    x: st.settings.trimMm / 10 / frameWcm,
+                    y: st.settings.trimMm / 10 / frameHcm,
+                  }
+                : undefined
+            }
+            onChange={setT}
+          />
+
+          <div className="sa-rows">
+            <div className="sa-row">
+              <span className="sa-name">Scale:</span>
+              <input
+                type="range"
+                min={100}
+                max={600}
+                step={1}
+                value={zoomPct}
+                onChange={(e) => setT({ ...t, zoom: parseInt(e.target.value, 10) / 100 })}
+              />
+              <span className="sa-val">{zoomPct}%</span>
+              <button
+                className="sa-reset"
+                title="Về 100%"
+                disabled={zoomPct === 100}
+                onClick={() => setT({ ...t, zoom: 1, panX: 0, panY: 0 })}
+              >
+                ×
+              </button>
+            </div>
+            <div className="sa-row">
+              <span className="sa-name">Góc xoay:</span>
+              <input
+                type="range"
+                min={-180}
+                max={180}
+                step={1}
+                value={angle}
+                onChange={(e) => setAngle(parseInt(e.target.value, 10))}
+              />
+              <span className="sa-val">{Math.round(angle)}°</span>
+              <button
+                className="sa-reset"
+                title="Về 0°"
+                disabled={angle === 0}
+                onClick={() => setAngle(0)}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div className="prop-label" style={{ marginTop: 12 }}>Tông màu</div>
+          <div className="sa-rows">
+            <div className="sa-row">
+              <span className="sa-name">Sáng:</span>
+              <input
+                type="range"
+                min={-100}
+                max={100}
+                step={1}
+                value={Math.round((t.brightness ?? 0) * 100)}
+                onChange={(e) => setT({ ...t, brightness: parseInt(e.target.value, 10) / 100 })}
+              />
+              <span className="sa-val">{Math.round((t.brightness ?? 0) * 100)}</span>
+              <button
+                className="sa-reset"
+                title="Về 0"
+                disabled={(t.brightness ?? 0) === 0}
+                onClick={() => setT({ ...t, brightness: 0 })}
+              >
+                ×
+              </button>
+            </div>
+            <div className="sa-row">
+              <span className="sa-name">T.phản:</span>
+              <input
+                type="range"
+                min={-100}
+                max={100}
+                step={1}
+                value={t.contrast ?? 0}
+                onChange={(e) => setT({ ...t, contrast: parseInt(e.target.value, 10) })}
+              />
+              <span className="sa-val">{t.contrast ?? 0}</span>
+              <button
+                className="sa-reset"
+                title="Về 0"
+                disabled={(t.contrast ?? 0) === 0}
+                onClick={() => setT({ ...t, contrast: 0 })}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div className="prop-group" style={{ marginTop: 12 }}>
+            <div className="prop-row">
+              <button className="btn" onClick={() => st.rotateSlot(slot)} title="Xoay ảnh 90° trong khung">
+                ⟳ 90°
+              </button>
+              <button className="btn" onClick={() => st.flipSlot(slot, "h")} title="Lật ngang">
+                ⇋
+              </button>
+              <button className="btn" onClick={() => st.flipSlot(slot, "v")} title="Lật dọc">
+                ⇵
+              </button>
+              <button
+                className="btn"
+                onClick={() =>
+                  st.setSlotFit(slot, (t.fit ?? "cover") === "cover" ? "contain" : "cover")
+                }
+                title="Phủ kín khung / hiện trọn ảnh"
+              >
+                {(t.fit ?? "cover") === "cover" ? "Trọn ảnh" : "Phủ kín"}
+              </button>
+            </div>
+          </div>
+
+          {withArrange && <ArrangeRow slot={slot} />}
+
+          <div className="prop-label" style={{ marginTop: 14 }}>Thông tin ảnh</div>
+          <div className="sa-info">
+            {frameWcm && frameHcm && (
+              <div><span>Khung R×C</span><b>{frameWcm.toFixed(1)} × {frameHcm.toFixed(1)} cm</b></div>
+            )}
+            {ppi !== null && (
+              <div>
+                <span>PPI hiệu dụng</span>
+                <b style={ppi < 200 ? { color: "#f59e0b" } : undefined}>{ppi}</b>
+              </div>
+            )}
+            <div><span>Kích thước gốc</span><b>{img.width} × {img.height} px</b></div>
+            <div><span>Đã dùng</span><b>{usedCount} lần</b></div>
+          </div>
+
+          <button
+            className="btn"
+            style={{ width: "100%", justifyContent: "center", marginTop: 12 }}
+            onClick={() => st.beginSwap(slot)}
+            title="Phím S — rồi bấm ô đích để hoán đổi 2 ảnh (kéo ảnh sang ô khác cũng được)"
+          >
+            ⇄ Đổi chỗ ảnh… (S)
+          </button>
+          <button className="danger" onClick={() => st.clearSlot(slot)} style={{ marginTop: 10 }}>
+            <IconTrash width={15} height={15} /> Gỡ ảnh khỏi khung
+          </button>
+        </>
+      );
+
+  }
 }
 
 const SNIPPETS = [
@@ -159,7 +404,6 @@ export function PropertiesPanel() {
   const removeTypo = useAlbum((s) => s.removeTypo);
   const bgColor = useAlbum((s) => s.bgColor);
   const setBgColor = useAlbum((s) => s.setBgColor);
-  const clearSlot = useAlbum((s) => s.clearSlot);
   const setMargin = useAlbum((s) => s.setMargin);
   const editTplText = useAlbum((s) => s.editTplText);
   const deleteTplText = useAlbum((s) => s.deleteTplText);
@@ -456,207 +700,9 @@ export function PropertiesPanel() {
     const st = useAlbum.getState();
 
     if (!spreadSelected && img) {
-      const t = spread.transforms[selectedSlot] ?? { zoom: 1, panX: 0, panY: 0 };
-      // Frame geometry in real units — drives the navigator ratio + info block.
-      const size = st.size;
-      const cmAll = tpl ? spreadCmFor(tpl, size) : null;
-      const effRect =
-        tpl && selectedSlot < tpl.slots.length
-          ? { ...tpl.slots[selectedSlot], ...(spread?.slotRects?.[selectedSlot] ?? {}) }
-          : spread?.slotRects?.[selectedSlot];
-      const frameWcm = effRect && cmAll ? effRect.w * cmAll.w : null;
-      const frameHcm = effRect && cmAll ? effRect.h * cmAll.h : null;
-      const frameRatio = frameWcm && frameHcm ? frameWcm / frameHcm : 1;
-      const setT = (next: typeof t) => st.setSlotTransform(selectedSlot, next);
-      // Free rotation (SmartAlbums "Angle") — lives on the frame rect.
-      const angle = spread?.slotRects?.[selectedSlot]?.rotDeg ?? 0;
-      const setAngle = (deg: number) =>
-        st.setSlotRect(selectedSlot, {
-          ...(effRect ?? { x: 0, y: 0, w: 1, h: 1 }),
-          rotDeg: Math.round(deg),
-        });
-      // Effective PPI: photo pixels that end up in one printed inch (§10.3).
-      let ppi: number | null = null;
-      if (frameWcm && frameHcm) {
-        const rot = t.rot ?? 0;
-        const swapped = rot === 90 || rot === 270;
-        const iw = swapped ? img.height : img.width;
-        const ih = swapped ? img.width : img.height;
-        const fitScale =
-          t.fit === "contain"
-            ? Math.min(frameWcm / iw, frameHcm / ih)
-            : Math.max(frameWcm / iw, frameHcm / ih);
-        ppi = Math.round(2.54 / (fitScale * (t.zoom ?? 1))); // image px per inch
-      }
-      const usedCount = spreads.reduce(
-        (n, sp) => n + sp.imageIds.filter((x) => x === img.id).length,
-        0
-      );
-      const zoomPct = Math.round((t.zoom ?? 1) * 100);
       return (
         <aside className="props">
-          <h3 className="props-title" title={img.name}>
-            {img.name}
-            {ppi !== null && ppi < 200 && (
-              <span className="ppi-warn" title={`In sẽ mờ — ${ppi} PPI (nên ≥ 200)`}>⚠</span>
-            )}
-          </h3>
-
-          <div className="prop-label">Thiết kế</div>
-          {/* live preview — the frame stays fixed, the photo scales behind it */}
-          <PhotoNavigator
-            img={img}
-            frameRatio={frameRatio}
-            t={t}
-            trimFrac={
-              frameWcm && frameHcm
-                ? {
-                    x: st.settings.trimMm / 10 / frameWcm,
-                    y: st.settings.trimMm / 10 / frameHcm,
-                  }
-                : undefined
-            }
-            onChange={setT}
-          />
-
-          <div className="sa-rows">
-            <div className="sa-row">
-              <span className="sa-name">Scale:</span>
-              <input
-                type="range"
-                min={100}
-                max={600}
-                step={1}
-                value={zoomPct}
-                onChange={(e) => setT({ ...t, zoom: parseInt(e.target.value, 10) / 100 })}
-              />
-              <span className="sa-val">{zoomPct}%</span>
-              <button
-                className="sa-reset"
-                title="Về 100%"
-                disabled={zoomPct === 100}
-                onClick={() => setT({ ...t, zoom: 1, panX: 0, panY: 0 })}
-              >
-                ×
-              </button>
-            </div>
-            <div className="sa-row">
-              <span className="sa-name">Góc xoay:</span>
-              <input
-                type="range"
-                min={-180}
-                max={180}
-                step={1}
-                value={angle}
-                onChange={(e) => setAngle(parseInt(e.target.value, 10))}
-              />
-              <span className="sa-val">{Math.round(angle)}°</span>
-              <button
-                className="sa-reset"
-                title="Về 0°"
-                disabled={angle === 0}
-                onClick={() => setAngle(0)}
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
-          <div className="prop-label" style={{ marginTop: 12 }}>Tông màu</div>
-          <div className="sa-rows">
-            <div className="sa-row">
-              <span className="sa-name">Sáng:</span>
-              <input
-                type="range"
-                min={-100}
-                max={100}
-                step={1}
-                value={Math.round((t.brightness ?? 0) * 100)}
-                onChange={(e) => setT({ ...t, brightness: parseInt(e.target.value, 10) / 100 })}
-              />
-              <span className="sa-val">{Math.round((t.brightness ?? 0) * 100)}</span>
-              <button
-                className="sa-reset"
-                title="Về 0"
-                disabled={(t.brightness ?? 0) === 0}
-                onClick={() => setT({ ...t, brightness: 0 })}
-              >
-                ×
-              </button>
-            </div>
-            <div className="sa-row">
-              <span className="sa-name">T.phản:</span>
-              <input
-                type="range"
-                min={-100}
-                max={100}
-                step={1}
-                value={t.contrast ?? 0}
-                onChange={(e) => setT({ ...t, contrast: parseInt(e.target.value, 10) })}
-              />
-              <span className="sa-val">{t.contrast ?? 0}</span>
-              <button
-                className="sa-reset"
-                title="Về 0"
-                disabled={(t.contrast ?? 0) === 0}
-                onClick={() => setT({ ...t, contrast: 0 })}
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
-          <div className="prop-group" style={{ marginTop: 12 }}>
-            <div className="prop-row">
-              <button className="btn" onClick={() => st.rotateSlot(selectedSlot)} title="Xoay ảnh 90° trong khung">
-                ⟳ 90°
-              </button>
-              <button className="btn" onClick={() => st.flipSlot(selectedSlot, "h")} title="Lật ngang">
-                ⇋
-              </button>
-              <button className="btn" onClick={() => st.flipSlot(selectedSlot, "v")} title="Lật dọc">
-                ⇵
-              </button>
-              <button
-                className="btn"
-                onClick={() =>
-                  st.setSlotFit(selectedSlot, (t.fit ?? "cover") === "cover" ? "contain" : "cover")
-                }
-                title="Phủ kín khung / hiện trọn ảnh"
-              >
-                {(t.fit ?? "cover") === "cover" ? "Trọn ảnh" : "Phủ kín"}
-              </button>
-            </div>
-          </div>
-
-          <ArrangeRow slot={selectedSlot} />
-
-          <div className="prop-label" style={{ marginTop: 14 }}>Thông tin ảnh</div>
-          <div className="sa-info">
-            {frameWcm && frameHcm && (
-              <div><span>Khung R×C</span><b>{frameWcm.toFixed(1)} × {frameHcm.toFixed(1)} cm</b></div>
-            )}
-            {ppi !== null && (
-              <div>
-                <span>PPI hiệu dụng</span>
-                <b style={ppi < 200 ? { color: "#f59e0b" } : undefined}>{ppi}</b>
-              </div>
-            )}
-            <div><span>Kích thước gốc</span><b>{img.width} × {img.height} px</b></div>
-            <div><span>Đã dùng</span><b>{usedCount} lần</b></div>
-          </div>
-
-          <button
-            className="btn"
-            style={{ width: "100%", justifyContent: "center", marginTop: 12 }}
-            onClick={() => st.beginSwap(selectedSlot)}
-            title="Phím S — rồi bấm ô đích để hoán đổi 2 ảnh (kéo ảnh sang ô khác cũng được)"
-          >
-            ⇄ Đổi chỗ ảnh… (S)
-          </button>
-          <button className="danger" onClick={() => clearSlot(selectedSlot)} style={{ marginTop: 10 }}>
-            <IconTrash width={15} height={15} /> Gỡ ảnh khỏi khung
-          </button>
+          <PhotoEditSections slot={selectedSlot} header withArrange />
         </aside>
       );
     }
@@ -722,11 +768,9 @@ export function PropertiesPanel() {
         )}
         <ArrangeRow slot={selectedSlot} />
         <AlignRows slot={selectedSlot} />
-        <div className="prop-empty">
-          {img
-            ? "Đang sửa KHUNG (chế độ layout) — Esc để thoát, click ảnh ngoài chế độ này để sửa ảnh."
-            : "Khung trống — kéo ảnh từ khay dưới vào."}
-        </div>
+        {/* the photo in this frame is editable right here too */}
+        {img && <PhotoEditSections slot={selectedSlot} />}
+        {!img && <div className="prop-empty">Khung trống — kéo ảnh từ khay dưới vào.</div>}
       </aside>
     );
   }
