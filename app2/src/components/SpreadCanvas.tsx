@@ -17,7 +17,7 @@ import {
   type PhotoSlot,
   type TemplateText,
 } from "../engine/templates";
-import { getTypo, type Typo } from "../engine/typos";
+import { ensureTypoDeco, getTypo, type Typo } from "../engine/typos";
 import {
   orderKeys,
   pagesOf,
@@ -1411,6 +1411,7 @@ export function SpreadCanvas() {
 
     const typoId = e.dataTransfer.getData(TYPO_DND_KEY);
     if (typoId) {
+      void ensureTypoDeco(typoId); // decoration PNG loads on first use
       addTypo(typoId, Math.max(0, nx - 0.16), Math.max(0, ny - 0.08));
       return;
     }

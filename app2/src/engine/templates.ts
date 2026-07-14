@@ -354,12 +354,54 @@ export const BLANK_TEMPLATE: Template = {
   source: "basic",
 };
 
+/* ---------- Imported library (§8): layouts the user imported from a pack
+   folder. The picker lists them by THUMBNAIL only; the real JSON is parsed
+   the moment a layout is picked, and the parsed template is cached here. ---- */
+
+const LIBRARY = new Map<string, Template>();
+
+/** Register a layout parsed from the library pack (id = "<category>/<name>"). */
+export function registerLibraryTemplate(t: Template): Template {
+  LIBRARY.set(t.id, t);
+  return t;
+}
+
+export function libraryTemplate(id: string): Template | undefined {
+  return LIBRARY.get(id);
+}
+
+/** Build a Template from a pack JSON (same shape as the bundled layouts). */
+export function templateFromJson(
+  id: string,
+  name: string,
+  raw: RawTemplate,
+  kind: "spread" | "cover",
+  bgUrl?: string
+): Template {
+  const slots = raw.photoSlots ?? [];
+  const texts = (raw.texts ?? []).map((t) => ({ ...t, font: cleanFontName(t.font) }));
+  return {
+    id,
+    size: "*",
+    name,
+    ratioWH: raw.canvas?.ratioWH ?? 2,
+    slots,
+    texts,
+    slotCount: slots.length,
+    bg: bgUrl,
+    source: "tizino",
+    kind,
+  };
+}
+
 export function getTemplate(id: string | null): Template | undefined {
+  if (!id) return undefined;
   return (
     TEMPLATES.find((t) => t.id === id) ??
     BASIC_TEMPLATES.find((t) => t.id === id) ??
     BASIC_COVERS.find((t) => t.id === id) ??
-    CUSTOMS.find((t) => t.id === id)
+    CUSTOMS.find((t) => t.id === id) ??
+    LIBRARY.get(id)
   );
 }
 

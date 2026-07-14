@@ -1,15 +1,20 @@
 import { useEffect, useState } from "react";
 import {
   coverTemplates,
+  getTemplate,
+  libraryTemplate,
+  registerLibraryTemplate,
   suggestionTemplates,
+  templateFromJson,
   type Template,
   type TemplateSource,
 } from "../engine/templates";
+import { fileUrl, readLayoutBgPath, readLayoutJson, type LayoutItem } from "../ipc/library";
 import { useAlbum } from "../store/album";
+import { categoriesOf, useLibrary } from "../store/library";
 
 /** One layout thumbnail (frames only). Hover previews it live on the spread,
- *  click commits it — SmartAlbums behavior, shared by the strip and the
- *  center grid. */
+ *  click commits it — SmartAlbums behavior. */
 function LayoutThumb({ t, active, onApply }: { t: Template; active: boolean; onApply: () => void }) {
   const setPreview = useAlbum((s) => s.setPreviewTemplate);
   return (
@@ -39,6 +44,40 @@ function LayoutThumb({ t, active, onApply }: { t: Template; active: boolean; onA
   );
 }
 
+/** Library layout: shows the pack's THUMBNAIL image (served from disk, lazy).
+ *  The real JSON is parsed on hover/click — nothing heavy is loaded upfront. */
+function LibraryThumb({
+  item,
+  active,
+  busy,
+  onPick,
+  onHover,
+}: {
+  item: LayoutItem;
+  active: boolean;
+  busy: boolean;
+  onPick: () => void;
+  onHover: (over: boolean) => void;
+}) {
+  const known = libraryTemplate(item.id);
+  return (
+    <button
+      className={"ls-thumb ls-lib" + (active ? " active" : "") + (busy ? " busy" : "")}
+      title={`${item.name} · ${item.category}${known ? ` · ${known.slotCount} ô` : ""}`}
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
+      onClick={onPick}
+    >
+      {item.thumbPath ? (
+        <img className="ls-img" src={fileUrl(item.thumbPath)} alt={item.name} loading="lazy" />
+      ) : (
+        <span className="ls-box" style={{ aspectRatio: "2" }} />
+      )}
+      {known && <span className="ls-count">{known.slotCount}</span>}
+    </button>
+  );
+}
+
 /** Layouts relevant to the current spread: same photo count first, rest after
  *  (all of them when the spread is still empty). */
 function useStripTemplates(): { list: Template[]; currentId: string; photoCount: number } {
@@ -62,21 +101,37 @@ function useStripTemplates(): { list: Template[]; currentId: string; photoCount:
   return { list, currentId, photoCount };
 }
 
-const POP_TABS: { id: "all" | TemplateSource; label: string }[] = [
+const BUILTIN_TABS: { id: "all" | TemplateSource; label: string }[] = [
   { id: "all", label: "Tất cả" },
   { id: "basic", label: "Cơ bản" },
-  { id: "tizino", label: "Tizino" },
   { id: "custom", label: "Mẫu của tôi" },
 ];
 
+/** Album size a pack category targets, parsed from its folder name
+ *  ("cover-25x35" / "layout 30x30" → "25x35" / "30x30"). null = any size. */
+function catSize(category: string): string | null {
+  const m = /(\d{2,3})\s*[x×]\s*(\d{2,3})/i.exec(category);
+  return m ? `${m[1]}x${m[2]}` : null;
+}
+
+/** Does this pack category belong to the cover spread? */
+const isCoverCat = (c: string) => /^(cover|bia|bìa)/i.test(c);
+
 /** Layout picker (topbar Layout button): a DOCKED horizontal panel that
- *  pushes the canvas down (SmartAlbums style) — variants for the current
- *  photo count, source tabs, hover = live preview, click = apply. */
+ *  pushes the canvas down (SmartAlbums style). Built-in layouts + every
+ *  category of the imported pack (cover-25x35, layout-30x30…) as tabs;
+ *  pack layouts show their real thumbnail and load the JSON when picked. */
 export function LayoutDock({ onClose }: { onClose: () => void }) {
   const applyTemplate = useAlbum((s) => s.applyTemplate);
   const setPreview = useAlbum((s) => s.setPreviewTemplate);
+  const spreads = useAlbum((s) => s.spreads);
+  const currentIndex = useAlbum((s) => s.currentIndex);
+  const size = useAlbum((s) => s.size);
+  const isCover = !!spreads[currentIndex]?.isCover;
   const { list, currentId, photoCount } = useStripTemplates();
-  const [tab, setTab] = useState<"all" | TemplateSource>("all");
+  const library = useLibrary((s) => s.layouts);
+  const [tab, setTab] = useState<string>("all");
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -87,13 +142,46 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
     };
   }, [onClose, setPreview]);
 
-  // Only layouts matching the spread's photo count (empty spread → all).
+  // Built-in pool, narrowed to the spread's photo count when it has photos.
   const want = Math.max(1, photoCount);
   const matches = list.filter((t) => t.slotCount === want);
   const pool = photoCount > 0 && matches.length > 0 ? matches : list;
   const bySrc = (src: "all" | TemplateSource) =>
     src === "all" ? pool : pool.filter((t) => (t.source ?? "tizino") === src);
-  const shown = bySrc(tab);
+
+  // Pack layouts: only the ones for THIS album size and this spread kind
+  // (cover vs normal). They all live under one "Tizino" tab.
+  const libItems = library.filter((i) => {
+    if (isCover !== isCoverCat(i.category)) return false;
+    const cs = catSize(i.category);
+    return !cs || !size || cs === size;
+  });
+  const cats = categoriesOf(libItems);
+  const libShown = tab === "tizino" ? libItems : [];
+
+  /** Parse a pack layout on demand and cache it as a real Template. */
+  async function loadLibrary(item: LayoutItem): Promise<Template | undefined> {
+    const cached = libraryTemplate(item.id);
+    if (cached) return cached;
+    setBusyId(item.id);
+    try {
+      const raw = JSON.parse(await readLayoutJson(item.jsonPath));
+      // preview plate: the pack's own bg (hi-res is re-read at export time)
+      const bg = item.bgPath ? (await readLayoutBgPath(item.bgPath).catch(() => null)) ?? undefined : undefined;
+      return registerLibraryTemplate(
+        templateFromJson(item.id, item.name, raw, isCoverCat(item.category) ? "cover" : "spread", bg)
+      );
+    } catch {
+      return undefined;
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const builtinShown =
+    tab === "all" || tab === "basic" || tab === "custom"
+      ? bySrc(tab as "all" | TemplateSource)
+      : [];
 
   return (
     <div className="layout-dock" onMouseLeave={() => setPreview(null)}>
@@ -102,7 +190,7 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
           {photoCount > 0 ? `Layout ${photoCount} ảnh` : "Tất cả layout"}
         </span>
         <span className="lp-tabs">
-          {POP_TABS.map((t) => (
+          {BUILTIN_TABS.map((t) => (
             <button
               key={t.id}
               className={"lp-tab" + (tab === t.id ? " active" : "")}
@@ -111,6 +199,17 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
               {t.label} ({bySrc(t.id).length})
             </button>
           ))}
+          {libItems.length > 0 && (
+            <button
+              className={"lp-tab lib" + (tab === "tizino" ? " active" : "")}
+              onClick={() => setTab("tizino")}
+              title={`Kho layout Tizino${size ? ` · khổ ${size}` : ""}${
+                cats.length ? ` · nhóm: ${cats.join(", ")}` : ""
+              }`}
+            >
+              Tizino ({libItems.length})
+            </button>
+          )}
         </span>
         <span className="lp-head">hover = xem trước · click = áp dụng</span>
         <button className="lp-close" title="Đóng (Esc)" onClick={onClose}>
@@ -118,7 +217,7 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       <div className="ld-row">
-        {shown.map((t) => (
+        {builtinShown.map((t) => (
           <LayoutThumb
             key={t.id}
             t={t}
@@ -126,13 +225,35 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
             onApply={() => applyTemplate(t.id)}
           />
         ))}
-        {shown.length === 0 && (
+        {libShown.map((item) => (
+          <LibraryThumb
+            key={item.id}
+            item={item}
+            active={item.id === currentId}
+            busy={busyId === item.id}
+            onHover={async (over) => {
+              if (!over) {
+                setPreview(null);
+                return;
+              }
+              const t = await loadLibrary(item);
+              if (t) setPreview(t.id);
+            }}
+            onPick={async () => {
+              const t = await loadLibrary(item);
+              if (t) applyTemplate(t.id);
+            }}
+          />
+        ))}
+        {builtinShown.length === 0 && libShown.length === 0 && (
           <div className="lp-empty">
             {tab === "custom" ? (
               <>
                 Chưa có mẫu của bạn{photoCount > 0 ? ` (${photoCount} ô)` : ""}. Sắp layout ưng ý
                 rồi chuột phải nền spread → <b>“Lưu layout thành mẫu”</b>.
               </>
+            ) : cats.length === 0 && tab === "all" ? (
+              <>Chưa nạp kho layout — panel Layout → <b>Nạp kho layout</b>.</>
             ) : (
               <>Nhóm này chưa có mẫu {photoCount > 0 ? `${photoCount} ô` : ""}.</>
             )}
@@ -142,3 +263,7 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+
+/** Kept for callers that still reference the old name. */
+export const LayoutPop = LayoutDock;
+export { getTemplate };

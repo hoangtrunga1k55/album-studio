@@ -1874,3 +1874,73 @@ button.danger:hover {
 .canvas-wrap.ruler-on {
   padding: 20px 0 0 20px;
 }
+
+/* library layout: real thumbnail image from the pack */
+.ls-thumb.ls-lib {
+  padding: 3px;
+}
+.ls-img {
+  display: block;
+  height: 68px;
+  width: auto;
+  max-width: 190px;
+  object-fit: contain;
+  border-radius: 3px;
+  background: #fff;
+}
+.ls-thumb.busy {
+  opacity: 0.55;
+}
+.lp-tab.lib {
+  text-transform: none;
+}
+
+/* settings dialog rows */
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.set-stat {
+  font-size: 12.5px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.set-warn {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid #6b4a1e;
+  background: #2a2113;
+  border-radius: 8px;
+  font-size: 11.5px;
+  color: #f5c46b;
+}
+
+/* typo category tabs in the Layout panel */
+.typo-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.typo-tab {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 4px 9px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: 0.12s ease;
+}
+.typo-tab:hover {
+  color: var(--text);
+}
+.typo-tab.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-hi);
+}

@@ -3,6 +3,8 @@ import { renderSpread } from "./renderSpread";
 import { BLANK_TEMPLATE, getTemplate } from "./templates";
 import { writeExport, type ExportFile } from "../ipc/export";
 import { readLayoutBg, savedLayoutFolder } from "../ipc/layouts";
+import { readLayoutBgPath } from "../ipc/library";
+import { useLibrary } from "../store/library";
 import type { Spread } from "../store/album";
 import type { ImageMeta } from "../ipc/import";
 
@@ -85,9 +87,14 @@ export async function exportAlbum(
     onProgress(i, spreads.length);
     // Blank pages print as clean white spreads.
     const tpl = getTemplate(spreads[i].templateId) ?? BLANK_TEMPLATE;
-    // Hi-res text-free plate from the imported layout pack, if available.
+    // Hi-res text-free plate: the library item's own bg first, then the
+    // legacy hi-res folder (kept for older packs).
     let hiresBg: string | null = null;
-    if (layoutFolder) {
+    const libItem = useLibrary.getState().layouts.find((l) => l.id === tpl.id);
+    if (libItem?.bgPath) {
+      hiresBg = await readLayoutBgPath(libItem.bgPath).catch(() => null);
+    }
+    if (!hiresBg && layoutFolder) {
       const name = tpl.id.split("/").pop()!;
       hiresBg = await readLayoutBg(layoutFolder, name).catch(() => null);
     }

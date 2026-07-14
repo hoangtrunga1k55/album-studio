@@ -47,13 +47,13 @@ import { NextSpreadZone, PrevSpreadZone } from "./components/WorkZones";
 import { LayoutDock } from "./components/LayoutStrip";
 import { ExportDialog } from "./components/ExportDialog";
 import { AutoDesignDialog } from "./components/AutoDesignDialog";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { getTemplate } from "./engine/templates";
 import { loadSystemFonts } from "./engine/fontLibrary";
-import { loadTypoFolder, savedTypoFolder } from "./ipc/typos";
+import { restoreLibraries } from "./flows/typoImport";
 import { openProject, saveNow, startAutosave } from "./flows/projectIO";
 import { useAlbum } from "./store/album";
 import { useFonts } from "./store/fonts";
-import { useTypos } from "./store/typos";
 import { useProject } from "./store/project";
 import { IconExport, IconLayout, IconSettings, IconSparkle } from "./icons";
 import { DENSITY_LABELS } from "./engine/autoLayout";
@@ -75,12 +75,12 @@ function App() {
   const setDensity = useAlbum((s) => s.setDensity);
   const addFonts = useFonts((s) => s.addFonts);
   const setFontIndex = useFonts((s) => s.setIndex);
-  const setTypos = useTypos((s) => s.setTypos);
   const spreadSelected = useAlbum((s) => s.spreadSelected);
   const layoutDock = useAlbum((s) => s.layoutDockOpen);
   const setLayoutDock = useAlbum((s) => s.setLayoutDock);
   const [showExport, setShowExport] = useState(false);
   const [showDesign, setShowDesign] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Resizable panels (drag bars) — remembered across sessions.
   const [trayH, setTrayH] = useState(() => loadPx("albumstudio2.ui.trayH", 190));
@@ -97,14 +97,8 @@ function App() {
   // everything templates + typos require.
   useEffect(() => {
     (async () => {
-      const typoFolder = savedTypoFolder();
-      if (typoFolder) {
-        try {
-          setTypos(await loadTypoFolder(typoFolder));
-        } catch {
-          /* ignore */
-        }
-      }
+      // imported packs (layout + typo) — metadata only, thumbnails stay on disk
+      await restoreLibraries().catch(() => {});
       try {
         const sys = await loadSystemFonts();
         addFonts(sys.loaded);
@@ -113,7 +107,7 @@ function App() {
         /* ignore */
       }
     })();
-  }, [addFonts, setFontIndex, setTypos]);
+  }, [addFonts, setFontIndex]);
 
   // Autosave for the lifetime of the app.
   useEffect(() => startAutosave(), []);
@@ -243,7 +237,11 @@ function App() {
             <IconExport />
             Xuất album
           </button>
-          <button className="btn icon" title="Cài đặt">
+          <button
+            className="btn icon"
+            title="Cài đặt · nạp kho font / layout / typo"
+            onClick={() => setShowSettings(true)}
+          >
             <IconSettings />
           </button>
         </div>
@@ -294,6 +292,7 @@ function App() {
         ))}
       {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
       {showDesign && <AutoDesignDialog onClose={() => setShowDesign(false)} />}
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

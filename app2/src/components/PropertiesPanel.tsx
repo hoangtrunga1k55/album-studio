@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { getTemplate, spreadCmFor } from "../engine/templates";
-import { getTypo } from "../engine/typos";
+import { ensureTypoDeco, getTypo } from "../engine/typos";
 import { PhotoNavigator } from "./PhotoNavigator";
 import { spreadLabel, useAlbum, type ArrangeOp } from "../store/album";
 import { useFonts } from "../store/fonts";
 import { useTypos } from "../store/typos";
 import { fontAliases } from "../ipc/fonts";
 import { loadSystemFonts } from "../engine/fontLibrary";
-import { importTypoLibrary } from "../flows/typoImport";
+import { importLayoutLibrary, importTypoLibrary } from "../flows/typoImport";
+import { useLibrary } from "../store/library";
 import { TYPO_DND_KEY } from "../constants";
 import { FontPicker } from "./FontPicker";
 import { IconTrash } from "../icons";
@@ -417,9 +418,14 @@ export function PropertiesPanel() {
   const tool = useAlbum((s) => s.tool);
   const addTypoToSpread = useAlbum((s) => s.addTypo);
   const typos = useTypos((s) => s.typos);
+  const layoutLib = useLibrary((s) => s.layouts);
   const fonts = useFonts((s) => s.fonts);
   const addFonts = useFonts((s) => s.addFonts);
   const [typoBusy, setTypoBusy] = useState(false);
+  const [libBusy, setLibBusy] = useState(false);
+  const [typoCat, setTypoCat] = useState<string>("all");
+  const typoCats = [...new Set(typos.map((t) => t.category ?? "khac"))].sort();
+  const shownTypos = typoCat === "all" ? typos : typos.filter((t) => (t.category ?? "khac") === typoCat);
 
   const spread = spreads[currentIndex];
   const tpl = getTemplate(spread?.templateId ?? null);
@@ -804,6 +810,17 @@ export function PropertiesPanel() {
       setTypoBusy(false);
     }
   }
+
+  async function importLayouts() {
+    setLibBusy(true);
+    try {
+      await importLayoutLibrary();
+    } catch (e) {
+      alert("Nạp kho layout lỗi: " + String(e));
+    } finally {
+      setLibBusy(false);
+    }
+  }
   const st = useAlbum.getState();
   return (
     <aside className="props">
@@ -985,20 +1002,42 @@ export function PropertiesPanel() {
         <div className="prop-label">Typo trang trí</div>
         {typos.length > 0 ? (
           <>
+            {/* category tabs (vn / korea / fashion…) — same look as the layout dock */}
+            <div className="typo-tabs">
+              <button
+                className={"typo-tab" + (typoCat === "all" ? " active" : "")}
+                onClick={() => setTypoCat("all")}
+              >
+                Tất cả ({typos.length})
+              </button>
+              {typoCats.map((c) => (
+                <button
+                  key={c}
+                  className={"typo-tab" + (typoCat === c ? " active" : "")}
+                  onClick={() => setTypoCat(c)}
+                  title={`Nhóm typo: ${c}`}
+                >
+                  {c} ({typos.filter((t) => (t.category ?? "khac") === c).length})
+                </button>
+              ))}
+            </div>
             <div className="pp-typos">
-              {typos.map((t) => (
+              {shownTypos.map((t) => (
                 <figure
                   key={t.id}
                   className="pp-typo"
-                  title="Bấm để chèn vào spread (kéo thả cũng được)"
+                  title={`${t.category ?? ""} · bấm để chèn (kéo thả cũng được)`}
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.setData(TYPO_DND_KEY, t.id);
                     e.dataTransfer.effectAllowed = "copy";
                   }}
-                  onClick={() => addTypoToSpread(t.id, 0.34, 0.4)}
+                  onClick={() => {
+                    void ensureTypoDeco(t.id);
+                    addTypoToSpread(t.id, 0.34, 0.4);
+                  }}
                 >
-                  <img src={t.preview} alt="" draggable={false} />
+                  <img src={t.preview} alt="" draggable={false} loading="lazy" />
                 </figure>
               ))}
             </div>
@@ -1008,7 +1047,7 @@ export function PropertiesPanel() {
               onClick={importTypos}
               disabled={typoBusy}
             >
-              {typoBusy ? "Đang nạp…" : "Đổi thư mục typo…"}
+              {typoBusy ? "Đang nạp…" : "Đổi kho typo…"}
             </button>
           </>
         ) : (
@@ -1021,6 +1060,15 @@ export function PropertiesPanel() {
             {typoBusy ? "Đang nạp…" : "Nạp kho typo…"}
           </button>
         )}
+        <button
+          className="btn"
+          style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+          onClick={importLayouts}
+          disabled={libBusy}
+          title="Thư mục kho layout Tizino (mỗi thư mục con = một nhóm: cover-25x35, layout-30x30…)"
+        >
+          {libBusy ? "Đang nạp…" : layoutLib.length ? `Đổi kho layout (${layoutLib.length})…` : "Nạp kho layout…"}
+        </button>
       </div>
       <div className="prop-empty">
         Ở chế độ layout, ảnh chỉ để kéo đổi chỗ giữa các khung.

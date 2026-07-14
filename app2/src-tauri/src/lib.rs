@@ -2,6 +2,7 @@ mod export;
 mod fonts;
 mod import;
 mod layouts;
+mod packsync;
 mod project;
 mod typos;
 
@@ -21,8 +22,15 @@ pub fn run() {
             project::save_project,
             project::open_project,
             typos::load_typo_folder,
+            typos::scan_typo_library,
+            typos::read_typo_deco,
             layouts::read_layout_bg,
-            layouts::scan_layout_pack
+            layouts::scan_layout_pack,
+            layouts::scan_layout_library,
+            layouts::read_layout_json,
+            layouts::read_layout_bg_path,
+            packsync::sync_pack,
+            packsync::local_pack_version
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
