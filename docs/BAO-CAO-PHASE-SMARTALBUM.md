@@ -1,6 +1,6 @@
-# Báo cáo Phase "SmartAlbum Base" — Album Studio v0.5
+# Báo cáo Phase "SmartAlbum Base" — Album Studio v0.6
 
-**Ngày:** 13/07/2026 · **Bản build:** v0.5.0 · **Người thực hiện:** Trung (+ AI pair-programming)
+**Ngày:** 14/07/2026 · **Bản build:** v0.6.0 · **Người thực hiện:** Trung (+ AI pair-programming)
 **Tài liệu gốc đối chiếu:** `SmartAlbum_Phan_Tich_Chi_Tiet.docx` (nghiên cứu Pixellu SmartAlbum, 18 chương)
 
 ## 1. Mục tiêu phase
@@ -18,7 +18,7 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 | **§5** Auto Design | 1 nút ra cả album | ✅ 100% | Dialog **⌘D**: nguồn ảnh (tất cả/đang chọn/có sao), thứ tự (thời gian/tên), mật độ Thưa/Cân/Dày, **% spread full-bleed** — ảnh gắn sao ★ được ưu tiên vào spread 1-ảnh; ước lượng số spread trước khi chạy |
 | **§6** Chỉnh sửa spread | Menu chuột phải, swap, crop, margin | ✅ 100% | Menu ô ảnh: **đặt làm nền full-bleed**, xoay 90°, lật ngang/dọc, lấp đầy/vừa khít, đặt lại, gỡ; menu spread: **redesign ⌘⇧D**, ±1 ô, nhân đôi, thêm sau, xoá, lưu mẫu; **kéo-thả 3 loại** (panel→ô, panel→spread nhiều ảnh, **ô↔ô đổi chỗ** có ghost); double-click = chế độ crop (pan/zoom); margin + padding + áp dụng cả album; khung ảnh chỉnh tự do 8 tay kéo; **v0.3: panel Ảnh kiểu SmartAlbums** (xem mục 3) — xoay tự do bằng slider Góc, swap phím S |
 | **§7** Spread Designer | Chế độ thiết kế thủ công | ✅ 100% | Tool **vẽ khung ảnh mới** trên canvas; **thước cm + guides kéo thả (⌘R)** + snap vào guide/mép/tâm; nhập **toạ độ X/Y/W/H chính xác theo cm**; **"Lưu layout thành mẫu"** → thư viện Mẫu của tôi dùng lại được |
-| **§8** Layout Library | Thư viện layout | ✅ | **v0.3: dock layout kiểu SmartAlbums** — nút Layout mở dải ngang đẩy canvas xuống, tab **Tất cả/Cơ bản/Tizino/Mẫu của tôi**, **lọc theo số ảnh của spread**, **hover = xem trước trực tiếp trên spread**, click = áp dụng; nguồn: Cơ bản (18 layout tự sinh 1–8 ô) · Tizino (15 layout PSD, còn 23 chưa bóc) · Mẫu của tôi; SPACE xoay vòng layout cùng số ô |
+| **§8** Layout Library | Thư viện layout | ✅ | **v0.3: dock layout kiểu SmartAlbums** — nút Layout mở dải ngang đẩy canvas xuống, tab **Tất cả/Cơ bản/Tizino/Mẫu của tôi**, **lọc theo số ảnh của spread**, **hover = xem trước trực tiếp trên spread**, click = áp dụng; **v0.6: kho Tizino có thumbnail, chia nhóm, lọc thêm theo khổ album, tự cập nhật từ GitHub Release** (xem mục 6); nguồn: Cơ bản (18 layout tự sinh 1–8 ô) · Tizino (37 mẫu 25×35 đã publish) · Mẫu của tôi; SPACE xoay vòng layout cùng số ô |
 | **§9** Typography | Điểm yếu của SmartAlbum | ✅ **vượt** | Đây là lợi thế của ta: **kho 5168 font Việt** (index + nạp theo nhu cầu, khớp tên PostScript), chữ template sửa trực tiếp (đúng font gốc, cỡ chuẩn từ PSD), typo pack chèn/resize/đổi màu/**xoay 360°**, chữ kéo-giãn-**xoay tự do**, thêm chữ mới, snippet câu Việt — SmartAlbum không làm được mảng này |
 | **§10** Quality check | Cảnh báo in ấn | ✅ 100% | **Bleed** khung đỏ 3mm (⌘B) · **gutter gáy** dải mờ 12mm giữa spread · **cảnh báo DPI thấp** (⚠ vàng <200, đỏ <150, tính theo cỡ in thật + zoom, cập nhật trực tiếp) |
 | **§11** SmartProofing | Khách duyệt online | ⏸ chưa | Cần server/cloud — đề xuất làm sau khi chốt hạ tầng (có thể tích hợp Zalo — lợi thế local mà SmartAlbum không có) |
@@ -85,7 +85,24 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 - **Chuyển spread mượt hơn**: ảnh hiện ngay bằng bản nhẹ rồi thay bằng ảnh nét; ảnh của spread trước/sau được tải sẵn.
 - Căn theo **khung mốc ⚓** làm lại đúng chuẩn: chỉ tịnh tiến một trục, trục kia giữ nguyên.
 
-## 6. Ngoài tài liệu — tính năng riêng đã tích hợp sẵn
+## 6. Mới trong v0.6.0 — Kho layout/typo có thumbnail + tự cập nhật từ xa
+
+**Kho tài nguyên có ảnh xem trước, chia nhóm (thay cho layout đóng gói sẵn):**
+- Trình chọn layout & typo giờ hiển thị **thumbnail thật của từng mẫu**, chia **nhóm (category)** theo tên thư mục khi đóng gói: layout `layout-25x35` / `layout-30x30` / `cover-25x35`…, typo `vn` / `korea` / `fashion`…
+- Kho layout hiện dưới **một tab "Tizino"**, và **tự lọc theo khổ album** đang chọn (album 25x35 chỉ thấy mẫu 25x35) **và theo số ảnh của spread** (spread 2 ảnh chỉ thấy layout 2 ô) — giống hệt pool layout cơ bản.
+- **Hover xem trước trực tiếp trên spread**, click mới áp dụng; ảnh và chữ mẫu của layout được nạp đúng vào ô, chữ render **vector sắc nét** (không phụ thuộc ảnh nền), sửa được ngay.
+- Thumbnail đọc thẳng từ đĩa (asset protocol, tải lười) nên mở trình chọn nhẹ; file JSON "sịn" chỉ parse khi user thật sự chọn mẫu.
+
+**Tự cập nhật kho từ GitHub Release (không cần cài lại app):**
+- Kho đặt trên **GitHub Release + `manifest.json`** (mỗi file kèm SHA-256). Trong app: **⚙ Cài đặt → dán link kho → ⟳ Cập nhật** — app **chỉ tải file đổi hash**, xoá file đã gỡ, không kéo lại toàn bộ.
+- Admin cập nhật kho không phải build lại app: chỉ cần **train thêm layout/typo → đóng gói → đẩy lên release**, user bấm cập nhật là có mẫu mới.
+
+**Bộ công cụ đóng gói kho cho admin (`tools/pack-library/`, không cần biết terminal):**
+- **Double-click `dong-goi-kho.command` (Mac) / `.bat` (Windows)** → chọn Layout/Typo → kéo thả thư mục PSD nguồn → tool tự bóc **JSON ô ảnh + chữ, thumbnail, nền in 300DPI (đã tách chữ để render vector)**, rồi hỏi **đẩy lên GitHub** hay không.
+- PSD nguồn tổ chức "**mỗi thư mục con = một nhóm**" (`source-layouts/layout-25x35/…`, `source-typos/vn/…`); nhóm quyết định khổ và bìa/spread trong app.
+- Kho mẫu 25x35 (**37 mẫu**) đã publish thử: `github.com/hoangtrunga1k55/album-studio/releases/tag/pack-layout`.
+
+## 6b. Ngoài tài liệu — tính năng riêng đã tích hợp sẵn
 
 - **Kho font Việt** — cài vào máy, app tự nhận và khớp tên font PSD tự động (khoảng trống 1 của doc)
 - **Typo pack** (bóc từ PSD kho typo) — chèn, kéo, resize, đổi màu, chữ vector sắc nét
@@ -99,7 +116,7 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 |---|---|
 | AI Copy Design (§4.5 spec LIORE) | USP chính — bóc style từ album mẫu; cần pipeline CV/ONNX |
 | SmartProofing (§11) | Cần server; cơ hội tích hợp Zalo |
-| Bóc nốt 23/38 PSD layout Tizino | Chạy tool sẵn có, thêm dần |
+| Train thêm layout 30x30 + typo korea/fashion | Đã có quy trình + thư mục nguồn sẵn; đổ PSD vào là đóng gói được |
 | Ký số app (Mac notarize / Win cert) | Trước launch chính thức — hiện cài được nhưng OS cảnh báo |
 | HEIC trên Windows | Mac đọc HEIC OK; Windows tạm dùng JPG/PNG |
 
@@ -107,12 +124,12 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 
 | Nền tảng | File | Nguồn |
 |---|---|---|
-| **Windows 10/11 x64** | `Album Studio 2_0.5.0_x64-setup.exe` | https://github.com/hoangtrunga1k55/album-studio/releases/latest |
-| macOS (Apple Silicon) | `Album Studio 2_0.5.0_aarch64.dmg` | build local (`app2/src-tauri/target/release/bundle/dmg/`) |
+| **Windows 10/11 x64** | `Album Studio 2_0.6.0_x64-setup.exe` | https://github.com/hoangtrunga1k55/album-studio/releases/latest |
+| macOS (Apple Silicon) | `Album Studio 2_0.6.0_aarch64.dmg` | build local (`app2/src-tauri/target/release/bundle/dmg/`) |
 
 **Setup test (1 lần):**
 1. **Cài font pack Tizino vào máy** (Mac: Font Book / kéo vào `~/Library/Fonts` · Windows: chọn tất cả file font → chuột phải → *Install*) — app tự nhận, không cần trỏ folder.
-2. Cài app → nạp **kho typo** (panel **Layout** → *Nạp kho typo*) và **layout pack in nét** (hộp thoại Xuất album). App nhớ vĩnh viễn.
+2. Cài app → **⚙ Cài đặt → dán link kho layout/typo → ⟳ Cập nhật** (link: `.../releases/tag/pack-layout` và `.../tag/pack-typo`). App tải thumbnail + mẫu về máy, nhớ vĩnh viễn; lần sau chỉ tải phần đổi.
 
 **Lưu ý khi cài:** app chưa ký số → Windows SmartScreen bấm *More info → Run anyway*; Mac chuột phải → *Open*.
 
@@ -122,7 +139,7 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 2. Import 1 thư mục ~50 ảnh vào **khay ngang dưới** → chấm sao 5 (phím 5) → nhãn màu (6–9) → lọc; thử **kéo mép trên khay** cho cao lên, chọn vài ảnh bấm **Xoá** thử.
 3. **⌘D** Auto Design: Dày + 40% full-bleed → ảnh 5★ nằm spread 1-ảnh-lớn.
 4. Duyệt spread bằng phím **⟨ ⟩** — badge tím trên canvas khớp thumbnail viền tím dưới; **kéo thumbnail đổi thứ tự spread**; kéo ảnh thả vào card nét đứt *"Thêm spread"* cuối dải.
-5. Bấm nút **Layout** trên topbar → dock mẫu trượt xuống, **hover từng mẫu xem spread đổi thử trực tiếp**, click áp dụng, bấm Layout đóng.
+5. Bấm nút **Layout** trên topbar → dock mẫu trượt xuống. Tab **Tizino** hiện **thumbnail thật**, đã lọc theo khổ album + số ảnh của spread; **hover từng mẫu xem spread đổi thử trực tiếp** (ảnh vào đúng ô, chữ mẫu hiện dạng vector), click áp dụng, bấm Layout đóng.
 6. **Click nền spread** → panel Layout (đổi màu nền, khoảng cách, thêm chữ, chèn typo); **click ảnh** → panel Ảnh: kéo **Scale** xem ảnh phóng to sau khung vàng đứng yên, kéo ảnh trong preview chỉnh vị trí, kéo **Góc xoay**, xem **PPI hiệu dụng** đổi vàng khi zoom sâu; phím **S** đổi chỗ 2 ảnh.
 7. Mở tab **Font**: xem app đã nhận font đã cài trên máy (tìm kiếm, lọc *Có dấu*); nếu có cảnh báo **font mẫu chưa cài** thì cài thêm rồi bấm *Quét lại*. Click chữ trên layout Tizino → sửa nội dung/đổi font → kéo/resize/xoay ↻.
 8. **⌘R** thước + guides; vẽ khung mới (panel Layout → *Vẽ khung*); lưu layout thành mẫu → dock tab *Mẫu của tôi*; **⌘B** bleed/safe/gáy.
