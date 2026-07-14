@@ -15,31 +15,36 @@ Tài liệu gồm 2 phần:
 
 | Kho | Là gì | Tạo bằng |
 |-----|-------|----------|
-| **Kho Font** | Bộ ~5000 font (đúng font thiết kế) | Có sẵn: `fonts-lib/5000+ FONT CHỮ` — nén lại gửi user |
-| **Typo Pack** | Bộ chữ nghệ thuật chèn lên ảnh | `tools/typo-pack/build-typo-pack.sh` |
-| **Layout Pack** | Nền layout **độ phân giải cao để in** | `tools/layout-pack/build-layout-pack.sh` |
+| **Kho Font** | Bộ ~5000 font (đúng font thiết kế) | Cài trực tiếp vào máy — app tự quét thư mục font của hệ điều hành |
+| **Kho Typo** | Bộ chữ nghệ thuật chèn lên ảnh | `tools/pack-library/` → chọn **2 (Typo)** |
+| **Kho Layout** | Nền layout **in nét** + thumbnail + chữ vector | `tools/pack-library/` → chọn **1 (Layout)** |
 
-App đã kèm sẵn **layout mẫu + 10 font cơ bản** để chạy thử, nhưng để dùng **đủ và in đẹp** thì cần 3 kho trên.
+Kho typo/layout để trên **GitHub Release**; trong app **⚙ Cài đặt → dán link kho → ⟳ Cập nhật** là user tự tải về (chỉ tải file đổi hash). Font thì cài thẳng vào máy, app tự nhận.
 
-### Tạo Typo Pack (từ kho PSD typo)
+### Đóng gói kho — cách dễ nhất (không cần terminal)
+
+Double-click launcher trong `tools/pack-library/`:
+- **macOS:** `dong-goi-kho.command` (lần đầu bị chặn thì chuột phải → *Open*)
+- **Windows:** `dong-goi-kho.bat`
+
+Trình tự: chọn **1 (Layout)** hoặc **2 (Typo)** → **kéo thả thư mục PSD nguồn** vào cửa sổ → build xong hỏi *"Đẩy lên GitHub?"* → `y` rồi dán repo + token.
+
+> PSD nguồn xếp "**mỗi thư mục con = một nhóm**": `source-layouts/layout-25x35/`, `.../layout-30x30/`, `.../cover-25x35/`… và `source-typos/vn/`, `.../korea/`… Kéo **cả thư mục gốc** để build một lượt mọi nhóm — đừng publish riêng một nhóm (manifest ghi đè sẽ khiến app xoá các nhóm còn lại).
+
+### Hoặc chạy bằng lệnh
 ```bash
-cd tools/typo-pack
-./build-typo-pack.sh <thư_mục_PSD_typo> <thư_mục_output>
-# ví dụ:
-./build-typo-pack.sh ../../typo ../../dist/typo-pack
+cd tools/pack-library
+# Layout (tất cả nhóm trong source-layouts/)
+.venv/bin/python build_layout_library.py --in ../source-layouts --out /tmp/kho-layout
+.venv/bin/python publish_pack.py --pack /tmp/kho-layout --tag pack-layout --repo <owner/name>
+# Typo
+.venv/bin/python build_typo_library.py  --in ../source-typos  --out /tmp/kho-typo
+.venv/bin/python publish_pack.py --pack /tmp/kho-typo --tag pack-typo --repo <owner/name>
 ```
-Kết quả: folder chứa `typos.json` + ảnh preview/deco. **Gửi cả folder này cho user.**
+Publish cần **GitHub CLI (`gh auth login`)** hoặc **`GITHUB_TOKEN`** trong môi trường.
 
-### Tạo Layout Pack (nền in nét cao)
-```bash
-cd tools/layout-pack
-./build-layout-pack.sh <thư_mục_PSD_layout> <thư_mục_output>
-# ví dụ:
-./build-layout-pack.sh ../../source-layouts-25x35 ../../dist/layout-pack-25x35
-```
-Kết quả: folder chứa `lay-*.bg.jpg` (nền full-res, đã ẩn chữ) + `layouts.json`.
-
-> Cần cài Python 3. Lần đầu chạy script tự tạo môi trường (~1 phút).
+> Cần cài Python 3. Lần đầu chạy launcher/script tự tạo môi trường (~1 phút).
+> Muốn sửa tay ô ảnh/text box của một layout: `python3 tools/layout-editor/server.py` rồi mở `http://localhost:8765`.
 
 ## A2. Phát hành app
 

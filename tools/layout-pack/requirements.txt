@@ -1,3 +1,0 @@
-psd-tools==1.17.4
-Pillow==12.3.0
-aggdraw==1.4.1

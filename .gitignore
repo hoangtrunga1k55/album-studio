@@ -33,3 +33,7 @@ __pycache__/
 
 # Generated review reports
 REVIEW.html
+# Pack build output + venv caches (tools)
+tools/*/kho-*/
+tools/*/.venv/
+tools/**/__pycache__/
