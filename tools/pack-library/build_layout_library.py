@@ -56,6 +56,17 @@ def layout_id(psd_path: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "-", base).strip("-").lower() or "lay"
 
 
+def is_up_to_date(psd_path: str, out_dir: str) -> bool:
+    """A layout is cached when its JSON + plate exist and are newer than the PSD,
+    so a re-run only rebuilds mẫu mới / mẫu vừa sửa (much faster)."""
+    lid = layout_id(psd_path)
+    outs = [os.path.join(out_dir, f"{lid}.json"), os.path.join(out_dir, f"{lid}.bg.jpg")]
+    if not all(os.path.isfile(o) for o in outs):
+        return False
+    src_mtime = os.path.getmtime(psd_path)
+    return all(os.path.getmtime(o) >= src_mtime for o in outs)
+
+
 def iter_layers(layer):
     yield layer
     if getattr(layer, "is_group", lambda: False)():
@@ -224,6 +235,7 @@ def main() -> int:
     ap.add_argument("--in", dest="src", required=True, help="Thư mục PSD (hoặc thư mục chứa các thư mục con = category)")
     ap.add_argument("--out", dest="out", required=True, help="Thư mục kho layout xuất ra")
     ap.add_argument("--category", help="Tên category khi --in chỉ là 1 thư mục PSD (vd: layout-25x35, cover-30x30)")
+    ap.add_argument("--force", action="store_true", help="Build lại tất cả (bỏ qua cache, kể cả file chưa đổi)")
     args = ap.parse_args()
 
     if not os.path.isdir(args.src):
@@ -246,6 +258,7 @@ def main() -> int:
         return 1
 
     total = 0
+    skipped = 0
     for cat, folder in jobs:
         out_dir = os.path.join(args.out, cat)
         os.makedirs(out_dir, exist_ok=True)
@@ -253,10 +266,17 @@ def main() -> int:
         print(f"\n[{cat}] {len(psds)} PSD → {out_dir}")
         ok = 0
         for p in psds:
+            if not args.force and is_up_to_date(p, out_dir):
+                ok += 1
+                skipped += 1
+                continue
             if process_psd(p, out_dir):
                 ok += 1
         total += ok
         print(f"[{cat}] xong {ok}/{len(psds)}")
+
+    if skipped and not args.force:
+        print(f"\n(bỏ qua {skipped} mẫu chưa đổi — dùng --force để build lại tất cả)")
 
     write_manifest(args.out, kind="layout")
     print(f"\n✓ Kho layout: {total} mẫu → {args.out}")
