@@ -86,7 +86,7 @@ export async function renderSpread(
 
   try {
     // Hi-res text-free plate → clean-background print path (render all text vector).
-    const cleanBg = !!hiresBg;
+    const cleanBg = !!hiresBg || tpl.bgHasText === false;
     const bgSrc = hiresBg || tpl.bg;
     root.add(new Konva.Rect({ x: 0, y: 0, width: W, height: H, fill: bgColor }));
     if (spread.bgImageId) {

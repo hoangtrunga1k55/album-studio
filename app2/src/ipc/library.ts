@@ -11,6 +11,8 @@ export interface LayoutItem {
   jsonPath: string;
   thumbPath: string | null;
   bgPath: string | null;
+  /** number of photo slots — the picker filters by the spread's photo count */
+  slotCount: number;
 }
 
 /** One typo in the imported library — preview first, deco on demand. */

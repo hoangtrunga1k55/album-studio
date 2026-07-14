@@ -284,6 +284,8 @@ function TplText(props: {
   scaleY: number;
   rotDeg: number;
   selected: boolean;
+  /** the plate has no baked text → this text MUST be drawn as vector. */
+  alwaysVector?: boolean;
   onEnter: () => void;
   onSelect: () => void;
   onMoved: (xPx: number, yPx: number) => void;
@@ -291,13 +293,12 @@ function TplText(props: {
 }) {
   const {
     px, ed, content, font, color, fs, lines, scaleX, scaleY, rotDeg,
-    selected, onEnter, onSelect, onMoved, onTransformed,
+    selected, alwaysVector = false, onEnter, onSelect, onMoved, onTransformed,
   } = props;
   const editing = ed !== undefined;
-  // Show the editable vector overlay (with move/resize handles) whenever the
-  // text is edited OR just selected — so the raster stays only until the user
-  // interacts, and clicking a text immediately gives handles.
-  const showOverlay = editing || selected;
+  // Vector overlay when the text is edited/selected — or always, when the
+  // plate carries no baked text (pack layouts).
+  const showOverlay = editing || selected || alwaysVector;
 
   if (!showOverlay) {
     // invisible hotspot over the rasterized original; click SELECTS it (which
@@ -1646,6 +1647,8 @@ export function SpreadCanvas() {
             {tpl.texts.map((tx, i) => {
               const ed = spread.textEdits[i];
               const isSel = selectedText?.kind === "tpl" && selectedText.index === i;
+              // nothing to hide when the plate has no baked text
+              if (tpl.bgHasText === false) return null;
               if ((!ed && !isSel) || spread.bgImageId) return null;
               const font = ed?.font ?? tx.font ?? "";
               const baseFs = textBaseFs(tx, font, stageW, stageH, fontsVersion);
@@ -1733,6 +1736,7 @@ export function SpreadCanvas() {
                   scaleY={ed?.scaleY ?? 1}
                   rotDeg={ed?.rotDeg ?? 0}
                   selected={selectedText?.kind === "tpl" && selectedText.index === i}
+                  alwaysVector={tpl.bgHasText === false}
                   onEnter={() =>
                     shiftRef.current
                       ? useAlbum.getState().toggleMultiSel(`t${i}`)

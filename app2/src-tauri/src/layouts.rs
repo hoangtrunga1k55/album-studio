@@ -27,6 +27,20 @@ pub struct LibraryItem {
     pub thumb_path: Option<String>,
     /// hi-res, text-free plate for print export (optional)
     pub bg_path: Option<String>,
+    /// how many photo slots the layout has — the picker filters by it
+    pub slot_count: usize,
+}
+
+/// Count the layout's photo slots without keeping the parsed JSON around.
+fn count_slots(path: &Path) -> usize {
+    let text = match std::fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(_) => return 0,
+    };
+    serde_json::from_str::<serde_json::Value>(&text)
+        .ok()
+        .and_then(|v| v.get("photoSlots").and_then(|s| s.as_array()).map(|a| a.len()))
+        .unwrap_or(0)
 }
 
 fn first_existing(base: &Path, stem: &str, exts: &[&str]) -> Option<String> {
@@ -88,6 +102,7 @@ pub async fn scan_layout_library(root: String) -> Result<Vec<LibraryItem>, Strin
             json_path: path.to_string_lossy().to_string(),
             thumb_path: first_existing(dir, stem, &[".thumb.jpg", ".thumb.png", ".preview.jpg", ".bg.jpg"]),
             bg_path: first_existing(dir, stem, &[".bg.jpg"]),
+            slot_count: count_slots(path),
         });
     }
     out.sort_by(|a, b| a.id.cmp(&b.id));

@@ -69,6 +69,9 @@ export interface Template {
   source?: TemplateSource;
   /** cover layouts live in their own pool — spreads never suggest them. */
   kind?: "spread" | "cover";
+  /** true = the bg plate has the text baked in (old bundled layouts);
+   *  false = text-free plate → the canvas must draw every text as vector. */
+  bgHasText?: boolean;
 }
 
 interface RawTemplate {
@@ -77,68 +80,16 @@ interface RawTemplate {
   texts?: TemplateText[];
 }
 
-const mods30 = import.meta.glob<RawTemplate>("../assets/layouts/30x30/*.json", {
-  eager: true,
-  import: "default",
-});
-const mods25 = import.meta.glob<RawTemplate>("../assets/layouts/25x35/*.json", {
-  eager: true,
-  import: "default",
-});
-const bg30 = import.meta.glob<string>("../assets/layouts/30x30/*.bg.jpg", {
-  eager: true,
-  import: "default",
-  query: "?url",
-});
-const bg25 = import.meta.glob<string>("../assets/layouts/25x35/*.bg.jpg", {
-  eager: true,
-  import: "default",
-  query: "?url",
-});
-
-function bgMap(mods: Record<string, string>): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const [path, url] of Object.entries(mods)) {
-    const name = path.split("/").pop()!.replace(".bg.jpg", "");
-    map[name] = url;
-  }
-  return map;
-}
-
 /** PSD font names sometimes come wrapped in quotes ("'Gilroy-Regular'") — strip them. */
 function cleanFontName(f?: string): string | undefined {
   if (!f) return f;
   return f.replace(/^[\s'"’‘“”]+/, "").replace(/[\s'"’‘“”]+$/, "");
 }
 
-function build(
-  mods: Record<string, RawTemplate>,
-  bgs: Record<string, string>,
-  size: AlbumSize
-): Template[] {
-  const bgByName = bgMap(bgs);
-  return Object.entries(mods).map(([path, raw]) => {
-    const file = path.split("/").pop()!.replace(".json", "");
-    const slots = raw.photoSlots ?? [];
-    const texts = (raw.texts ?? []).map((t) => ({ ...t, font: cleanFontName(t.font) }));
-    return {
-      id: `${size}/${file}`,
-      size,
-      name: file.replace("Layout ", ""),
-      ratioWH: raw.canvas?.ratioWH ?? 2,
-      slots,
-      texts,
-      slotCount: slots.length,
-      bg: bgByName[file],
-      source: "tizino" as const,
-    };
-  });
-}
-
-export const TEMPLATES: Template[] = [
-  ...build(mods30, bg30, "30x30"),
-  ...build(mods25, bg25, "25x35"),
-];
+/** Layouts no longer ship with the app — they come from the imported pack
+ *  (see registerLibraryTemplate below). Kept as an empty pool so the code that
+ *  scans "all Tizino layouts" still has one place to look. */
+export const TEMPLATES: Template[] = [];
 
 /* ---------- Basic library: generated plain-frame layouts (SmartAlbums-style).
    Size-agnostic (normalized) — they stretch to any album size and fill the
@@ -278,8 +229,8 @@ const BASIC_COVERS: Template[] = [
 /** Layout pool for the COVER spread: generated basics + Tizino cover packs +
  *  user-saved cover customs. Never mixed into the spread pools. */
 export function coverTemplates(size: AlbumSize): Template[] {
-  void size; // normalized covers stretch to any size — kept for future packs
-  const packs = TEMPLATES.filter((t) => t.kind === "cover");
+  void size; // normalized covers stretch to any size
+  const packs = [...LIBRARY.values()].filter((t) => t.kind === "cover");
   const customs = CUSTOMS.filter((t) => t.kind === "cover");
   return [...BASIC_COVERS, ...packs, ...customs];
 }
@@ -370,6 +321,11 @@ export function libraryTemplate(id: string): Template | undefined {
   return LIBRARY.get(id);
 }
 
+/** Every pack layout parsed so far (used for the "font còn thiếu" check). */
+export function loadedLibraryTemplates(): Template[] {
+  return [...LIBRARY.values()];
+}
+
 /** Build a Template from a pack JSON (same shape as the bundled layouts). */
 export function templateFromJson(
   id: string,
@@ -391,18 +347,22 @@ export function templateFromJson(
     bg: bgUrl,
     source: "tizino",
     kind,
+    bgHasText: false, // pack plates are text-free — text is drawn as vector
   };
 }
 
 export function getTemplate(id: string | null): Template | undefined {
   if (!id) return undefined;
-  return (
-    TEMPLATES.find((t) => t.id === id) ??
+  const hit =
     BASIC_TEMPLATES.find((t) => t.id === id) ??
     BASIC_COVERS.find((t) => t.id === id) ??
     CUSTOMS.find((t) => t.id === id) ??
-    LIBRARY.get(id)
-  );
+    LIBRARY.get(id);
+  if (hit) return hit;
+  // Projects made before layouts moved into the pack referenced them as
+  // "25x35/lay-11" — fall back to the same NAME in the imported pack.
+  const name = id.split("/").pop();
+  return name ? [...LIBRARY.values()].find((t) => t.name === name) : undefined;
 }
 
 /** Which layout set drives suggestions (wizard "Bộ layout" select). */

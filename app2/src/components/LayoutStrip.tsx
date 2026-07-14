@@ -9,7 +9,9 @@ import {
   type Template,
   type TemplateSource,
 } from "../engine/templates";
+import { ensureFonts } from "../engine/fontLibrary";
 import { fileUrl, readLayoutBgPath, readLayoutJson, type LayoutItem } from "../ipc/library";
+import { useFonts } from "../store/fonts";
 import { useAlbum } from "../store/album";
 import { categoriesOf, useLibrary } from "../store/library";
 
@@ -136,11 +138,13 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      setPreview(null);
-    };
-  }, [onClose, setPreview]);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Drop the hover preview ONLY when the panel closes. Keeping this in the
+  // effect above would kill a live preview on every parent re-render (e.g. the
+  // layout's fonts finishing loading a few seconds after the hover).
+  useEffect(() => () => setPreview(null), [setPreview]);
 
   // Built-in pool, narrowed to the spread's photo count when it has photos.
   const want = Math.max(1, photoCount);
@@ -151,11 +155,16 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
 
   // Pack layouts: only the ones for THIS album size and this spread kind
   // (cover vs normal). They all live under one "Tizino" tab.
-  const libItems = library.filter((i) => {
+  const libAll = library.filter((i) => {
     if (isCover !== isCoverCat(i.category)) return false;
     const cs = catSize(i.category);
     return !cs || !size || cs === size;
   });
+  // …and, like the built-in pool, narrowed to the spread's photo count: a
+  // 2-photo spread only sees 2-slot layouts. (Fall back to the whole pack when
+  // no layout has that many slots, so the tab is never empty.)
+  const libMatches = libAll.filter((i) => i.slotCount === want);
+  const libItems = photoCount > 0 && libMatches.length > 0 ? libMatches : libAll;
   const cats = categoriesOf(libItems);
   const libShown = tab === "tizino" ? libItems : [];
 
@@ -168,9 +177,14 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
       const raw = JSON.parse(await readLayoutJson(item.jsonPath));
       // preview plate: the pack's own bg (hi-res is re-read at export time)
       const bg = item.bgPath ? (await readLayoutBgPath(item.bgPath).catch(() => null)) ?? undefined : undefined;
-      return registerLibraryTemplate(
+      const tpl = registerLibraryTemplate(
         templateFromJson(item.id, item.name, raw, isCoverCat(item.category) ? "cover" : "spread", bg)
       );
+      // this layout's fonts only become "needed" now — load them from the machine
+      const fs = useFonts.getState();
+      const names = tpl.texts.map((t) => t.font ?? "").filter(Boolean);
+      void ensureFonts(names, fs.index).then((loaded) => loaded.length && fs.addFonts(loaded));
+      return tpl;
     } catch {
       return undefined;
     } finally {

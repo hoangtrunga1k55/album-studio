@@ -1,5 +1,5 @@
 import { homeDir, join, localDataDir } from "@tauri-apps/api/path";
-import { TEMPLATES } from "./templates";
+import { loadedLibraryTemplates } from "./templates";
 import { typoFontNames } from "./typos";
 import { loadFontFiles, scanFontFolder, type LoadedFont, type ScannedFont } from "../ipc/fonts";
 
@@ -24,7 +24,8 @@ const normalize = (s: string) => s.toLowerCase().replace(/[\s\-_]+/g, "");
 /** Font names referenced by templates + the typo library (PostScript names). */
 export function neededFontNames(): Set<string> {
   const names = new Set<string>();
-  for (const t of TEMPLATES) for (const tx of t.texts) if (tx.font) names.add(tx.font);
+  for (const t of loadedLibraryTemplates())
+    for (const tx of t.texts) if (tx.font) names.add(tx.font);
   for (const n of typoFontNames()) names.add(n);
   return names;
 }
@@ -122,4 +123,39 @@ async function loadNeededFromEntries(entries: ScannedFont[]): Promise<FolderResu
     out.push(f);
   }
   return { total: entries.length, loaded: out, entries };
+}
+
+/** Load + register specific fonts from the already-scanned machine index.
+ *  Called when a pack layout/typo is used for the first time — its fonts only
+ *  become "needed" at that moment, long after the startup scan. */
+export async function ensureFonts(names: string[], entries: ScannedFont[]): Promise<LoadedFont[]> {
+  if (names.length === 0 || entries.length === 0) return [];
+  const byExact = new Map<string, string>();
+  const byNorm = new Map<string, string>();
+  for (const e of entries) {
+    for (const n of [e.postscript, e.family]) {
+      if (n && !byExact.has(n)) byExact.set(n, e.path);
+      const nn = n && normalize(n);
+      if (nn && !byNorm.has(nn)) byNorm.set(nn, e.path);
+    }
+  }
+  const requestedByPath = new Map<string, Set<string>>();
+  for (const name of names) {
+    if (!name) continue;
+    const path = byExact.get(name) ?? byNorm.get(normalize(name));
+    if (!path) continue;
+    if (!requestedByPath.has(path)) requestedByPath.set(path, new Set());
+    requestedByPath.get(path)!.add(name);
+  }
+  const paths = [...requestedByPath.keys()];
+  if (paths.length === 0) return [];
+  const loaded = await loadFontFiles(paths);
+  const out: LoadedFont[] = [];
+  for (let i = 0; i < paths.length; i++) {
+    const f = loaded[i];
+    if (!f) continue;
+    await registerAliases(f.dataUri, new Set([f.family, f.postscript ?? "", ...requestedByPath.get(paths[i])!]));
+    out.push(f);
+  }
+  return out;
 }

@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -32,11 +33,14 @@ ASSET_SEP = "__"  # release assets are flat: "layout-25x35/lay-6.json" → "layo
 
 
 def run(cmd: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True)
+    except FileNotFoundError:  # command not installed
+        return subprocess.CompletedProcess(cmd, 127, "", "not found")
 
 
 def has_gh() -> bool:
-    return run(["gh", "--version"]).returncode == 0
+    return shutil.which("gh") is not None
 
 
 def api(method: str, url: str, token: str, data: bytes | None = None, ctype: str | None = None):

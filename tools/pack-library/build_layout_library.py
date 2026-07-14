@@ -5,7 +5,9 @@ Output layout (the app indexes it by CATEGORY = sub-folder name):
 
   <out>/<category>/<id>.json        slots + texts (normalized 0..1)  ← file "sịn"
   <out>/<category>/<id>.thumb.jpg   small preview shown in the picker
-  <out>/<category>/<id>.bg.jpg      full-res, text-free plate for print export
+  <out>/<category>/<id>.bg.jpg      full-res plate: background + decoration ONLY
+                                    (no text, no photo placeholders — the app
+                                    draws the user's photos and vector text there)
 
 A category folder starting with ``cover``/``bia`` is treated as a COVER layout
 by the app (only offered on the cover spread); everything else is a spread
@@ -61,9 +63,11 @@ def iter_layers(layer):
             yield from iter_layers(child)
 
 
-def hide_text_layers(layer) -> None:
+def hide_layers(layer, drop: set[int]) -> None:
+    """Hide every text layer + the layers that became photo slots, so the plate
+    keeps only the background and decoration."""
     for l in iter_layers(layer):
-        if getattr(l, "kind", "") == "type":
+        if getattr(l, "kind", "") == "type" or id(l) in drop:
             try:
                 l.visible = False
             except Exception:
@@ -159,6 +163,7 @@ def process_psd(path: str, out_dir: str) -> dict | None:
 
     # ---- 1. metadata (slots + texts), normalized to 0..1
     slots, texts = [], []
+    slot_layers: set[int] = set()  # placeholder layers → hidden in the plate
     for layer in psd:
         for l in iter_layers(layer):
             if getattr(l, "kind", "") == "type":
@@ -180,6 +185,7 @@ def process_psd(path: str, out_dir: str) -> dict | None:
                     continue  # page background layer, not a slot
                 box["ratioWH"] = round((box["w"] * w) / (box["h"] * h), 4)
                 slots.append(box)
+                slot_layers.add(id(l))
 
     if not slots:
         print(f"  ⚠ {lid}: không thấy ô ảnh nào (bỏ qua)", file=sys.stderr)
@@ -199,9 +205,11 @@ def process_psd(path: str, out_dir: str) -> dict | None:
         thumb = resized(flatten_white(full), THUMB_MAX)
         thumb.save(os.path.join(out_dir, f"{lid}.thumb.jpg"), "JPEG", quality=JPEG_Q_THUMB)
 
-    # ---- 3. hi-res plate WITHOUT text (print export re-renders text as vector)
+    # ---- 3. hi-res plate: no text, no photo placeholders. The placeholders are
+    # opaque blocks in the PSD; leaving them in paints black boxes under every
+    # photo slot (and shows through wherever a slot is empty).
     for layer in psd:
-        hide_text_layers(layer)
+        hide_layers(layer, slot_layers)
     plate = psd.composite()
     if plate is not None:
         bg = resized(flatten_white(plate), BG_MAX)
