@@ -21,10 +21,10 @@ __pycache__/
 *.pyc
 
 # === Large local data — delivered separately, NOT in git ===
-# Font kho (user imports at runtime), source layout PSDs, typo PSDs + packs.
+# Font kho (user imports at runtime), source PSDs for the layout/typo packs.
 /fonts-lib/
-/source-layouts-25x35/
-/typo/
+/source-layouts/
+/source-typos/
 /test-photos/
 *.zip
 
