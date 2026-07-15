@@ -94,13 +94,14 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 - Thumbnail đọc thẳng từ đĩa (asset protocol, tải lười) nên mở trình chọn nhẹ; file JSON "sịn" chỉ parse khi user thật sự chọn mẫu.
 
 **Tự cập nhật kho từ GitHub Release (không cần cài lại app):**
-- Kho đặt trên **GitHub Release + `manifest.json`** (mỗi file kèm SHA-256). Trong app: **⚙ Cài đặt → dán link kho → ⟳ Cập nhật** — app **chỉ tải file đổi hash**, xoá file đã gỡ, không kéo lại toàn bộ.
+- Kho đặt trên **GitHub Release + `manifest.json`** (mỗi file kèm SHA-256), repo `hoangtrunga1k55/album-studio-packs` (tag `pack-layout` / `pack-typo`). Trong app: **⚙ Cài đặt → dán link kho → ⟳ Cập nhật** — app **chỉ tải file đổi hash**, xoá file đã gỡ, không kéo lại toàn bộ.
 - Admin cập nhật kho không phải build lại app: chỉ cần **train thêm layout/typo → đóng gói → đẩy lên release**, user bấm cập nhật là có mẫu mới.
 
-**Bộ công cụ đóng gói kho cho admin (`tools/pack-library/`, không cần biết terminal):**
-- **Double-click `dong-goi-kho.command` (Mac) / `.bat` (Windows)** → chọn Layout/Typo → kéo thả thư mục PSD nguồn → tool tự bóc **JSON ô ảnh + chữ, thumbnail, nền in 300DPI (đã tách chữ để render vector)**, rồi hỏi **đẩy lên GitHub** hay không.
+**Album Pack Builder — app riêng để đóng gói & phát hành kho (repo `album-pack-builder`):**
+- Công cụ build kho tách hẳn khỏi app chính thành **app desktop riêng** (Tauri + sidecar Python), bản cài double-click `.dmg`/`.exe` ở Releases — admin không cần Python/terminal.
+- Mở app → dán token (lưu **OS keychain**) + repo → kéo thả thư mục PSD → **Build + Publish**: tự bóc **JSON ô ảnh + chữ, thumbnail, nền in 300DPI (đã tách chữ để render vector)** rồi đẩy lên GitHub Release; máy user bấm ⟳ Cập nhật là có mẫu mới.
 - PSD nguồn tổ chức "**mỗi thư mục con = một nhóm**" (`source-layouts/layout-25x35/…`, `source-typos/vn/…`); nhóm quyết định khổ và bìa/spread trong app.
-- Kho mẫu 25x35 (**37 mẫu**) đã publish thử: `github.com/hoangtrunga1k55/album-studio/releases/tag/pack-layout`.
+- Kho hiện tại (**65 layout + 6 typo**): `github.com/hoangtrunga1k55/album-studio-packs`.
 
 ## 6b. Ngoài tài liệu — tính năng riêng đã tích hợp sẵn
 

@@ -16,35 +16,23 @@ Tài liệu gồm 2 phần:
 | Kho | Là gì | Tạo bằng |
 |-----|-------|----------|
 | **Kho Font** | Bộ ~5000 font (đúng font thiết kế) | Cài trực tiếp vào máy — app tự quét thư mục font của hệ điều hành |
-| **Kho Typo** | Bộ chữ nghệ thuật chèn lên ảnh | `tools/pack-library/` → chọn **2 (Typo)** |
-| **Kho Layout** | Nền layout **in nét** + thumbnail + chữ vector | `tools/pack-library/` → chọn **1 (Layout)** |
+| **Kho Typo** | Bộ chữ nghệ thuật chèn lên ảnh | App **Album Pack Builder** → chọn **Typo** |
+| **Kho Layout** | Nền layout **in nét** + thumbnail + chữ vector | App **Album Pack Builder** → chọn **Layout** |
 
-Kho typo/layout để trên **GitHub Release**; trong app **⚙ Cài đặt → dán link kho → ⟳ Cập nhật** là user tự tải về (chỉ tải file đổi hash). Font thì cài thẳng vào máy, app tự nhận.
+Kho typo/layout để trên **GitHub Release** (repo `hoangtrunga1k55/album-studio-packs`, tag `pack-layout` / `pack-typo`); trong app **⚙ Cài đặt → dán link kho → ⟳ Cập nhật** là user tự tải về (chỉ tải file đổi hash). Font thì cài thẳng vào máy, app tự nhận.
 
-### Đóng gói kho — cách dễ nhất (không cần terminal)
+### Đóng gói kho — dùng app Album Pack Builder
 
-Double-click launcher trong `tools/pack-library/`:
-- **macOS:** `dong-goi-kho.command` (lần đầu bị chặn thì chuột phải → *Open*)
-- **Windows:** `dong-goi-kho.bat`
+Công cụ build & publish kho tách sang **project/repo riêng**: `album-pack-builder`
+(https://github.com/hoangtrunga1k55/album-pack-builder). Bản cài double-click (`.dmg` / `.exe`)
+ở phần **Releases** của repo đó — không cần cài Python hay terminal.
 
-Trình tự: chọn **1 (Layout)** hoặc **2 (Typo)** → **kéo thả thư mục PSD nguồn** vào cửa sổ → build xong hỏi *"Đẩy lên GitHub?"* → `y` rồi dán repo + token.
+Trình tự: mở app → **Cài đặt** dán token GitHub (lưu trong keychain máy) + repo `owner/album-studio-packs`
+→ chọn **Layout** hoặc **Typo** → **kéo thả thư mục PSD nguồn** → **Build + Publish**.
 
 > PSD nguồn xếp "**mỗi thư mục con = một nhóm**": `source-layouts/layout-25x35/`, `.../layout-30x30/`, `.../cover-25x35/`… và `source-typos/vn/`, `.../korea/`… Kéo **cả thư mục gốc** để build một lượt mọi nhóm — đừng publish riêng một nhóm (manifest ghi đè sẽ khiến app xoá các nhóm còn lại).
 
-### Hoặc chạy bằng lệnh
-```bash
-cd tools/pack-library
-# Layout (tất cả nhóm trong source-layouts/)
-.venv/bin/python build_layout_library.py --in ../source-layouts --out /tmp/kho-layout
-.venv/bin/python publish_pack.py --pack /tmp/kho-layout --tag pack-layout --repo <owner/name>
-# Typo
-.venv/bin/python build_typo_library.py  --in ../source-typos  --out /tmp/kho-typo
-.venv/bin/python publish_pack.py --pack /tmp/kho-typo --tag pack-typo --repo <owner/name>
-```
-Publish cần **GitHub CLI (`gh auth login`)** hoặc **`GITHUB_TOKEN`** trong môi trường.
-
-> Cần cài Python 3. Lần đầu chạy launcher/script tự tạo môi trường (~1 phút).
-> Muốn sửa tay ô ảnh/text box của một layout: `python3 tools/layout-editor/server.py` rồi mở `http://localhost:8765`.
+Chi tiết cách chạy bằng lệnh (packtool CLI) và đóng gói sidecar: xem `README.md` của repo `album-pack-builder`.
 
 ## A2. Phát hành app
 
