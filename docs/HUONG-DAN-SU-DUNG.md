@@ -39,11 +39,11 @@ Chi tiết cách chạy bằng lệnh (packtool CLI) và đóng gói sidecar: xe
 ### macOS (.dmg)
 Trên máy Mac có cài Rust + Node + pnpm:
 ```bash
-cd app
+cd app2
 pnpm install
 pnpm tauri build
 ```
-File ra: `app/src-tauri/target/release/bundle/dmg/Album Studio_x.y.z_aarch64.dmg`
+File ra: `app2/src-tauri/target/release/bundle/dmg/Album Studio 2_x.y.z_aarch64.dmg`
 
 ### Windows (.exe) — qua GitHub Actions (không cần máy Windows)
 Đẩy 1 tag phiên bản, GitHub tự build + tạo Release:
