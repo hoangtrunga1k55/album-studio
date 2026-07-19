@@ -14,6 +14,13 @@ import {
 import { typoFromItem } from "../engine/typos";
 import { loadSystemFonts } from "../engine/fontLibrary";
 import { useLibrary } from "../store/library";
+import { readLayoutJson } from "../ipc/library";
+import {
+  categorySize,
+  libraryTemplate,
+  registerLibraryTemplate,
+  templateFromJson,
+} from "../engine/templates";
 import { useTypos } from "../store/typos";
 import { useFonts } from "../store/fonts";
 
@@ -42,6 +49,29 @@ export async function importTypoLibrary(): Promise<boolean> {
 export async function loadLayoutLibrary(root: string): Promise<number> {
   const items = await scanLayoutLibrary(root);
   useLibrary.getState().setLayouts(items);
+  // Parse EVERY layout JSON up front (no bg — that stays lazy): SPACE /
+  // Auto Build / cover pool need the templates registered, not just indexed.
+  await Promise.all(
+    items.map(async (item) => {
+      if (libraryTemplate(item.id)) return;
+      try {
+        const raw = JSON.parse(await readLayoutJson(item.jsonPath));
+        const isCover = /^(cover|bia|bìa)/i.test(item.category);
+        registerLibraryTemplate(
+          templateFromJson(
+            item.id,
+            item.name,
+            raw,
+            isCover ? "cover" : "spread",
+            undefined,
+            categorySize(item.category) ?? "*"
+          )
+        );
+      } catch {
+        /* mẫu hỏng — bỏ qua, dock vẫn hiện thumbnail */
+      }
+    })
+  );
   return items.length;
 }
 

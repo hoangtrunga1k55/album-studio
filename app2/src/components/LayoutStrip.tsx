@@ -173,14 +173,26 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
   /** Parse a pack layout on demand and cache it as a real Template. */
   async function loadLibrary(item: LayoutItem): Promise<Template | undefined> {
     const cached = libraryTemplate(item.id);
-    if (cached) return cached;
+    // startup eager-parse registers WITHOUT the bg plate — fill it in here
+    if (cached?.bg || (cached && !item.bgPath)) return cached;
+    if (cached && item.bgPath) {
+      const bg = (await readLayoutBgPath(item.bgPath).catch(() => null)) ?? undefined;
+      return bg ? registerLibraryTemplate({ ...cached, bg }) : cached;
+    }
     setBusyId(item.id);
     try {
       const raw = JSON.parse(await readLayoutJson(item.jsonPath));
       // preview plate: the pack's own bg (hi-res is re-read at export time)
       const bg = item.bgPath ? (await readLayoutBgPath(item.bgPath).catch(() => null)) ?? undefined : undefined;
       const tpl = registerLibraryTemplate(
-        templateFromJson(item.id, item.name, raw, isCoverCat(item.category) ? "cover" : "spread", bg)
+        templateFromJson(
+          item.id,
+          item.name,
+          raw,
+          isCoverCat(item.category) ? "cover" : "spread",
+          bg,
+          catSize(item.category) ?? "*"
+        )
       );
       // this layout's fonts only become "needed" now — load them from the machine
       const fs = useFonts.getState();

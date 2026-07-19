@@ -16,8 +16,12 @@ import {
   spreadCmFor,
   type PhotoSlot,
   type TemplateText,
+  libraryTemplate,
+  registerLibraryTemplate,
 } from "../engine/templates";
 import { ensureTypoDeco, getTypo, type Typo } from "../engine/typos";
+import { useLibrary } from "../store/library";
+import { readLayoutBgPath } from "../ipc/library";
 import {
   orderKeys,
   pagesOf,
@@ -1169,6 +1173,31 @@ export function SpreadCanvas() {
 
   const previewTemplateId = useAlbum((s) => s.previewTemplateId);
   const spreadReal = spreads[currentIndex];
+  // SPACE/Auto Build can apply a pack template that was eager-parsed WITHOUT
+  // its bg plate — fetch it in the background and re-register (re-render via
+  // local tick), so the layout's backdrop pops in right after.
+  const [, bgTick] = useState(0);
+  const wantBgId = (() => {
+    const t = getTemplate(previewTemplateId ?? spreadReal?.templateId ?? null);
+    return t && t.source === "tizino" && !t.bg ? t.id : null;
+  })();
+  useEffect(() => {
+    if (!wantBgId) return;
+    const item = useLibrary.getState().layouts.find((l) => l.id === wantBgId);
+    const t = libraryTemplate(wantBgId);
+    if (!item?.bgPath || !t) return;
+    let live = true;
+    readLayoutBgPath(item.bgPath)
+      .then((bg) => {
+        if (!live || !bg) return;
+        registerLibraryTemplate({ ...t, bg });
+        bgTick((v) => v + 1);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [wantBgId]);
   // Hover preview (layout strip / center ▦ grid): render the candidate
   // template with pristine frames — the saved spread is untouched.
   const spread =

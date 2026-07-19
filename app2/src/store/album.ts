@@ -758,7 +758,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       let next =
         cur.imageIds.length === 0
           ? nextTemplateAny(s.size, cur.templateId, forCover)
-          : nextTemplateSameCount(cur.templateId);
+          : nextTemplateSameCount(s.size, cur.templateId);
       if (!next) {
         const count = nearestSlotCount(s.size, cur.imageIds.length || 1, forCover);
         next = randomTemplate(s.size, count, undefined, forCover);

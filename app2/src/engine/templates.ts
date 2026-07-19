@@ -327,18 +327,25 @@ export function loadedLibraryTemplates(): Template[] {
 }
 
 /** Build a Template from a pack JSON (same shape as the bundled layouts). */
+/** "cover-25x35" / "layout 30x30" → "25x35"; null khi tên nhóm không có khổ. */
+export function categorySize(category: string): AlbumSize | null {
+  const m = /(\d{2,3})\s*[x×]\s*(\d{2,3})/i.exec(category);
+  return m ? (`${m[1]}x${m[2]}` as AlbumSize) : null;
+}
+
 export function templateFromJson(
   id: string,
   name: string,
   raw: RawTemplate,
   kind: "spread" | "cover",
-  bgUrl?: string
+  bgUrl?: string,
+  size: AlbumSize | "*" = "*"
 ): Template {
   const slots = raw.photoSlots ?? [];
   const texts = (raw.texts ?? []).map((t) => ({ ...t, font: cleanFontName(t.font) }));
   return {
     id,
-    size: "*",
+    size,
     name,
     ratioWH: raw.canvas?.ratioWH ?? 2,
     slots,
@@ -389,10 +396,19 @@ export function templatesForSize(size: AlbumSize): Template[] {
   const customs = CUSTOMS.filter(
     (t) => t.size === size && t.slotCount > 0 && (t.kind ?? "spread") === "spread"
   );
+  // Tizino pack (parsed into LIBRARY at startup): match the album size —
+  // this is what lets SPACE / Auto Build actually USE the pack layouts.
+  const packs = [...LIBRARY.values()].filter(
+    (t) =>
+      (t.kind ?? "spread") === "spread" &&
+      t.slotCount > 0 &&
+      (t.size === size || t.size === "*")
+  );
   const exact = TEMPLATES.filter(
     (t) => t.size === size && t.slotCount > 0 && (t.kind ?? "spread") === "spread"
   );
-  if (exact.length > 0) return [...BASIC_TEMPLATES, ...exact, ...customs];
+  if (exact.length > 0 || packs.length > 0)
+    return [...BASIC_TEMPLATES, ...exact, ...packs, ...customs];
 
   // Custom size → no dedicated pool. Fall back to the non-empty preset pool
   // whose page ratio is closest (normalized slots/texts stretch to any ratio).
@@ -440,10 +456,12 @@ export function nearestSlotCount(size: AlbumSize, n: number, forCover = false): 
 
 /** Next template (deterministic rotation) with the same size + slot count.
  *  Cycling through ALL of them before repeating — this is what SPACE does. */
-export function nextTemplateSameCount(currentId: string): Template | undefined {
+export function nextTemplateSameCount(size: AlbumSize, currentId: string): Template | undefined {
   const cur = getTemplate(currentId);
   if (!cur) return undefined;
-  const pool = pickPool(cur.size, cur.kind === "cover")
+  // pool theo khổ ALBUM — cur.size của layout cơ bản là "*" nên dò theo nó
+  // sẽ không bao giờ thấy mẫu Tizino (size thật "25x35"…)
+  const pool = pickPool(size, cur.kind === "cover")
     .filter((t) => t.slotCount === cur.slotCount)
     .sort((a, b) => a.id.localeCompare(b.id));
   if (pool.length <= 1) return cur;
