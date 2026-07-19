@@ -172,6 +172,7 @@ function PhotoEditSections({
   const imgId = spread?.imageIds[slot];
   const img = imgId ? images.find((im) => im.id === imgId) : undefined;
   const st = useAlbum.getState();
+  const albumSettings = useAlbum((s) => s.settings);
   if (!img || !spread) return null;
   {
       const t = spread.transforms[slot] ?? { zoom: 1, panX: 0, panY: 0 };
@@ -328,6 +329,77 @@ function PhotoEditSections({
             </div>
           </div>
 
+          <div className="prop-label" style={{ marginTop: 12 }}>Viền · Bo góc · Đục</div>
+          <div className="sa-rows">
+            <div className="sa-row">
+              <span className="sa-name">Viền:</span>
+              <input
+                type="range"
+                min={0}
+                max={30}
+                step={0.5}
+                value={t.borderPt ?? albumSettings.borderPt}
+                onChange={(e) => setT({ ...t, borderPt: parseFloat(e.target.value) })}
+              />
+              <span className="sa-val">{t.borderPt ?? albumSettings.borderPt}pt</span>
+              <input
+                type="color"
+                value={t.borderColor ?? albumSettings.borderColor}
+                onChange={(e) => setT({ ...t, borderColor: e.target.value })}
+                title="Màu viền"
+                style={{ width: 26, height: 20, padding: 0, border: "none", background: "none", cursor: "pointer" }}
+              />
+              <button
+                className="sa-reset"
+                title="Theo cài đặt album"
+                disabled={t.borderPt == null && t.borderColor == null}
+                onClick={() => setT({ ...t, borderPt: undefined, borderColor: undefined })}
+              >
+                ×
+              </button>
+            </div>
+            <div className="sa-row">
+              <span className="sa-name">Bo góc:</span>
+              <input
+                type="range"
+                min={0}
+                max={80}
+                step={1}
+                value={t.radiusPt ?? 0}
+                onChange={(e) => setT({ ...t, radiusPt: parseInt(e.target.value, 10) })}
+              />
+              <span className="sa-val">{t.radiusPt ?? 0}pt</span>
+              <button
+                className="sa-reset"
+                title="Vuông góc"
+                disabled={!t.radiusPt}
+                onClick={() => setT({ ...t, radiusPt: undefined })}
+              >
+                ×
+              </button>
+            </div>
+            <div className="sa-row">
+              <span className="sa-name">Đục:</span>
+              <input
+                type="range"
+                min={5}
+                max={100}
+                step={1}
+                value={Math.round((t.opacity ?? 1) * 100)}
+                onChange={(e) => setT({ ...t, opacity: parseInt(e.target.value, 10) / 100 })}
+              />
+              <span className="sa-val">{Math.round((t.opacity ?? 1) * 100)}%</span>
+              <button
+                className="sa-reset"
+                title="100%"
+                disabled={(t.opacity ?? 1) === 1}
+                onClick={() => setT({ ...t, opacity: undefined })}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
           <div className="prop-group" style={{ marginTop: 12 }}>
             <div className="prop-row">
               <button className="btn" onClick={() => st.rotateSlot(slot)} title="Xoay ảnh 90° trong khung">
@@ -385,15 +457,6 @@ function PhotoEditSections({
   }
 }
 
-const SNIPPETS = [
-  "Mãi mãi bên nhau",
-  "Trọn đời yêu thương",
-  "Hạnh phúc trăm năm",
-  "Tình yêu vĩnh cửu",
-  "Ngày chung đôi",
-  "Save the date",
-];
-
 export function PropertiesPanel() {
   const spreads = useAlbum((s) => s.spreads);
   const currentIndex = useAlbum((s) => s.currentIndex);
@@ -415,7 +478,6 @@ export function PropertiesPanel() {
   const updateAddedText = useAlbum((s) => s.updateAddedText);
   const removeAddedText = useAlbum((s) => s.removeAddedText);
   const addText = useAlbum((s) => s.addText);
-  const tool = useAlbum((s) => s.tool);
   const addTypoToSpread = useAlbum((s) => s.addTypo);
   const typos = useTypos((s) => s.typos);
   const layoutLib = useLibrary((s) => s.layouts);
@@ -821,7 +883,6 @@ export function PropertiesPanel() {
       setLibBusy(false);
     }
   }
-  const st = useAlbum.getState();
   return (
     <aside className="props">
       <h3>Layout · {spreadLabel(spreads, currentIndex)}</h3>
@@ -845,24 +906,6 @@ export function PropertiesPanel() {
           <div className="hint-sm">1 trang = bìa trước · 2 trang = trải cả mặt trước + sau.</div>
         </div>
       )}
-      <div className="prop-group">
-        <div className="prop-label">Bố cục</div>
-        <div className="prop-row">
-          <button className="btn" onClick={() => st.setLayoutDock(true)}>
-            Đổi layout…
-          </button>
-          <button className="btn" onClick={() => st.shuffleCurrent()} title="Space">
-            Ngẫu nhiên
-          </button>
-        </div>
-        <button
-          className={"btn" + (tool === "drawSlot" ? " primary" : "")}
-          style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
-          onClick={() => st.setTool(tool === "drawSlot" ? "select" : "drawSlot")}
-        >
-          {tool === "drawSlot" ? "Đang vẽ — kéo trên spread (Esc thoát)" : "＋ Vẽ khung ảnh mới"}
-        </button>
-      </div>
       {missingList.length > 0 && (
         <div className="font-warn">
           <b>⚠ {missingList.length} font mẫu chưa cài trên máy</b>
@@ -992,11 +1035,6 @@ export function PropertiesPanel() {
         <button className="btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => add("Nội dung mới")}>
           + Chữ trống
         </button>
-        <div className="snippets">
-          {SNIPPETS.map((s) => (
-            <button key={s} className="snippet" onClick={() => add(s)}>{s}</button>
-          ))}
-        </div>
       </div>
       <div className="prop-group">
         <div className="prop-label">Typo trang trí</div>

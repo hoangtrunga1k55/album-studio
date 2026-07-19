@@ -451,9 +451,10 @@ function SlotFrame(props: {
   onWheelZoom: (deltaY: number) => void;
   onDblClick: () => void;
   onContext: (x: number, y: number) => void;
-  /** SmartAlbums smart guides: snap the frame live while dragging. */
-  onLiveSnap?: (r: Px) => { x: number; y: number; v: number[]; h: number[] };
-  onGuides?: (g: { v: number[]; h: number[] } | null) => void;
+  /** SmartAlbums smart guides: snap the frame live while dragging.
+   *  A guide with `g` set means "đúng khoảng cách gap" → drawn yellow. */
+  onLiveSnap?: (r: Px) => { x: number; y: number; v: SnapGuide[]; h: SnapGuide[] };
+  onGuides?: (g: { v: SnapGuide[]; h: SnapGuide[] } | null) => void;
 }) {
   const { px, rotDeg, onChange, onWheelZoom, onDblClick, onContext, onLiveSnap, onGuides } = props;
   const ref = useRef<Konva.Rect>(null);
@@ -730,6 +731,8 @@ function Slot(props: {
   /** album setting: border drawn around the photo (stage px; 0 = off). */
   borderPx?: number;
   borderColor?: string;
+  /** stage px per POINT — converts the per-photo borderPt/radiusPt overrides. */
+  ptPx?: number;
   /** a full-bleed background photo sits behind: empty frames must not paint
    *  their gray placeholder/number over it (§6.5). */
   bgBehind?: boolean;
@@ -745,9 +748,30 @@ function Slot(props: {
 }) {
   const {
     index, px, img, selected, crop, dropTarget, ppi, frameRot = 0, transform: t,
-    borderPx = 0, borderColor = "#ffffff", bgBehind = false,
+    borderPx = 0, borderColor = "#ffffff", ptPx = 0, bgBehind = false,
     onSelect, onEnterCrop, onBeginMove, onTransform, onContext,
   } = props;
+  // SmartAlbums per-photo styling: border/radius/opacity override the album
+  // defaults (undefined = inherit). All in points, converted via ptPx.
+  const effBorderPx = t.borderPt != null && ptPx > 0 ? t.borderPt * ptPx : borderPx;
+  const effBorderColor = t.borderColor ?? borderColor;
+  const radiusPx = Math.min((t.radiusPt ?? 0) * ptPx, px.w / 2, px.h / 2);
+  const photoOpacity = t.opacity ?? 1;
+  const roundClip =
+    radiusPx > 0.5
+      ? {
+          clipFunc: (ctx: Konva.Context) => {
+            const r = radiusPx;
+            ctx.beginPath();
+            ctx.moveTo(px.x + r, px.y);
+            ctx.arcTo(px.x + px.w, px.y, px.x + px.w, px.y + px.h, r);
+            ctx.arcTo(px.x + px.w, px.y + px.h, px.x, px.y + px.h, r);
+            ctx.arcTo(px.x, px.y + px.h, px.x, px.y, r);
+            ctx.arcTo(px.x, px.y, px.x + px.w, px.y, r);
+            ctx.closePath();
+          },
+        }
+      : { clipX: px.x, clipY: px.y, clipWidth: px.w, clipHeight: px.h };
   // already decoded → picked up synchronously, no async frame on remounts
   const [uri, setUri] = useState<string | undefined>(() =>
     img ? getDisplayImageSync(img.path) : undefined
@@ -916,16 +940,18 @@ function Slot(props: {
         offsetY={px.y + px.h / 2}
         rotation={frameRot}
       >
-      <Group clipX={px.x} clipY={px.y} clipWidth={px.w} clipHeight={px.h}>{node}</Group>
-      {/* wizard setting: printed border around every photo */}
-      {img && borderPx > 0 && (
+      <Group {...roundClip} opacity={photoOpacity}>{node}</Group>
+      {/* border around the photo: album setting or the per-photo override */}
+      {img && effBorderPx > 0 && (
         <Rect
           x={px.x}
           y={px.y}
           width={px.w}
           height={px.h}
-          stroke={borderColor}
-          strokeWidth={borderPx}
+          cornerRadius={radiusPx}
+          stroke={effBorderColor}
+          strokeWidth={effBorderPx}
+          opacity={photoOpacity}
           listening={false}
           perfectDrawEnabled={false}
         />
@@ -955,23 +981,21 @@ function Slot(props: {
           listening={false}
         />
       )}
-      <Rect
-        x={px.x}
-        y={px.y}
-        width={px.w}
-        height={px.h}
-        cornerRadius={2}
-        stroke={
-          dropTarget ? "#10b981" : crop ? "#f59e0b" : selected ? "#6e76ff" : "rgba(60,40,90,0.12)"
-        }
-        strokeWidth={dropTarget ? 3 : crop ? 2.5 : selected ? 2.5 : 1}
-        dash={crop ? [7, 5] : undefined}
-        shadowColor={crop ? "#f59e0b" : "#6e76ff"}
-        shadowBlur={selected || crop ? 14 : 0}
-        shadowOpacity={selected || crop ? 0.5 : 0}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
+      {/* SmartAlbums-style chrome: ONE thin border when selected, a faint
+          outline only on EMPTY frames (a photo's own edge is enough). */}
+      {(dropTarget || crop || selected || !img) && (
+        <Rect
+          x={px.x}
+          y={px.y}
+          width={px.w}
+          height={px.h}
+          stroke={dropTarget ? "#10b981" : crop ? "#f59e0b" : selected ? "#6e76ff" : "rgba(60,40,90,0.18)"}
+          strokeWidth={dropTarget ? 3 : crop ? 2 : selected ? 2 : 1}
+          dash={crop ? [7, 5] : undefined}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      )}
       {/* §10.3 low-resolution warning: photo would print below DPI_LOW */}
       {dpi < DPI_LOW && (
         <Group x={px.x + 13} y={px.y + 13} listening={false}>
@@ -988,6 +1012,15 @@ function Slot(props: {
       </Group>
     </Group>
   );
+}
+
+const IS_MAC = navigator.platform.toLowerCase().includes("mac");
+
+/** One lit-up snap line: position (stage px) + whether it is a GAP snap
+ *  (frame sits exactly `gapPt` from a neighbour) — gap lines render yellow. */
+export interface SnapGuide {
+  p: number;
+  g?: boolean;
 }
 
 export function SpreadCanvas() {
@@ -1049,8 +1082,17 @@ export function SpreadCanvas() {
   const [drawRect, setDrawRect] = useState<Px | null>(null);
   // §7.5 save-as-template naming dialog (window.prompt is a no-op in Tauri).
   const [saveTpl, setSaveTpl] = useState<{ name: string } | null>(null);
+  // ⌘/Ctrl+1 (App-level shortcut) → zoom to real print size; the math needs
+  // this component's stage numbers, so App just fires an event.
+  const zoom100Ref = useRef(1);
+  useEffect(() => {
+    const on = () => useAlbum.getState().setViewZoom(zoom100Ref.current);
+    window.addEventListener("albumstudio:zoom100", on);
+    return () => window.removeEventListener("albumstudio:zoom100", on);
+  }, []);
+
   // Smart guides lighting up while a frame is being dragged (SmartAlbums).
-  const [liveGuides, setLiveGuides] = useState<{ v: number[]; h: number[] } | null>(null);
+  const [liveGuides, setLiveGuides] = useState<{ v: SnapGuide[]; h: SnapGuide[] } | null>(null);
   const alignAnchor = useAlbum((s) => s.alignAnchor);
   // Layout mode (click the spread background): ruler + frame editing live
   // here; photo-swap dragging belongs to the normal mode outside.
@@ -1076,11 +1118,24 @@ export function SpreadCanvas() {
     };
   }, []);
   const setCropSlot = useAlbum((s) => s.setCropSlot);
+  // A click on a context-menu item + the next click on the canvas can be
+  // COUNTED AS ONE DOUBLE-CLICK by the browser (same spot, <400ms) — that
+  // used to throw the user into layout mode right after "Nhân đôi spread".
+  const menuClosedAt = useRef(0);
+  // Right-click menu of the zoom tool (Fit / 100% / In / Out).
+  const [zoomMenu, setZoomMenu] = useState<{ x: number; y: number } | null>(null);
   // Slot-to-slot photo move (§6.2): mousedown arms it, movement >6px starts it.
   const movePending = useRef<{ from: number; sx: number; sy: number } | null>(null);
   const [slotDrag, setSlotDrag] = useState<
     { from: number; x: number; y: number; target: number } | null
   >(null);
+
+  // Switching spread (⟨⟩, duplicate, filmstrip click) kills any half-armed
+  // drag gesture — its slot indices belong to the OLD spread.
+  useEffect(() => {
+    movePending.current = null;
+    setSlotDrag(null);
+  }, [currentIndex]);
 
   const previewTemplateId = useAlbum((s) => s.previewTemplateId);
   const spreadReal = spreads[currentIndex];
@@ -1237,6 +1292,11 @@ export function SpreadCanvas() {
   stageW *= viewZoom;
   stageH *= viewZoom;
 
+  // Zoom presets: Fit = 1 (stage sized to the wrap); 100% = real print size
+  // on a ~96dpi screen (1cm of the album ≈ 37.8 css px).
+  const zoom100 = cmDims ? Math.min(6, Math.max(0.25, (cmDims.h * (96 / 2.54)) / (stageH / viewZoom))) : 1;
+  zoom100Ref.current = zoom100;
+
   // Margin = photo↔photo gap; Padding = photo↔spread-edge inset (§6.6).
   const gap = (spread.margin ?? 0) * stageH;
   const padIn = (spread.padding ?? 0) * stageH;
@@ -1314,61 +1374,63 @@ export function SpreadCanvas() {
   };
 
   /** Smart-guide targets: page edges/center + ¼-½-¾ grid + user guides +
-   *  every OTHER frame's edges and centers (SmartAlbums alignment). */
+   *  every OTHER frame's edges and centers (SmartAlbums alignment) — plus GAP
+   *  targets sitting exactly `gapPt` outside each neighbour's edge, so two
+   *  frames snap to the configured spacing (lit up yellow). */
+  const snapGapPx = pxPerCm ? settings.gapPt * PT_TO_CM * pxPerCm : 0;
   const snapTargets = (excludeIdx: number | null) => {
-    const xs = [0, stageW / 4, stageW / 2, (3 * stageW) / 4, stageW, ...guides.v.map((g) => g * stageW)];
-    const ys = [0, stageH / 4, stageH / 2, (3 * stageH) / 4, stageH, ...guides.h.map((g) => g * stageH)];
+    const xs: SnapGuide[] = [0, stageW / 4, stageW / 2, (3 * stageW) / 4, stageW, ...guides.v.map((g) => g * stageW)].map((p) => ({ p }));
+    const ys: SnapGuide[] = [0, stageH / 4, stageH / 2, (3 * stageH) / 4, stageH, ...guides.h.map((g) => g * stageH)].map((p) => ({ p }));
     effSlots.forEach((s, i) => {
       if (i === excludeIdx) return;
       const r = rawPx(s);
-      xs.push(r.x, r.x + r.w / 2, r.x + r.w);
-      ys.push(r.y, r.y + r.h / 2, r.y + r.h);
+      xs.push({ p: r.x }, { p: r.x + r.w / 2 }, { p: r.x + r.w });
+      ys.push({ p: r.y }, { p: r.y + r.h / 2 }, { p: r.y + r.h });
+      if (snapGapPx > 0) {
+        xs.push({ p: r.x - snapGapPx, g: true }, { p: r.x + r.w + snapGapPx, g: true });
+        ys.push({ p: r.y - snapGapPx, g: true }, { p: r.y + r.h + snapGapPx, g: true });
+      }
     });
     return { xs, ys };
   };
 
   /** Live snap while dragging: pulls the frame's edges/center onto the nearest
-   *  target (±6px) and reports which guide lines to light up. */
+   *  target and lights up the guide. Gap targets get a wider tolerance (easy
+   *  to hit, per leader feedback) and win ties; centers never gap-snap. */
   const liveSnapRect = (
     r: Px,
     excludeIdx: number | null
-  ): { x: number; y: number; v: number[]; h: number[] } => {
+  ): { x: number; y: number; v: SnapGuide[]; h: SnapGuide[] } => {
     const { xs, ys } = snapTargets(excludeIdx);
-    const tol = 6;
-    let dx: number | null = null;
-    let gx: number | null = null;
-    for (const edge of [r.x, r.x + r.w / 2, r.x + r.w]) {
-      for (const t of xs) {
-        const d = t - edge;
-        if (Math.abs(d) <= tol && (dx === null || Math.abs(d) < Math.abs(dx))) {
-          dx = d;
-          gx = t;
+    const pick = (edges: number[], targets: SnapGuide[]): { d: number; t: SnapGuide } | null => {
+      let best: { d: number; t: SnapGuide } | null = null;
+      edges.forEach((edge, ei) => {
+        for (const t of targets) {
+          if (t.g && ei === 1) continue; // a CENTER at gap distance means nothing
+          const d = t.p - edge;
+          const tol = t.g ? 8 : 6;
+          if (Math.abs(d) > tol) continue;
+          if (!best || Math.abs(d) < Math.abs(best.d) - (t.g ? 0.75 : 0)) best = { d, t };
         }
-      }
-    }
-    let dy: number | null = null;
-    let gy: number | null = null;
-    for (const edge of [r.y, r.y + r.h / 2, r.y + r.h]) {
-      for (const t of ys) {
-        const d = t - edge;
-        if (Math.abs(d) <= tol && (dy === null || Math.abs(d) < Math.abs(dy))) {
-          dy = d;
-          gy = t;
-        }
-      }
-    }
+      });
+      return best;
+    };
+    const bx = pick([r.x, r.x + r.w / 2, r.x + r.w], xs);
+    const by = pick([r.y, r.y + r.h / 2, r.y + r.h], ys);
     return {
-      x: r.x + (dx ?? 0),
-      y: r.y + (dy ?? 0),
-      v: gx !== null ? [gx] : [],
-      h: gy !== null ? [gy] : [],
+      x: r.x + (bx?.d ?? 0),
+      y: r.y + (by?.d ?? 0),
+      v: bx ? [bx.t] : [],
+      h: by ? [by.t] : [],
     };
   };
 
   /** §7.2 snap: pull frame edges onto guides / spread edges / center (±7px). */
   const snapRect = (r: Px): Px => {
     const t = 7;
-    const { xs, ys } = snapTargets(selectedSlot);
+    const { xs: xsT, ys: ysT } = snapTargets(selectedSlot);
+    const xs = xsT.map((c) => c.p);
+    const ys = ysT.map((c) => c.p);
     const near = (v: number, cands: number[]) => {
       for (const c of cands) if (Math.abs(v - c) < t) return c;
       return v;
@@ -1435,11 +1497,58 @@ export function SpreadCanvas() {
     <div
       className={"canvas-wrap" + (spreadSelected && showRuler ? " ruler-on" : "")}
       ref={wrapRef}
-      onClick={() => setMenu(null)}
+      onClick={() => { setMenu(null); setZoomMenu(null); }}
     >
       {spreadSelected ? (
         /* layout mode: compact corner controls — back left, save right */
         <>
+          {/* SmartAlbums vertical tool rail: select · frame · text · hand · zoom */}
+          <div className="layout-tools">
+            <button
+              className={"lt-btn" + (tool === "select" ? " active" : "")}
+              title="Chọn / di chuyển (V)"
+              onClick={() => useAlbum.getState().setTool("select")}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M5 2l14 11-6.5 1L16 21l-3 1.4-3.4-7L5 19V2z"/></svg>
+            </button>
+            <button
+              className={"lt-btn" + (tool === "drawSlot" ? " active" : "")}
+              title="Vẽ khung ảnh mới — kéo trên spread (Esc thoát)"
+              onClick={() => useAlbum.getState().setTool(tool === "drawSlot" ? "select" : "drawSlot")}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="5" width="16" height="14" rx="1"/><circle cx="9" cy="10" r="1.6" fill="currentColor" stroke="none"/><path d="M4 16l5-4 4 3 3-2 4 3"/></svg>
+            </button>
+            <button
+              className="lt-btn"
+              title="Thêm chữ vào giữa trang"
+              onClick={() =>
+                useAlbum.getState().addText({
+                  content: "Nội dung mới",
+                  font: "",
+                  color: "#222222",
+                  sizeFrac: 0.035,
+                  x: 0.4,
+                  y: 0.45,
+                })
+              }
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v4h-2.2V6.4H13.4V19h2.1v2H8.5v-2h2.1V6.4H6.2V8H4V4z"/></svg>
+            </button>
+            <button
+              className={"lt-btn" + (tool === "hand" ? " active" : "")}
+              title="Bàn tay — kéo để di chuyển vùng nhìn (khi đã zoom)"
+              onClick={() => useAlbum.getState().setTool(tool === "hand" ? "select" : "hand")}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M8.5 11.5V5.7a1.4 1.4 0 012.8 0v5m0-6.4a1.4 1.4 0 012.8 0v6.4m0-5a1.4 1.4 0 012.8 0v7.8c0 3.6-2.4 6-6 6-2.7 0-4.3-1.1-5.6-3.2L3.6 12.9c-.7-1-.3-2.1.6-2.5.8-.4 1.7-.1 2.3.7l2 2.6"/></svg>
+            </button>
+            <button
+              className={"lt-btn" + (tool === "zoom" ? " active" : "")}
+              title="Kính lúp — click phóng to, Alt+click thu nhỏ, double-click về 100%"
+              onClick={() => useAlbum.getState().setTool(tool === "zoom" ? "select" : "zoom")}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/><path d="M8 10.5h5M10.5 8v5"/></svg>
+            </button>
+          </div>
           <div className="layout-bar lb-left">
             <button
               className="lb-btn"
@@ -1500,6 +1609,9 @@ export function SpreadCanvas() {
           // Works even when a full-bleed photo covers every pixel. A photo's
           // own double-click (crop mode) stops propagation, so it wins there.
           if (useAlbum.getState().spreadSelected) return;
+          // …but a menu-item click followed by a quick click here is NOT a
+          // real double-click — the browser merges them (same spot + <400ms).
+          if (Date.now() - menuClosedAt.current < 500) return;
           e.stopPropagation();
           useAlbum.getState().selectSpread();
         }}
@@ -1530,6 +1642,13 @@ export function SpreadCanvas() {
         onMouseMove={(e) => {
           const p = movePending.current;
           if (!p) return;
+          // layout mode moves FRAMES — a pending photo-swap drag armed just
+          // before entering it (e.g. the duplicate double-click) must die here
+          if (useAlbum.getState().spreadSelected) {
+            movePending.current = null;
+            if (slotDrag) setSlotDrag(null);
+            return;
+          }
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
           const nx = (e.clientX - rect.left) / stageW;
           const ny = (e.clientY - rect.top) / stageH;
@@ -1560,6 +1679,47 @@ export function SpreadCanvas() {
           setSlotDrag(null);
         }}
       >
+        {spreadSelected && (tool === "hand" || tool === "zoom") && (
+          <div
+            className={"view-tool-overlay " + (tool === "hand" ? "hand" : "zoom")}
+            onMouseDown={(e) => {
+              if (tool !== "hand") return;
+              e.preventDefault();
+              const wrap = wrapRef.current;
+              if (!wrap) return;
+              const sx = e.clientX;
+              const sy = e.clientY;
+              const sl = wrap.scrollLeft;
+              const st0 = wrap.scrollTop;
+              const mm = (ev: MouseEvent) => {
+                wrap.scrollLeft = sl - (ev.clientX - sx);
+                wrap.scrollTop = st0 - (ev.clientY - sy);
+              };
+              const up = () => {
+                window.removeEventListener("mousemove", mm);
+                window.removeEventListener("mouseup", up);
+              };
+              window.addEventListener("mousemove", mm);
+              window.addEventListener("mouseup", up);
+            }}
+            onClick={(e) => {
+              if (tool !== "zoom") return;
+              const st = useAlbum.getState();
+              const z = st.viewZoom;
+              st.setViewZoom(e.altKey ? Math.max(1, z / 1.25) : Math.min(4, z * 1.25));
+            }}
+            onDoubleClick={(e) => {
+              if (tool !== "zoom") return;
+              e.stopPropagation();
+              useAlbum.getState().setViewZoom(1);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setZoomMenu({ x: e.clientX, y: e.clientY });
+            }}
+          />
+        )}
         <Stage width={stageW} height={stageH}>
           <Layer>
             <Rect
@@ -1680,12 +1840,13 @@ export function SpreadCanvas() {
                   index={i}
                   px={toPx(slot)}
                   img={img}
-                  selected={selectedSlot === i}
+                  selected={selectedSlot === i && !spreadSelected}
                   crop={cropSlot === i}
                   dropTarget={!!slotDrag && slotDrag.target === i && slotDrag.from !== i}
                   ppi={ppi}
                   borderPx={pxPerCm ? settings.borderPt * PT_TO_CM * pxPerCm : 0}
                   borderColor={settings.borderColor}
+                  ptPx={pxPerCm ? PT_TO_CM * pxPerCm : 0}
                   bgBehind={!!spread.bgImageId}
                   frameRot={spread.slotRects?.[i]?.rotDeg ?? 0}
                   transform={spread.transforms[i] ?? DEFAULT_T}
@@ -2002,24 +2163,28 @@ export function SpreadCanvas() {
 
         {/* smart guides: accent lines while a frame snaps into alignment */}
         {liveGuides &&
-          liveGuides.v.map((x) => (
+          liveGuides.v.map((gd) => (
             <div
-              key={`sgv${x}`}
+              key={`sgv${gd.p}`}
               style={{
-                position: "absolute", left: x - 0.5, top: 0, bottom: 0, width: 1,
-                background: "var(--accent)", zIndex: 28, pointerEvents: "none",
-                boxShadow: "0 0 4px var(--accent)",
+                position: "absolute", left: gd.p - (gd.g ? 1 : 0.5), top: 0, bottom: 0,
+                width: gd.g ? 2 : 1,
+                background: gd.g ? "#f5b301" : "var(--accent)",
+                zIndex: 28, pointerEvents: "none",
+                boxShadow: gd.g ? "0 0 6px #f5b301" : "0 0 4px var(--accent)",
               }}
             />
           ))}
         {liveGuides &&
-          liveGuides.h.map((y) => (
+          liveGuides.h.map((gd) => (
             <div
-              key={`sgh${y}`}
+              key={`sgh${gd.p}`}
               style={{
-                position: "absolute", top: y - 0.5, left: 0, right: 0, height: 1,
-                background: "var(--accent)", zIndex: 28, pointerEvents: "none",
-                boxShadow: "0 0 4px var(--accent)",
+                position: "absolute", top: gd.p - (gd.g ? 1 : 0.5), left: 0, right: 0,
+                height: gd.g ? 2 : 1,
+                background: gd.g ? "#f5b301" : "var(--accent)",
+                zIndex: 28, pointerEvents: "none",
+                boxShadow: gd.g ? "0 0 6px #f5b301" : "0 0 4px var(--accent)",
               }}
             />
           ))}
@@ -2170,8 +2335,28 @@ export function SpreadCanvas() {
         </div>
       )}
 
+      {zoomMenu && (
+        <div
+          className="ctx-menu"
+          style={{ left: zoomMenu.x, top: zoomMenu.y }}
+          onClick={(e) => { e.stopPropagation(); menuClosedAt.current = Date.now(); }}
+        >
+          <button onClick={() => { useAlbum.getState().setViewZoom(1); setZoomMenu(null); }}>
+            Zoom to Fit <span className="menu-kbd">{IS_MAC ? "⌘0" : "Ctrl+0"}</span>
+          </button>
+          <button onClick={() => { useAlbum.getState().setViewZoom(zoom100); setZoomMenu(null); }}>
+            Zoom to 100% <span className="menu-kbd">{IS_MAC ? "⌘1" : "Ctrl+1"}</span>
+          </button>
+          <button onClick={() => { const st = useAlbum.getState(); st.setViewZoom(Math.min(4, st.viewZoom * 1.25)); setZoomMenu(null); }}>
+            Zoom In <span className="menu-kbd">{IS_MAC ? "⌘+" : "Ctrl++"}</span>
+          </button>
+          <button onClick={() => { const st = useAlbum.getState(); st.setViewZoom(Math.max(1, st.viewZoom / 1.25)); setZoomMenu(null); }}>
+            Zoom Out <span className="menu-kbd">{IS_MAC ? "⌘−" : "Ctrl+-"}</span>
+          </button>
+        </div>
+      )}
       {menu?.kind === "slot" && (
-        <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
+        <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => { e.stopPropagation(); menuClosedAt.current = Date.now(); }}>
           <button onClick={() => { useAlbum.getState().setAsBackground(menu.slot); setMenu(null); }}>
             Đặt làm nền (full-bleed)
           </button>
@@ -2219,7 +2404,7 @@ export function SpreadCanvas() {
       )}
 
       {menu?.kind === "spread" && (
-        <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
+        <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => { e.stopPropagation(); menuClosedAt.current = Date.now(); }}>
           <button onClick={() => { useAlbum.getState().redesignSpread(); setMenu(null); }}>
             Redesign spread ({mod("⇧D")})
           </button>

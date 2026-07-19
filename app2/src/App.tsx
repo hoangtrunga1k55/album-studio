@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 
 const clampN = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -56,7 +57,6 @@ import { useAlbum } from "./store/album";
 import { useFonts } from "./store/fonts";
 import { useProject } from "./store/project";
 import { IconExport, IconLayout, IconSettings, IconSparkle } from "./icons";
-import { DENSITY_LABELS } from "./engine/autoLayout";
 import { mod } from "./engine/platform";
 import "./App.css";
 
@@ -71,12 +71,11 @@ function App() {
   const currentIndex = useAlbum((s) => s.currentIndex);
   const images = useAlbum((s) => s.images);
   const resetAlbum = useAlbum((s) => s.resetAlbum);
-  const density = useAlbum((s) => s.density);
-  const setDensity = useAlbum((s) => s.setDensity);
   const addFonts = useFonts((s) => s.addFonts);
   const setFontIndex = useFonts((s) => s.setIndex);
   const spreadSelected = useAlbum((s) => s.spreadSelected);
   const layoutDock = useAlbum((s) => s.layoutDockOpen);
+  const importing = useAlbum((s) => s.importing);
   const setLayoutDock = useAlbum((s) => s.setLayoutDock);
   const [showExport, setShowExport] = useState(false);
   const [showDesign, setShowDesign] = useState(false);
@@ -88,9 +87,13 @@ function App() {
   const [trayMin, setTrayMin] = useState(
     () => localStorage.getItem("albumstudio2.ui.trayMin") === "1"
   );
+  const [propsMin, setPropsMin] = useState(
+    () => localStorage.getItem("albumstudio2.ui.propsMin") === "1"
+  );
   useEffect(() => localStorage.setItem("albumstudio2.ui.trayH", String(trayH)), [trayH]);
   useEffect(() => localStorage.setItem("albumstudio2.ui.propsW", String(propsW)), [propsW]);
   useEffect(() => localStorage.setItem("albumstudio2.ui.trayMin", trayMin ? "1" : "0"), [trayMin]);
+  useEffect(() => localStorage.setItem("albumstudio2.ui.propsMin", propsMin ? "1" : "0"), [propsMin]);
 
   // Fonts come entirely from the machine now. Load the typo pack first so its
   // font names count as "needed", then index the OS font folders and load
@@ -125,7 +128,7 @@ function App() {
       } else if (k === "d") {
         e.preventDefault();
         if (e.shiftKey) useAlbum.getState().redesignSpread();
-        else setShowDesign(true);
+        else if (!useAlbum.getState().importing) setShowDesign(true);
       } else if (k === "b") {
         e.preventDefault();
         useAlbum.getState().toggleBleed();
@@ -147,21 +150,42 @@ function App() {
           await saveNow();
           await openProject().catch((err) => alert("Không mở được project: " + String(err)));
         })();
-      } else if (e.key === "=" || e.key === "+") {
+      } else if (e.key === "=" || e.key === "+" || e.code === "Equal" || e.code === "NumpadAdd") {
+        // match the PHYSICAL key too — Vietnamese input methods / numpads can
+        // report a different e.key and the shortcut silently died
         e.preventDefault();
         const z = useAlbum.getState().viewZoom;
-        useAlbum.getState().setViewZoom(Math.min(3, z * 1.15));
-      } else if (e.key === "-") {
+        useAlbum.getState().setViewZoom(Math.min(4, z * 1.25));
+      } else if (e.key === "-" || e.code === "Minus" || e.code === "NumpadSubtract") {
         e.preventDefault();
         const z = useAlbum.getState().viewZoom;
-        useAlbum.getState().setViewZoom(Math.max(1, z / 1.15));
-      } else if (e.key === "0") {
+        useAlbum.getState().setViewZoom(Math.max(1, z / 1.25));
+      } else if (e.key === "0" || e.code === "Digit0" || e.code === "Numpad0") {
         e.preventDefault();
         useAlbum.getState().setViewZoom(1);
+      } else if (e.key === "1" || e.code === "Digit1" || e.code === "Numpad1") {
+        // 100% = real print size — the canvas owns the math, so just signal it
+        e.preventDefault();
+        window.dispatchEvent(new Event("albumstudio:zoom100"));
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Zoom shortcuts arrive as NATIVE events (lib.rs): macOS qua menu accelerator,
+  // Windows qua RegisterHotKey khi cửa sổ focus — bộ gõ không chặn được.
+  useEffect(() => {
+    const un = listen<string>("zoom-cmd", (e) => {
+      const st = useAlbum.getState();
+      if (e.payload === "zoom_in") st.setViewZoom(Math.min(4, st.viewZoom * 1.25));
+      else if (e.payload === "zoom_out") st.setViewZoom(Math.max(1, st.viewZoom / 1.25));
+      else if (e.payload === "zoom_fit") st.setViewZoom(1);
+      else if (e.payload === "zoom_100") window.dispatchEvent(new Event("albumstudio:zoom100"));
+    });
+    return () => {
+      void un.then((f) => f());
+    };
   }, []);
 
   async function backToWelcome() {
@@ -213,25 +237,14 @@ function App() {
         </div>
 
         <div className="topright">
-          <div className="dseg-group" title="Mật độ ảnh/spread">
-            {DENSITY_LABELS.map((d) => (
-              <button
-                key={d.id}
-                className={"dseg" + (density === d.id ? " active" : "")}
-                onClick={() => setDensity(d.id)}
-              >
-                {d.label}
-              </button>
-            ))}
-          </div>
           <button
             className="btn"
             onClick={() => setShowDesign(true)}
-            disabled={!images.length}
-            title={`Tự dàn cả album (${mod("D")})`}
+            disabled={!images.length || importing}
+            title={importing ? "Đang nhập ảnh — chờ xong để Auto Design" : `Tự dàn cả album (${mod("D")})`}
           >
             <IconSparkle />
-            Auto Design
+            {importing ? "Đang nhập ảnh…" : "Auto Design"}
           </button>
           <button className="btn primary" onClick={() => setShowExport(true)}>
             <IconExport />
@@ -259,14 +272,24 @@ function App() {
           </div>
           {!spreadSelected && <SpreadsFilmstrip />}
         </div>
-        {/* the editing panel is ALWAYS visible — its content follows the selection */}
-        <div className="props-host" style={{ width: propsW }}>
-          <ResizeHandle
-            className="rz rz-v"
-            onMove={(dx) => setPropsW((w) => clampN(w - dx, 200, 460))}
-          />
-          <PropertiesPanel />
-        </div>
+        {/* editing panel: collapsible to a slim rail — the canvas re-measures
+            itself (ResizeObserver) so the spread just re-centers, never breaks */}
+        {propsMin ? (
+          <button className="props-restore" onClick={() => setPropsMin(false)} title="Mở bảng chỉnh sửa">
+            ‹ Chỉnh sửa
+          </button>
+        ) : (
+          <div className="props-host" style={{ width: propsW }}>
+            <ResizeHandle
+              className="rz rz-v"
+              onMove={(dx) => setPropsW((w) => clampN(w - dx, 200, 460))}
+            />
+            <button className="props-min" onClick={() => setPropsMin(true)} title="Thu gọn bảng chỉnh sửa">
+              ›
+            </button>
+            <PropertiesPanel />
+          </div>
+        )}
       </div>
       {/* the photo tray yields its space while the layout dock is open */}
       {!layoutDock &&

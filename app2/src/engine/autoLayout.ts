@@ -163,6 +163,149 @@ export function planAutoDesign(
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// SmartAlbums "Auto Build": user chọn SỐ SPREAD + khoảng ảnh/spread + mức lặp
+// layout — thay cho mật độ Thưa/Cân/Dày.
+// ---------------------------------------------------------------------------
+
+export type TemplateReuse = "low" | "medium" | "high";
+
+/** Penalty per prior use of the same template when scoring candidates. */
+const REUSE_PENALTY: Record<TemplateReuse, number> = { low: 2, medium: 0.6, high: 0 };
+
+export interface AutoBuildOptions {
+  order?: "date" | "name";
+  /** target number of content spreads (clamped to what the range allows). */
+  spreads: number;
+  /** images per spread: [min, max] (Specify range). */
+  range: [number, number];
+  /** Smart Grouping: sizes get a natural rhythm instead of a flat split. */
+  smart?: boolean;
+  reuse?: TemplateReuse;
+  /** ★ ratings — solo spreads prefer the best-rated photo nearby. */
+  ratings?: Record<string, number>;
+}
+
+/** pickTemplate with a reuse penalty: "low" strongly prefers fresh layouts. */
+function pickTemplateReuse(
+  size: AlbumSize,
+  count: number,
+  group: ImageMeta[],
+  uses: Map<string, number>,
+  penalty: number
+): Template | undefined {
+  const pool = suggestionTemplates(size).filter((t) => t.slotCount === count);
+  if (!pool.length) return undefined;
+  const gsig = group.map((g) => orient(g.ratio)).sort().join("");
+  let best = -Infinity;
+  let bestPool: Template[] = [];
+  for (const t of pool) {
+    const tsig = t.slots.map((sl) => orient(sl.ratioWH ?? 1)).sort().join("");
+    let score = 0;
+    for (let k = 0; k < Math.min(gsig.length, tsig.length); k++) {
+      if (gsig[k] === tsig[k]) score++;
+    }
+    score -= penalty * (uses.get(t.id) ?? 0);
+    if (score > best) {
+      best = score;
+      bestPool = [t];
+    } else if (score === best) {
+      bestPool.push(t);
+    }
+  }
+  const chosen = bestPool[Math.floor(Math.random() * bestPool.length)];
+  if (chosen) uses.set(chosen.id, (uses.get(chosen.id) ?? 0) + 1);
+  return chosen;
+}
+
+/** Split n photos into `spreads` groups, each within [lo, hi]. */
+function groupSizes(n: number, spreads: number, lo: number, hi: number, smart: boolean): number[] {
+  const S = Math.max(1, Math.min(spreads, n));
+  const sizes = new Array(S).fill(Math.max(1, Math.floor(n / S)));
+  let rem = n - sizes.reduce((a: number, b: number) => a + b, 0);
+  for (let i = 0; rem > 0; i = (i + 1) % S) {
+    if (sizes[i] < hi) {
+      sizes[i]++;
+      rem--;
+    } else if (sizes.every((v: number) => v >= hi)) break;
+  }
+  if (smart) {
+    // natural rhythm: shift photos between random pairs within the bounds
+    for (let k = 0; k < S; k++) {
+      const a = Math.floor(Math.random() * S);
+      const b = Math.floor(Math.random() * S);
+      if (a !== b && sizes[a] + 1 <= hi && sizes[b] - 1 >= Math.max(1, lo)) {
+        sizes[a]++;
+        sizes[b]--;
+      }
+    }
+  }
+  return sizes.filter((v: number) => v > 0);
+}
+
+/** SmartAlbums Auto Build: sort → split into the requested number of spreads
+ *  (sizes inside the range) → match templates, penalising reuse. */
+export function planAutoBuild(
+  size: AlbumSize,
+  images: ImageMeta[],
+  opts: AutoBuildOptions
+): SpreadPlan[] {
+  const order = opts.order ?? "date";
+  const [lo, hi] = opts.range;
+  const ratings = opts.ratings ?? {};
+  const penalty = REUSE_PENALTY[opts.reuse ?? "medium"];
+
+  let queue = [...images].sort(
+    order === "name"
+      ? (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })
+      : (a, b) => a.capturedAt.localeCompare(b.capturedAt)
+  );
+
+  const sizes = groupSizes(queue.length, opts.spreads, lo, hi, opts.smart ?? false);
+  const uses = new Map<string, number>();
+  const out: SpreadPlan[] = [];
+
+  for (const rawN of sizes) {
+    let n = rawN;
+    if (n > queue.length) n = queue.length;
+    if (n <= 0) break;
+    n = nearestSlotCount(size, n);
+    let group: ImageMeta[];
+    if (n === 1) {
+      // solo spread: the best-rated photo in the near window gets the spot
+      const window = queue.slice(0, Math.min(4, queue.length));
+      let bestIdx = 0;
+      let bestRating = -1;
+      window.forEach((p, k) => {
+        const r = ratings[p.id] ?? 0;
+        if (r > bestRating) {
+          bestRating = r;
+          bestIdx = k;
+        }
+      });
+      group = [queue[bestIdx]];
+      queue = queue.filter((_, k) => k !== bestIdx);
+    } else {
+      group = queue.slice(0, n);
+      queue = queue.slice(n);
+    }
+    const tpl = pickTemplateReuse(size, group.length, group, uses, penalty);
+    if (!tpl) continue;
+    out.push({ templateId: tpl.id, imageIds: assign(tpl, group) });
+  }
+  // leftovers (range made the split short) → one last spread each pass
+  let guard = 0;
+  while (queue.length > 0 && guard++ < 100) {
+    const n = nearestSlotCount(size, Math.min(hi, queue.length));
+    if (n <= 0) break;
+    const group = queue.slice(0, n);
+    queue = queue.slice(n);
+    const tpl = pickTemplateReuse(size, group.length, group, uses, penalty);
+    if (tpl) out.push({ templateId: tpl.id, imageIds: assign(tpl, group) });
+  }
+  return out;
+}
+
 /** Back-compat: chronological plan with just a density. */
 export function planAutoLayout(size: AlbumSize, images: ImageMeta[], density: Density): SpreadPlan[] {
   return planAutoDesign(size, images, { density });

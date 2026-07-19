@@ -45,7 +45,10 @@ export function ImagePanel() {
 
   // ---- import ----
   function onEvent(e: ImportEvent) {
-    if (e.kind === "started") setProgress({ done: 0, total: e.total });
+    if (e.kind === "started") {
+      setProgress({ done: 0, total: e.total });
+      useAlbum.getState().setImporting(true);
+    }
     else if (e.kind === "image") {
       const { kind, ...meta } = e;
       void kind;
@@ -55,6 +58,7 @@ export function ImagePanel() {
       setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
     } else if (e.kind === "done") {
       setScanning(false);
+      useAlbum.getState().setImporting(false);
     }
   }
 
@@ -67,6 +71,7 @@ export function ImagePanel() {
       await importFiles(Array.isArray(paths) ? paths : [paths], onEvent);
     } catch (err) {
       setScanning(false);
+      useAlbum.getState().setImporting(false);
       alert("Không import được: " + String(err));
     }
   }
@@ -80,6 +85,7 @@ export function ImagePanel() {
       await importFolder(dir, onEvent);
     } catch (err) {
       setScanning(false);
+      useAlbum.getState().setImporting(false);
       alert("Không import được thư mục: " + String(err));
     }
   }

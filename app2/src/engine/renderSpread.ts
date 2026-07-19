@@ -196,7 +196,24 @@ export async function renderSpread(
       const maxY = Math.max(0, (dh - px.h) / 2);
       const nw = img.width * scale;
       const nh = img.height * scale;
-      const g = new Konva.Group({ clipX: px.x, clipY: px.y, clipWidth: px.w, clipHeight: px.h });
+      // Per-photo styling (border/radius/opacity) — same math as the display.
+      const ptToPx = dpi / 72;
+      const rad = Math.min((t.radiusPt ?? 0) * ptToPx, px.w / 2, px.h / 2);
+      const g =
+        rad > 0.5
+          ? new Konva.Group({
+              clipFunc: (ctx) => {
+                ctx.beginPath();
+                ctx.moveTo(px.x + rad, px.y);
+                ctx.arcTo(px.x + px.w, px.y, px.x + px.w, px.y + px.h, rad);
+                ctx.arcTo(px.x + px.w, px.y + px.h, px.x, px.y + px.h, rad);
+                ctx.arcTo(px.x, px.y + px.h, px.x, px.y, rad);
+                ctx.arcTo(px.x, px.y, px.x + px.w, px.y, rad);
+                ctx.closePath();
+              },
+            })
+          : new Konva.Group({ clipX: px.x, clipY: px.y, clipWidth: px.w, clipHeight: px.h });
+      g.opacity(t.opacity ?? 1);
       const frameRot = spread.slotRects?.[i]?.rotDeg ?? 0;
       const imgNode = new Konva.Image({
         image: img,
@@ -218,8 +235,8 @@ export async function renderSpread(
         imgNode.cache();
       }
       g.add(imgNode);
-      // Wizard border setting — same geometry as the display canvas.
-      const bw = (borderPt / 72) * dpi; // points → inch → px
+      // Border: the album setting, or the per-photo override (points → px).
+      const bw = t.borderPt != null ? t.borderPt * ptToPx : (borderPt / 72) * dpi;
       const border =
         bw > 0
           ? new Konva.Rect({
@@ -227,8 +244,10 @@ export async function renderSpread(
               y: px.y,
               width: px.w,
               height: px.h,
-              stroke: borderColor,
+              cornerRadius: rad,
+              stroke: t.borderColor ?? borderColor,
               strokeWidth: bw,
+              opacity: t.opacity ?? 1,
             })
           : null;
       if (frameRot) {

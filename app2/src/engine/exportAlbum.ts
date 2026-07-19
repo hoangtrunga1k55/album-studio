@@ -27,6 +27,9 @@ export interface ExportOpts {
   /** album setting: border around every photo, points (0 = off). */
   borderPt?: number;
   borderColor?: string;
+  /** per-spread file labels ("Bia", "01", "05"…) — keeps ORIGINAL spread
+   *  numbers when exporting a range, so labs can match reprints. */
+  names?: string[];
 }
 
 /** Cut a rendered spread JPEG into left/right page halves (§12.2). */
@@ -120,21 +123,26 @@ export async function exportAlbum(
   const files: ExportFile[] = [];
   if (opts.format === "jpg" || opts.format === "both") {
     if (opts.pageMode === "page") {
-      // JPG per page: landscape spreads split into left/right halves (§12.2).
-      let pageNo = 0;
-      for (const p of pages) {
+      // JPG per page: landscape spreads split into left/right halves (§12.2);
+      // a 1-page cover stays whole. Suffix _1/_2 = trang trái/phải.
+      for (let i = 0; i < pages.length; i++) {
+        const p = pages[i];
+        const nm = opts.names?.[i] ?? pad(i + 1);
         const parts = p.w > p.h ? await splitPages(p.dataUrl, opts.quality) : [p.dataUrl];
-        for (const part of parts) {
-          pageNo += 1;
-          files.push({
-            name: `${opts.prefix}Page_${String(pageNo).padStart(3, "0")}.jpg`,
-            b64: stripDataUri(part),
-          });
+        if (parts.length === 1) {
+          files.push({ name: `${opts.prefix}${nm}.jpg`, b64: stripDataUri(parts[0]) });
+        } else {
+          parts.forEach((part, k) =>
+            files.push({ name: `${opts.prefix}${nm}_${k + 1}.jpg`, b64: stripDataUri(part) })
+          );
         }
       }
     } else {
       pages.forEach((p, i) =>
-        files.push({ name: `${opts.prefix}${pad(i + 1)}.jpg`, b64: stripDataUri(p.dataUrl) })
+        files.push({
+          name: `${opts.prefix}${opts.names?.[i] ?? pad(i + 1)}.jpg`,
+          b64: stripDataUri(p.dataUrl),
+        })
       );
     }
   }

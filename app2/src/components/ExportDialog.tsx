@@ -24,6 +24,22 @@ const LAB_PRESETS: { id: string; label: string; dpi: number; bleedMm: number }[]
 ];
 const DPI_OPTIONS = [150, 200, 300, 400, 600];
 
+/** "1,2,5-7" → [1,2,5,6,7] clamped to 1..max; null = invalid/empty. */
+function parseRange(text: string, max: number): number[] | null {
+  const out = new Set<number>();
+  const parts = text.split(",").map((c) => c.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  for (const part of parts) {
+    const m = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(part);
+    if (!m) return null;
+    const a = parseInt(m[1], 10);
+    const b = m[2] ? parseInt(m[2], 10) : a;
+    if (a < 1 || b < a || a > max) return null;
+    for (let k = a; k <= Math.min(b, max); k++) out.add(k);
+  }
+  return out.size ? [...out].sort((x, y) => x - y) : null;
+}
+
 export function ExportDialog({ onClose }: { onClose: () => void }) {
   const spreads = useAlbum((s) => s.spreads);
   const images = useAlbum((s) => s.images);
@@ -68,6 +84,10 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   }
 
   const [format, setFormat] = useState<ExportFormat>("both");
+  // SmartAlbums output options: range (all / "1,2,5-7"), include cover.
+  const [rangeMode, setRangeMode] = useState<"all" | "range">("all");
+  const [rangeText, setRangeText] = useState("");
+  const [includeCover, setIncludeCover] = useState(true);
   // Default from the album's wizard setting (still overridable per export).
   const [dpi, setDpi] = useState(settings.dpi);
   const [quality, setQuality] = useState(95);
@@ -101,18 +121,23 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
       alert("Chọn thư mục lưu trước.");
       return;
     }
+    if (!exportSet || exportSet.length === 0) {
+      alert("Phạm vi spread không hợp lệ — ví dụ: 1,2,5-7");
+      return;
+    }
     cancelRef.current = { cancelled: false };
     setStatus("running");
-    setProgress({ done: 0, total: spreads.length });
+    setProgress({ done: 0, total: exportSet.length });
     try {
       const dir = await exportAlbum(
-        spreads,
+        exportSet.map((e) => e.sp),
         images,
         bgColor,
         {
           format, dpi, quality, prefix, folder,
           pageCm: parseSizeCm(size), pageMode, bleedMm, cropMarks,
           borderPt: settings.borderPt, borderColor: settings.borderColor,
+          names: exportSet.map((e) => e.name),
         },
         (done, total) => setProgress({ done, total }),
         cancelRef.current
@@ -131,11 +156,23 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const running = status === "running";
   const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
 
+  // Content spreads are numbered 1..N (the cover is NOT a number — it is the
+  // "Kèm bìa" option), so "5-7" means the same spreads the user sees.
+  const cover = spreads.find((sp) => sp.isCover);
+  const content = spreads.filter((sp) => !sp.isCover);
+  const picked = rangeMode === "all" ? content.map((_, i) => i + 1) : parseRange(rangeText, content.length);
+  const exportSet = picked
+    ? [
+        ...(includeCover && cover ? [{ sp: cover, name: "Bia" }] : []),
+        ...picked.map((n) => ({ sp: content[n - 1], name: String(n).padStart(2, "0") })),
+      ]
+    : null;
+
   return (
     <div className="modal-overlay" onClick={running ? undefined : onClose}>
       <div className="modal" style={{ width: "min(460px, 92vw)" }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>Xuất album · {spreads.length} spread</h2>
+          <h2>Xuất album · {exportSet ? exportSet.length : 0} mục</h2>
           <button className="btn icon" onClick={onClose} disabled={running}><IconClose /></button>
         </div>
 
@@ -157,92 +194,138 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
             </select>
           </div>
 
-          <div>
-            <div className="prop-label">Định dạng</div>
-            <div className="seg-row">
-              {(["jpg", "pdf", "both"] as ExportFormat[]).map((f) => (
-                <button key={f} className={"seg" + (format === f ? " active" : "")} onClick={() => setFormat(f)}>
-                  {f === "both" ? "JPG + PDF" : f.toUpperCase()}
-                </button>
-              ))}
+          <div className="seg-2">
+            <div>
+              <div className="prop-label">Phạm vi xuất</div>
+              <select
+                className="input"
+                style={{ width: "100%" }}
+                value={rangeMode}
+                onChange={(e) => setRangeMode(e.target.value as "all" | "range")}
+              >
+                <option value="all">Tất cả spread ({content.length})</option>
+                <option value="range">Chọn phạm vi…</option>
+              </select>
+              {rangeMode === "range" && (
+                <>
+                  <input
+                    className="input"
+                    style={{ marginTop: 6, width: "100%" }}
+                    value={rangeText}
+                    onChange={(e) => setRangeText(e.target.value)}
+                    placeholder="vd: 1,2,5-7"
+                  />
+                  {rangeText.trim() !== "" && !picked && (
+                    <div className="err-msg" style={{ marginTop: 4 }}>Không hợp lệ — dạng 1,2,5-7 (1–{content.length})</div>
+                  )}
+                </>
+              )}
             </div>
-            {format !== "pdf" && (
-              <div className="seg-row" style={{ marginTop: 8 }}>
-                <button
-                  className={"seg" + (pageMode === "spread" ? " active" : "")}
-                  onClick={() => setPageMode("spread")}
-                >
-                  JPG theo spread
-                </button>
-                <button
-                  className={"seg" + (pageMode === "page" ? " active" : "")}
-                  onClick={() => setPageMode("page")}
-                >
-                  JPG theo trang đơn
-                </button>
-              </div>
-            )}
+            <div>
+              <div className="prop-label">Bìa album</div>
+              <select
+                className="input"
+                style={{ width: "100%" }}
+                value={includeCover ? "yes" : "no"}
+                onChange={(e) => setIncludeCover(e.target.value === "yes")}
+                disabled={!cover}
+              >
+                <option value="yes">Kèm bìa</option>
+                <option value="no">Không kèm bìa</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="seg-2">
+            <div>
+              <div className="prop-label">Định dạng</div>
+              <select
+                className="input"
+                style={{ width: "100%" }}
+                value={format}
+                onChange={(e) => setFormat(e.target.value as ExportFormat)}
+              >
+                <option value="jpg">JPG</option>
+                <option value="pdf">PDF</option>
+                <option value="both">JPG + PDF</option>
+              </select>
+            </div>
+            <div>
+              <div className="prop-label">Kiểu file JPG</div>
+              <select
+                className="input"
+                style={{ width: "100%" }}
+                value={pageMode}
+                onChange={(e) => setPageMode(e.target.value as "spread" | "page")}
+                disabled={format === "pdf"}
+              >
+                <option value="spread">Theo spread (2 trang liền)</option>
+                <option value="page">Trang đơn (cắt đôi spread)</option>
+              </select>
+            </div>
           </div>
 
           <div className="seg-2">
             <div>
               <div className="prop-label">DPI</div>
-              <div className="seg-row">
+              <select
+                className="input"
+                style={{ width: "100%" }}
+                value={dpi}
+                onChange={(e) => { setDpi(parseInt(e.target.value, 10)); setLab("custom"); }}
+              >
                 {DPI_OPTIONS.map((d) => (
-                  <button
-                    key={d}
-                    className={"seg" + (dpi === d ? " active" : "")}
-                    onClick={() => {
-                      setDpi(d);
-                      setLab("custom");
-                    }}
-                  >
-                    {d}
-                  </button>
+                  <option key={d} value={d}>{d} DPI</option>
                 ))}
-              </div>
+              </select>
             </div>
             <div>
-              <div className="prop-label">Chất lượng</div>
-              <div className="seg-row">
+              <div className="prop-label">Chất lượng JPG</div>
+              <select
+                className="input"
+                style={{ width: "100%" }}
+                value={quality}
+                onChange={(e) => setQuality(parseInt(e.target.value, 10))}
+              >
                 {[80, 90, 95, 100].map((q) => (
-                  <button key={q} className={"seg" + (quality === q ? " active" : "")} onClick={() => setQuality(q)}>{q}</button>
+                  <option key={q} value={q}>{q}</option>
                 ))}
-              </div>
+              </select>
             </div>
           </div>
 
           <div className="seg-2">
             <div>
               <div className="prop-label">Bleed (chừa xén)</div>
-              <div className="seg-row">
-                {[0, 3, 5].map((b) => (
-                  <button
-                    key={b}
-                    className={"seg" + (bleedMm === b ? " active" : "")}
-                    onClick={() => {
-                      setBleedMm(b);
-                      setLab("custom");
-                      if (b === 0) setCropMarks(false);
-                    }}
-                  >
-                    {b === 0 ? "Không" : `${b}mm`}
-                  </button>
-                ))}
-              </div>
+              <select
+                className="input"
+                style={{ width: "100%" }}
+                value={bleedMm}
+                onChange={(e) => {
+                  const b = parseInt(e.target.value, 10);
+                  setBleedMm(b);
+                  setLab("custom");
+                  if (b === 0) setCropMarks(false);
+                }}
+              >
+                <option value={0}>Không</option>
+                <option value={3}>3mm</option>
+                <option value={5}>5mm</option>
+              </select>
             </div>
             <div>
               <div className="prop-label">Crop marks</div>
-              <div className="seg-row">
-                <button
-                  className={"seg" + (cropMarks ? " active" : "")}
-                  onClick={() => setCropMarks(!cropMarks)}
-                  disabled={bleedMm === 0}
-                  title={bleedMm === 0 ? "Cần bleed > 0" : ""}
-                >
-                  {cropMarks ? "Bật" : "Tắt"}
-                </button>
-              </div>
+              <select
+                className="input"
+                style={{ width: "100%" }}
+                value={cropMarks ? "on" : "off"}
+                onChange={(e) => setCropMarks(e.target.value === "on")}
+                disabled={bleedMm === 0}
+                title={bleedMm === 0 ? "Cần bleed > 0" : ""}
+              >
+                <option value="off">Tắt</option>
+                <option value="on">Bật</option>
+              </select>
             </div>
           </div>
 
@@ -299,7 +382,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
           ) : (
             <>
               <button className="btn" onClick={onClose}>Đóng</button>
-              <button className="btn primary" onClick={run} disabled={!spreads.length}>Xuất album</button>
+              <button className="btn primary" onClick={run} disabled={!exportSet || exportSet.length === 0}>Xuất album</button>
             </>
           )}
         </div>

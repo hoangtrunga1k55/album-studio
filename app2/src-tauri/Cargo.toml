@@ -40,3 +40,7 @@ ttf-parser = "0.25"
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 libheif-rs = "1"
 
+# OS-level zoom shortcuts (⌘/Ctrl +,-,0,1). Windows uses RegisterHotKey via the
+# global-shortcut plugin (registered only while the window has focus).
+[target.'cfg(target_os = "windows")'.dependencies]
+tauri-plugin-global-shortcut = "2"

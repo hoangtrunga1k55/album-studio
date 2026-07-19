@@ -166,7 +166,9 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
   const libMatches = libAll.filter((i) => i.slotCount === want);
   const libItems = photoCount > 0 && libMatches.length > 0 ? libMatches : libAll;
   const cats = categoriesOf(libItems);
-  const libShown = tab === "tizino" ? libItems : [];
+  // "Tất cả" really means ALL: built-ins + the whole Tizino pack together
+  // (hover previews work the same in both — LibraryThumb parses on hover).
+  const libShown = tab === "tizino" || tab === "all" ? libItems : [];
 
   /** Parse a pack layout on demand and cache it as a real Template. */
   async function loadLibrary(item: LayoutItem): Promise<Template | undefined> {
@@ -210,7 +212,7 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
               className={"lp-tab" + (tab === t.id ? " active" : "")}
               onClick={() => setTab(t.id)}
             >
-              {t.label} ({bySrc(t.id).length})
+              {t.label} ({bySrc(t.id).length + (t.id === "all" ? libItems.length : 0)})
             </button>
           ))}
           {libItems.length > 0 && (

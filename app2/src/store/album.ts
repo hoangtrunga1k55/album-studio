@@ -5,13 +5,12 @@ import {
   nearestSlotCount,
   nextTemplateAny,
   nextTemplateSameCount,
-  parseSizeCm,
   randomTemplate,
   setPreferredSource,
   type AlbumSize,
   type LayoutSourceFilter,
 } from "../engine/templates";
-import { planAutoDesign, type Density } from "../engine/autoLayout";
+import { planAutoDesign, type Density, planAutoBuild, type TemplateReuse } from "../engine/autoLayout";
 
 /** Pan/zoom of an image inside its slot. zoom>=1; pan in [-1,1] (fraction of overflow). */
 export interface SlotTransform {
@@ -28,6 +27,14 @@ export interface SlotTransform {
   brightness?: number;
   /** contrast -100..100, 0 = off. */
   contrast?: number;
+  /** per-photo border width (pt) — undefined = album setting. */
+  borderPt?: number;
+  /** per-photo border color — undefined = album setting. */
+  borderColor?: string;
+  /** rounded corners (pt), 0/undefined = square (SmartAlbums Radius). */
+  radiusPt?: number;
+  /** photo opacity 0..1, undefined = 1 (SmartAlbums Opacity). */
+  opacity?: number;
 }
 
 /** User-adjusted slot frame (normalized), overriding the template's rect. */
@@ -203,12 +210,6 @@ export const DEFAULT_SETTINGS: AlbumSettings = {
   layoutSource: "all",
 };
 
-/** Gap in points → margin as a fraction of the page height (0 if size unknown). */
-function gapFrac(size: AlbumSize | null, gapPt: number): number {
-  const cm = parseSizeCm(size);
-  return cm && gapPt > 0 ? (gapPt * PT_TO_CM) / cm.h : 0;
-}
-
 let counter = 0;
 const newId = (p: string) => `${p}_${++counter}`;
 
@@ -270,6 +271,9 @@ interface AlbumState {
   }) => void;
 
   addImages: (images: ImageMeta[]) => void;
+  /** photos are STREAMING in from an import — Auto Design must wait. */
+  importing: boolean;
+  setImporting: (v: boolean) => void;
   clearImages: () => void;
   /** Remove imported photos from the album (files on disk untouched):
    *  slots empty out, backgrounds drop, ratings/labels forgotten. */
@@ -348,8 +352,8 @@ interface AlbumState {
   showRuler: boolean;
   toggleRuler: () => void;
   /** Active canvas tool (§7.2): select or draw a new photo frame. */
-  tool: "select" | "drawSlot";
-  setTool: (tool: "select" | "drawSlot") => void;
+  tool: "select" | "drawSlot" | "hand" | "zoom";
+  setTool: (tool: "select" | "drawSlot" | "hand" | "zoom") => void;
   /** Layout dock (docked picker under the topbar) — shared open state so the
    *  topbar button and the Layout panel both control it. */
   layoutDockOpen: boolean;
@@ -400,11 +404,16 @@ interface AlbumState {
   /** Density for Auto Design (§4.3). */
   density: Density;
   setDensity: (d: Density) => void;
-  /** Auto-distribute all images across spreads. */
+  /** Auto-distribute all images across spreads. Passing `spreads` switches to
+   *  the SmartAlbums Auto Build planner (spread count + range + reuse). */
   autoDesign: (o?: {
     source?: "all" | "selected" | "starred";
     order?: "date" | "name";
     fullBleedPct?: number;
+    spreads?: number;
+    range?: [number, number];
+    smart?: boolean;
+    reuse?: TemplateReuse;
   }) => void;
 
   selectSlot: (slot: number | null) => void;
@@ -460,7 +469,10 @@ export const useAlbum = create<AlbumState>((set) => ({
       const settings = opts?.settings ?? s.settings;
       // Suggestion pool must be narrowed BEFORE the spreads pick their templates.
       setPreferredSource(settings.layoutSource);
-      const margin = gapFrac(size, settings.gapPt);
+      // Photos fill their frames — a layout's designed spacing is the gap.
+      // gapPt drives the yellow gap-snap when arranging frames (not an inset,
+      // which used to stack on the layout's own spacing and double the gap).
+      const margin = 0;
       // The cover is a real spread pinned at position 0 (2-page wrap default).
       const cover: Spread = { ...freshSpread(size, 1, margin), isCover: true, pages: 2 };
       return {
@@ -520,6 +532,8 @@ export const useAlbum = create<AlbumState>((set) => ({
   },
 
   addImages: (imgs) => set((s) => ({ images: [...s.images, ...imgs] })),
+  importing: false,
+  setImporting: (importing) => set({ importing }),
   clearImages: () => set({ images: [] }),
 
   removeImages: (ids) =>
@@ -913,7 +927,7 @@ export const useAlbum = create<AlbumState>((set) => ({
   addSpread: () =>
     set((s) => {
       if (!s.size) return s;
-      const spreads = [...s.spreads, freshSpread(s.size, 1, gapFrac(s.size, s.settings.gapPt))];
+      const spreads = [...s.spreads, freshSpread(s.size, 1)];
       return { spreads, currentIndex: spreads.length - 1, selectedSlot: null };
     }),
 
@@ -921,7 +935,7 @@ export const useAlbum = create<AlbumState>((set) => ({
     set((s) => {
       if (!s.size) return s;
       const spreads = [...s.spreads];
-      spreads.splice(index + 1, 0, freshSpread(s.size, 1, gapFrac(s.size, s.settings.gapPt)));
+      spreads.splice(index + 1, 0, freshSpread(s.size, 1));
       return { spreads, currentIndex: index + 1, selectedSlot: null };
     }),
 
@@ -1235,14 +1249,23 @@ export const useAlbum = create<AlbumState>((set) => ({
       for (const [id, m] of Object.entries(s.photoMeta)) {
         if (m.rating) ratings[id] = m.rating;
       }
-      const plans = planAutoDesign(s.size, photos, {
-        density: s.density,
-        order: o?.order,
-        fullBleedPct: o?.fullBleedPct,
-        ratings,
-      });
+      const plans = o?.spreads
+        ? planAutoBuild(s.size, photos, {
+            order: o.order,
+            spreads: o.spreads,
+            range: o.range ?? [1, 8],
+            smart: o.smart,
+            reuse: o.reuse,
+            ratings,
+          })
+        : planAutoDesign(s.size, photos, {
+            density: s.density,
+            order: o?.order,
+            fullBleedPct: o?.fullBleedPct,
+            ratings,
+          });
       if (plans.length === 0) return s;
-      const margin = gapFrac(s.size, s.settings.gapPt);
+      const margin = 0;
       const planned = plans.map((p) => ({
         id: newId("sp"),
         templateId: p.templateId,
