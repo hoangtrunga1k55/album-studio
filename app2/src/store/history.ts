@@ -15,13 +15,14 @@ let future: Spread[][] = [];
 let stable: Spread[] | null = null; // spreads as of the last committed step
 let lastPush = 0;
 let restoring = false;
-let wired = false;
+let unsub: (() => void) | null = null;
 
-export function initHistory(): void {
-  if (wired) return;
-  wired = true;
+export function initHistory(): () => void {
+  // re-entrant: a dev hot-reload (or double mount) re-subscribes to the
+  // CURRENT store — a stale subscription on a replaced store records nothing
+  unsub?.();
   stable = useAlbum.getState().spreads;
-  useAlbum.subscribe((s) => {
+  unsub = useAlbum.subscribe((s) => {
     if (restoring) return;
     if (s.spreads === stable) return;
     const now = Date.now();
@@ -35,6 +36,10 @@ export function initHistory(): void {
     lastPush = now;
     stable = s.spreads;
   });
+  return () => {
+    unsub?.();
+    unsub = null;
+  };
 }
 
 /** Open/new project: the timeline restarts. */

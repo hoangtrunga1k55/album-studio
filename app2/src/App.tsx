@@ -116,7 +116,8 @@ function App() {
 
   // Autosave for the lifetime of the app.
   useEffect(() => startAutosave(), []);
-  // App-level Undo/Redo history (⌘Z / ⌘⇧Z).
+  // App-level Undo/Redo history (⌘Z / ⌘⇧Z) — effect cleanup unsubscribes so
+  // a remount always re-wires onto the live store.
   useEffect(() => initHistory(), []);
 
   // ONE dispatcher for both entrances (native menu event + JS keydown): the
@@ -124,8 +125,12 @@ function App() {
   // deliver the same combo (possible on Windows).
   const lastMenuRun = useRef<Record<string, number>>({});
   const menuAction = (id: string) => {
+    // undo/redo are stepped rapidly (⌘Z ⌘Z ⌘Z…) — the double-fire guard would
+    // swallow the repeats and look broken; a tiny 80ms guard still kills the
+    // Windows accelerator+keydown double without hurting fast stepping.
+    const guardMs = id === "app_undo" || id === "app_redo" ? 80 : 350;
     const now = Date.now();
-    if (now - (lastMenuRun.current[id] ?? 0) < 350) return;
+    if (now - (lastMenuRun.current[id] ?? 0) < guardMs) return;
     lastMenuRun.current[id] = now;
     if (id === "app_undo" || id === "app_redo") {
       // inside a text field the NATIVE text undo must win, not the app history

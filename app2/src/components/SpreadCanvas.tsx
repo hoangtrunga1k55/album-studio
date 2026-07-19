@@ -739,7 +739,9 @@ function Slot(props: {
   /** free rotation of the whole frame (degrees). */
   frameRot?: number;
   transform: SlotTransform;
-  onSelect: () => void;
+  /** stage-px pointer + Alt flag ride along: Alt+mod-click drills DOWN the
+   *  stack to photos covered by this one (Photoshop style). */
+  onSelect: (stagePt?: { x: number; y: number }, alt?: boolean) => void;
   onEnterCrop: () => void;
   /** mousedown on a photo outside crop mode → maybe start a move-drag. */
   onBeginMove: (clientX: number, clientY: number) => void;
@@ -908,10 +910,14 @@ function Slot(props: {
   }
 
   const plus = Math.max(13, Math.min(px.w, px.h) * 0.16);
+  const selectAtPointer = (e: Konva.KonvaEventObject<MouseEvent | Event>) => {
+    const pt = e.target.getStage()?.getPointerPosition();
+    const alt = (e.evt as MouseEvent).altKey === true;
+    onSelect(pt ?? undefined, alt);
+  };
   return (
     <Group
-      onClick={onSelect}
-      onTap={onSelect}
+      onClick={selectAtPointer}
       onWheel={onWheel}
       onMouseDown={onDown}
       onMouseMove={onMove}
@@ -1100,6 +1106,9 @@ export function SpreadCanvas() {
   // Multi-select group (Shift-click) — union box drags everything together.
   const multiSel = useAlbum((s) => s.multiSel);
   const shiftRef = useRef(false);
+  // mirrored in state: the group-box overlay must VISUALLY yield (pointer
+  // pass-through) while the gather modifier is held — a ref can't re-render
+  const [modHeld, setModHeld] = useState(false);
   const [groupDrag, setGroupDrag] = useState<{ dx: number; dy: number } | null>(null);
   // Marquee: drag on the empty background draws a selection rectangle.
   const marqueeRef = useRef<Px | null>(null);
@@ -1108,13 +1117,34 @@ export function SpreadCanvas() {
   // under the cursor (it would steal the selection) — swallowed at capture.
   const justMarqueed = useRef(false);
   useEffect(() => {
-    const dn = (e: KeyboardEvent) => e.key === "Shift" && (shiftRef.current = true);
-    const up = (e: KeyboardEvent) => e.key === "Shift" && (shiftRef.current = false);
-    window.addEventListener("keydown", dn);
-    window.addEventListener("keyup", up);
+    // Shift OR ⌘/Ctrl gathers into the multi-selection. IMPORTANT: keyboard
+    // events for Meta can be EATEN by Vietnamese input methods (same disease
+    // as the zoom shortcuts) — so the source of truth is the modifier state
+    // riding on every MOUSE event, which is always accurate.
+    const sync = (held: boolean) => {
+      if (held !== shiftRef.current) {
+        shiftRef.current = held;
+        setModHeld(held);
+      }
+    };
+    const fromMouse = (e: MouseEvent) => sync(e.shiftKey || e.metaKey || e.ctrlKey);
+    const fromKey = (e: KeyboardEvent) => {
+      if (e.key === "Shift" || e.key === "Meta" || e.key === "Control") {
+        sync(e.type === "keydown" ? true : e.shiftKey || e.metaKey || e.ctrlKey);
+      }
+    };
+    const reset = () => sync(false);
+    window.addEventListener("mousemove", fromMouse, true);
+    window.addEventListener("mousedown", fromMouse, true);
+    window.addEventListener("keydown", fromKey);
+    window.addEventListener("keyup", fromKey);
+    window.addEventListener("blur", reset);
     return () => {
-      window.removeEventListener("keydown", dn);
-      window.removeEventListener("keyup", up);
+      window.removeEventListener("mousemove", fromMouse, true);
+      window.removeEventListener("mousedown", fromMouse, true);
+      window.removeEventListener("keydown", fromKey);
+      window.removeEventListener("keyup", fromKey);
+      window.removeEventListener("blur", reset);
     };
   }, []);
   const setCropSlot = useAlbum((s) => s.setCropSlot);
@@ -1779,6 +1809,11 @@ export function SpreadCanvas() {
                       r.y + r.h > mq.y
                     );
                   });
+                  // modifier held → marquee ADDS to the existing group
+                  if (shiftRef.current && hits.length > 0) {
+                    st.setMultiSel([...new Set([...st.multiSel, ...hits])]);
+                    return;
+                  }
                   if (hits.length >= 2) st.setMultiSel(hits);
                   else if (hits.length === 1) {
                     const k = hits[0];
@@ -1793,11 +1828,17 @@ export function SpreadCanvas() {
                 window.addEventListener("mouseup", mu, true);
               }}
               onClick={() => {
+                // While gathering (⌘/Ctrl/Shift held) a slip onto the
+                // background must NOT nuke the group / enter layout mode.
+                if (shiftRef.current) return;
                 // Click the spread background = select the LAYOUT (SmartAlbums).
                 useAlbum.getState().selectSpread();
                 setCropSlot(null);
               }}
-              onTap={() => useAlbum.getState().selectSpread()}
+              onTap={() => {
+                if (shiftRef.current) return;
+                useAlbum.getState().selectSpread();
+              }}
             />
             {spread.bgImageId ? (
               <SpreadBgPhoto
@@ -1857,9 +1898,47 @@ export function SpreadCanvas() {
                   bgBehind={!!spread.bgImageId}
                   frameRot={spread.slotRects?.[i]?.rotDeg ?? 0}
                   transform={spread.transforms[i] ?? DEFAULT_T}
-                  onSelect={() => {
+                  onSelect={(pt, alt) => {
                     if (shiftRef.current) {
-                      useAlbum.getState().toggleMultiSel(`s${i}`);
+                      // ⌘/Shift-click thường: toggle phần tử trên cùng (ổn định).
+                      // GIỮ THÊM ⌥(Alt): khoan xuống lớp bị che (Photoshop).
+                      const st = useAlbum.getState();
+                      if (pt && alt) {
+                        // selection hiệu dụng = nhóm HOẶC phần tử đang chọn đơn
+                        // (toggleMultiSel sẽ seed nó vào nhóm) — nếu không tính,
+                        // ⌘-click ảnh đang chọn chỉ toggle chính nó mãi mãi
+                        const effSel =
+                          st.multiSel.length > 0
+                            ? st.multiSel
+                            : [
+                                st.selectedSlot !== null ? `s${st.selectedSlot}` : "",
+                                st.selectedText
+                                  ? st.selectedText.kind === "tpl"
+                                    ? `t${st.selectedText.index}`
+                                    : `a${st.selectedText.id}`
+                                  : "",
+                                st.selectedTypo ? `y${st.selectedTypo}` : "",
+                              ].filter(Boolean);
+                        const stack = orderKeys(
+                          spread.zOrder,
+                          zKeysOf(spread, effSlots.length, tpl.texts.length)
+                        )
+                          .reverse() // trên cùng trước
+                          .filter((k) => {
+                            const r = keyRect(k);
+                            return (
+                              !!r && pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h
+                            );
+                          })
+                          // chỉ khoan vào khung CÓ ảnh (khung trống bỏ qua)
+                          .filter((k) => k[0] !== "s" || !!spread.imageIds[parseInt(k.slice(1), 10)]);
+                        const fresh = stack.find((k) => !effSel.includes(k));
+                        // hết lớp mới dưới con trỏ → giữ nguyên nhóm (không toggle
+                        // ngược làm vỡ nhóm)
+                        if (fresh) st.toggleMultiSel(fresh);
+                      } else {
+                        st.toggleMultiSel(`s${i}`);
+                      }
                       return;
                     }
                     if (swapSource !== null && swapSource !== i) swapImages(swapSource, i);
@@ -2152,7 +2231,12 @@ export function SpreadCanvas() {
                 ))}
                 <div
                   className={"group-box" + (canMove ? "" : " static")}
-                  style={{ left: x1 - 8, top: y1 - 8, width: x2 - x1 + 16, height: y2 - y1 + 16, transform: shift }}
+                  style={{
+                    left: x1 - 8, top: y1 - 8, width: x2 - x1 + 16, height: y2 - y1 + 16, transform: shift,
+                    // giữ ⌘/Ctrl/Shift → khung nhường chuột cho canvas bên dưới
+                    // (không thì không thể gom thêm phần tử NẰM TRONG khung)
+                    pointerEvents: modHeld ? "none" : undefined,
+                  }}
                   title={
                     canMove
                       ? "Kéo để di chuyển cả nhóm · Shift-click để thêm/bớt phần tử"

@@ -7,9 +7,12 @@ import {
   nextTemplateSameCount,
   randomTemplate,
   setPreferredSource,
+  spreadCmFor,
   type AlbumSize,
   type LayoutSourceFilter,
+  type Template,
 } from "../engine/templates";
+import { getTypo } from "../engine/typos";
 import { planAutoDesign, type Density, planAutoBuild, type TemplateReuse } from "../engine/autoLayout";
 
 /** Pan/zoom of an image inside its slot. zoom>=1; pan in [-1,1] (fraction of overflow). */
@@ -213,6 +216,97 @@ export const DEFAULT_SETTINGS: AlbumSettings = {
 let counter = 0;
 const newId = (p: string) => `${p}_${++counter}`;
 
+let lastToggle = { key: "", t: 0 };
+
+
+/** Align/Distribute engine: collect every selected object's rect (stage
+ *  fractions — slot coords match when padding = 0, the default), let `plan`
+ *  fill target positions, then write the moves back per object type. */
+function groupGeometry(
+  s: AlbumState,
+  plan: (entries: { k: string; r: { x: number; y: number; w: number; h: number }; to: { x: number | null; y: number | null } }[]) => void
+): Partial<AlbumState> | AlbumState {
+  if (s.multiSel.length < 2) return s;
+  const spreads = [...s.spreads];
+  const cur = { ...spreads[s.currentIndex] };
+  const tpl = getTemplate(cur.templateId);
+  const cm = spreadCmFor(tpl ?? { ratioWH: 2 } as Template, s.size);
+  const stageRatio = cm ? cm.w / cm.h : 2;
+
+  const entries: { k: string; r: { x: number; y: number; w: number; h: number }; to: { x: number | null; y: number | null } }[] = [];
+  for (const k of s.multiSel) {
+    if (k[0] === "s") {
+      const i = parseInt(k.slice(1), 10);
+      const base = tpl && i < tpl.slots.length ? { ...tpl.slots[i], ...(cur.slotRects?.[i] ?? {}) } : cur.slotRects?.[i];
+      if (!base) continue;
+      entries.push({ k, r: { x: base.x, y: base.y, w: base.w, h: base.h }, to: { x: null, y: null } });
+    } else if (k[0] === "t") {
+      const i = parseInt(k.slice(1), 10);
+      const tx = tpl?.texts[i];
+      if (!tx || cur.textEdits[i]?.deleted) continue;
+      const ed = cur.textEdits[i];
+      entries.push({
+        k,
+        r: { x: tx.x + (ed?.dx ?? 0), y: tx.y + (ed?.dy ?? 0), w: tx.w * (ed?.scaleX ?? 1), h: tx.h * (ed?.scaleY ?? 1) },
+        to: { x: null, y: null },
+      });
+    } else if (k[0] === "a") {
+      const a = cur.addedTexts.find((x) => `a${x.id}` === k);
+      if (!a) continue;
+      const lines = Math.max(1, a.content.split("\n").length);
+      entries.push({
+        k,
+        r: { x: a.x, y: a.y, w: 0.5 * (a.scaleX ?? 1), h: Math.max(0.02, a.sizeFrac * 1.12 * lines * (a.scaleY ?? 1)) },
+        to: { x: null, y: null },
+      });
+    } else {
+      const t = (cur.typos ?? []).find((x) => `y${x.id}` === k);
+      if (!t) continue;
+      const typo = getTypo(t.typoId);
+      const w = t.w * (t.scaleX ?? 1);
+      const h = ((t.w * stageRatio) / (typo?.ratioWH || 1)) * (t.scaleY ?? 1);
+      entries.push({ k, r: { x: t.x, y: t.y, w, h }, to: { x: null, y: null } });
+    }
+  }
+  if (entries.length < 2) return s;
+  plan(entries);
+
+  const slotRects = { ...cur.slotRects };
+  const textEdits = { ...cur.textEdits };
+  let addedTexts = cur.addedTexts;
+  let typos = cur.typos ?? [];
+  for (const e of entries) {
+    const X = e.to.x;
+    const Y = e.to.y;
+    if (X === null && Y === null) continue;
+    const k = e.k;
+    if (k[0] === "s") {
+      const i = parseInt(k.slice(1), 10);
+      const base = tpl && i < tpl.slots.length ? { ...tpl.slots[i], ...(slotRects[i] ?? {}) } : slotRects[i];
+      if (!base) continue;
+      slotRects[i] = { ...base, x: X ?? base.x, y: Y ?? base.y };
+    } else if (k[0] === "t") {
+      const i = parseInt(k.slice(1), 10);
+      const tx = tpl?.texts[i];
+      if (!tx) continue;
+      const ed = textEdits[i] ?? {};
+      textEdits[i] = { ...ed, dx: X !== null ? X - tx.x : ed.dx ?? 0, dy: Y !== null ? Y - tx.y : ed.dy ?? 0 };
+    } else if (k[0] === "a") {
+      addedTexts = addedTexts.map((a) =>
+        `a${a.id}` === e.k ? { ...a, x: X ?? a.x, y: Y ?? a.y } : a
+      );
+    } else {
+      typos = typos.map((t) => (`y${t.id}` === e.k ? { ...t, x: X ?? t.x, y: Y ?? t.y } : t));
+    }
+  }
+  cur.slotRects = slotRects;
+  cur.textEdits = textEdits;
+  cur.addedTexts = addedTexts;
+  cur.typos = typos;
+  spreads[s.currentIndex] = cur;
+  return { spreads };
+}
+
 function freshSpread(_size: AlbumSize, _slotCount = 1, margin = 0): Spread {
   // Blank white page (SmartAlbums): no suggested template — a layout is
   // picked automatically the moment the user drops photos in.
@@ -340,6 +434,10 @@ interface AlbumState {
   /** Move every grouped element. Slots normalize against the inner area,
    *  texts/typos against the stage — hence the two delta pairs. */
   moveGroup: (d: { slot: { dx: number; dy: number }; stage: { dx: number; dy: number } }) => void;
+  /** Photoshop-style: align every selected object's edge/center (layout mode). */
+  alignGroup: (op: "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom") => void;
+  /** Photoshop-style: equal gaps between selected objects along one axis. */
+  distributeGroup: (axis: "h" | "v") => void;
   /** Apply photo edits (tone/fit) to every PHOTO in the group. */
   adjustGroupPhotos: (patch: Partial<SlotTransform>) => void;
   /** Slot in crop mode (double-click a photo → pan/zoom it; Esc exits) §6.3. */
@@ -1119,7 +1217,12 @@ export const useAlbum = create<AlbumState>((set) => ({
   multiSel: [],
   setMultiSel: (multiSel) =>
     set({ multiSel, selectedSlot: null, selectedText: null, selectedTypo: null }),
-  toggleMultiSel: (key) =>
+  toggleMultiSel: (key) => {
+    // one physical click can arrive as TWO events (Konva click + tap ~90ms
+    // apart) — an instant re-toggle of the SAME key is never a human intent
+    const now = Date.now();
+    if (lastToggle.key === key && now - lastToggle.t < 250) return;
+    lastToggle = { key, t: now };
     set((s) => {
       let sel = s.multiSel;
       // First Shift-click folds the current single selection into the group.
@@ -1133,7 +1236,8 @@ export const useAlbum = create<AlbumState>((set) => ({
       }
       sel = sel.includes(key) ? sel.filter((k) => k !== key) : [...sel, key];
       return { multiSel: sel, selectedSlot: null, selectedText: null, selectedTypo: null };
-    }),
+    });
+  },
 
   moveGroup: (d) =>
     set((s) => {
@@ -1175,6 +1279,40 @@ export const useAlbum = create<AlbumState>((set) => ({
       spreads[s.currentIndex] = cur;
       return { spreads };
     }),
+
+  alignGroup: (op) =>
+    set((s) => groupGeometry(s, (entries) => {
+      const minX = Math.min(...entries.map((e) => e.r.x));
+      const maxR = Math.max(...entries.map((e) => e.r.x + e.r.w));
+      const minY = Math.min(...entries.map((e) => e.r.y));
+      const maxB = Math.max(...entries.map((e) => e.r.y + e.r.h));
+      for (const e of entries) {
+        if (op === "left") e.to.x = minX;
+        else if (op === "hcenter") e.to.x = (minX + maxR) / 2 - e.r.w / 2;
+        else if (op === "right") e.to.x = maxR - e.r.w;
+        else if (op === "top") e.to.y = minY;
+        else if (op === "vmiddle") e.to.y = (minY + maxB) / 2 - e.r.h / 2;
+        else e.to.y = maxB - e.r.h;
+      }
+    })),
+
+  distributeGroup: (axis) =>
+    set((s) => groupGeometry(s, (entries) => {
+      if (entries.length < 3) return;
+      const X = axis === "h";
+      const sorted = [...entries].sort((a, b) => (X ? a.r.x - b.r.x : a.r.y - b.r.y));
+      const first = sorted[0].r;
+      const last = sorted[sorted.length - 1].r;
+      const span = X ? last.x + last.w - first.x : last.y + last.h - first.y;
+      const total = sorted.reduce((acc, e) => acc + (X ? e.r.w : e.r.h), 0);
+      const gap = (span - total) / (sorted.length - 1);
+      let cursor = X ? first.x : first.y;
+      for (const e of sorted) {
+        if (X) e.to.x = cursor;
+        else e.to.y = cursor;
+        cursor += (X ? e.r.w : e.r.h) + gap;
+      }
+    })),
 
   adjustGroupPhotos: (patch) =>
     set((s) => {

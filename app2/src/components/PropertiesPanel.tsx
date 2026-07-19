@@ -7,8 +7,6 @@ import { useFonts } from "../store/fonts";
 import { useTypos } from "../store/typos";
 import { fontAliases } from "../ipc/fonts";
 import { loadSystemFonts } from "../engine/fontLibrary";
-import { importLayoutLibrary, importTypoLibrary } from "../flows/typoImport";
-import { useLibrary } from "../store/library";
 import { TYPO_DND_KEY } from "../constants";
 import { FontPicker } from "./FontPicker";
 import { IconTrash } from "../icons";
@@ -477,14 +475,10 @@ export function PropertiesPanel() {
   const resetTplText = useAlbum((s) => s.resetTplText);
   const updateAddedText = useAlbum((s) => s.updateAddedText);
   const removeAddedText = useAlbum((s) => s.removeAddedText);
-  const addText = useAlbum((s) => s.addText);
   const addTypoToSpread = useAlbum((s) => s.addTypo);
   const typos = useTypos((s) => s.typos);
-  const layoutLib = useLibrary((s) => s.layouts);
   const fonts = useFonts((s) => s.fonts);
   const addFonts = useFonts((s) => s.addFonts);
-  const [typoBusy, setTypoBusy] = useState(false);
-  const [libBusy, setLibBusy] = useState(false);
   const [typoCat, setTypoCat] = useState<string>("all");
   const typoCats = [...new Set(typos.map((t) => t.category ?? "khac"))].sort();
   const shownTypos = typoCat === "all" ? typos : typos.filter((t) => (t.category ?? "khac") === typoCat);
@@ -551,8 +545,45 @@ export function PropertiesPanel() {
         <div className="hint-sm" style={{ marginTop: 6 }}>
           {spreadSelected
             ? "Kéo khung tím trên canvas để di chuyển cả nhóm. Shift-click để thêm/bớt."
-            : "Nhóm để chỉnh cơ bản (tông màu…). Muốn DI CHUYỂN: vào chế độ sửa layout rồi quây lại."}
+            : "Nhóm để chỉnh cơ bản (tông màu…). Muốn DI CHUYỂN/CĂN: vào chế độ sửa layout rồi quây lại."}
         </div>
+
+        {spreadSelected && (
+          <>
+            <div className="prop-group" style={{ marginTop: 14 }}>
+              <div className="prop-label">Căn hàng (theo khung bao của nhóm)</div>
+              <div className="prop-row">
+                <button className="btn" title="Thẳng mép trái" onClick={() => st.alignGroup("left")}>⇤</button>
+                <button className="btn" title="Thẳng tâm ngang" onClick={() => st.alignGroup("hcenter")}>↔</button>
+                <button className="btn" title="Thẳng mép phải" onClick={() => st.alignGroup("right")}>⇥</button>
+                <button className="btn" title="Thẳng mép trên" onClick={() => st.alignGroup("top")}>⤒</button>
+                <button className="btn" title="Thẳng tâm dọc" onClick={() => st.alignGroup("vmiddle")}>↕</button>
+                <button className="btn" title="Thẳng mép dưới" onClick={() => st.alignGroup("bottom")}>⤓</button>
+              </div>
+            </div>
+            <div className="prop-group">
+              <div className="prop-label">Phân bố đều (cần ≥ 3 phần tử)</div>
+              <div className="prop-row">
+                <button
+                  className="btn"
+                  title="Khoảng cách NGANG giữa các phần tử bằng nhau (giữ phần tử ngoài cùng)"
+                  disabled={multiSel.length < 3}
+                  onClick={() => st.distributeGroup("h")}
+                >
+                  ⇹ Ngang đều
+                </button>
+                <button
+                  className="btn"
+                  title="Khoảng cách DỌC giữa các phần tử bằng nhau (giữ phần tử ngoài cùng)"
+                  disabled={multiSel.length < 3}
+                  onClick={() => st.distributeGroup("v")}
+                >
+                  ⇳ Dọc đều
+                </button>
+              </div>
+            </div>
+          </>
+        )}
 
         {photoIdx.length > 0 && (
           <>
@@ -858,31 +889,6 @@ export function PropertiesPanel() {
   }
 
   // ---------- LAYOUT selected (click the spread background) ----------
-  function add(content: string) {
-    const family = fonts[0]?.family ?? "Be Vietnam Pro";
-    addText({ content, font: family, color: "#222222", sizeFrac: 0.035, x: 0.4, y: 0.45 });
-  }
-  async function importTypos() {
-    setTypoBusy(true);
-    try {
-      await importTypoLibrary();
-    } catch (e) {
-      alert("Nạp typo lỗi: " + String(e));
-    } finally {
-      setTypoBusy(false);
-    }
-  }
-
-  async function importLayouts() {
-    setLibBusy(true);
-    try {
-      await importLayoutLibrary();
-    } catch (e) {
-      alert("Nạp kho layout lỗi: " + String(e));
-    } finally {
-      setLibBusy(false);
-    }
-  }
   return (
     <aside className="props">
       <h3>Layout · {spreadLabel(spreads, currentIndex)}</h3>
@@ -1031,12 +1037,6 @@ export function PropertiesPanel() {
       )}
 
       <div className="prop-group">
-        <div className="prop-label">Thêm chữ</div>
-        <button className="btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => add("Nội dung mới")}>
-          + Chữ trống
-        </button>
-      </div>
-      <div className="prop-group">
         <div className="prop-label">Typo trang trí</div>
         {typos.length > 0 ? (
           <>
@@ -1079,34 +1079,10 @@ export function PropertiesPanel() {
                 </figure>
               ))}
             </div>
-            <button
-              className="btn"
-              style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
-              onClick={importTypos}
-              disabled={typoBusy}
-            >
-              {typoBusy ? "Đang nạp…" : "Đổi kho typo…"}
-            </button>
           </>
         ) : (
-          <button
-            className="btn"
-            style={{ width: "100%", justifyContent: "center" }}
-            onClick={importTypos}
-            disabled={typoBusy}
-          >
-            {typoBusy ? "Đang nạp…" : "Nạp kho typo…"}
-          </button>
+          <div className="hint-sm">Chưa có kho typo — nạp trong ⚙ Cài đặt.</div>
         )}
-        <button
-          className="btn"
-          style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
-          onClick={importLayouts}
-          disabled={libBusy}
-          title="Thư mục kho layout Tizino (mỗi thư mục con = một nhóm: cover-25x35, layout-30x30…)"
-        >
-          {libBusy ? "Đang nạp…" : layoutLib.length ? `Đổi kho layout (${layoutLib.length})…` : "Nạp kho layout…"}
-        </button>
       </div>
       <div className="prop-empty">
         Ở chế độ layout, ảnh chỉ để kéo đổi chỗ giữa các khung.
