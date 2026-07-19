@@ -1,6 +1,6 @@
 # Báo cáo Phase "SmartAlbum Base" — Album Studio v0.7
 
-**Ngày:** 19/07/2026 · **Bản build:** v0.7.1 · **Người thực hiện:** Trung (+ AI pair-programming)
+**Ngày:** 19/07/2026 · **Bản build:** v0.7.2 · **Người thực hiện:** Trung (+ AI pair-programming)
 **Tài liệu gốc đối chiếu:** `SmartAlbum_Phan_Tich_Chi_Tiet.docx` (nghiên cứu Pixellu SmartAlbum, 18 chương)
 
 ## 1. Mục tiêu phase
@@ -131,6 +131,8 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 
 **Undo / Redo toàn app (mới):** **⌘Z / ⌘⇧Z** (Windows: Ctrl+Z / Ctrl+Y) hoàn tác **mọi thao tác thiết kế** — áp layout, di khung, thả/xoá ảnh, chữ, typo, sắp lớp, thêm/xoá spread…; một lần kéo slider = một bước undo; giữ 50 bước; trong ô nhập chữ ⌘Z vẫn là undo gõ chữ.
 
+**Căn hàng & phân bố đều kiểu Photoshop (v0.7.2):** gom nhóm bằng **⌘/Ctrl-click** (ngang Shift-click, quây chuột; **⌥-click** chọn được ảnh bị che bên dưới) → **căn mép/tâm 6 hướng** theo khung bao nhóm + **phân bố khoảng cách đều** ngang/dọc (≥3 phần tử) — áp dụng cho cả ảnh, chữ, typo; hoàn tác được.
+
 **Trải nghiệm:** **tooltip đẹp hiện nhanh** trên mọi icon (thay tooltip chậm của hệ điều hành); **phím tắt Mac ↔ Windows đã rà tương đương 100%** (kể cả khi bật bộ gõ tiếng Việt).
 
 **Sửa lỗi:** nhân đôi spread rồi click ảnh không còn nhảy nhầm vào chế độ sửa layout / dính ghost kéo-thả; **Delete xoá spread hết bị "câm"** khi khay ảnh còn selection (chọn trên canvas tự bỏ chọn khay), Delete xoá được khung vẽ tay trong layout mode; **panel chỉnh sửa bên phải đóng/mở được** (nhớ trạng thái, canvas tự căn lại); tab **"Tất cả"** trong danh sách layout gộp cả kho Tizino với hover preview.
@@ -157,8 +159,8 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 
 | Nền tảng | File | Nguồn |
 |---|---|---|
-| **Windows 10/11 x64** | `Album Studio 2_0.7.1_x64-setup.exe` | https://github.com/hoangtrunga1k55/album-studio/releases/latest |
-| macOS (Apple Silicon) | `Album Studio 2_0.7.1_aarch64.dmg` | build local (`app2/src-tauri/target/release/bundle/dmg/`) |
+| **Windows 10/11 x64** | `Album Studio 2_0.7.2_x64-setup.exe` | https://github.com/hoangtrunga1k55/album-studio/releases/latest |
+| macOS (Apple Silicon) | `Album Studio 2_0.7.2_aarch64.dmg` | build local (`app2/src-tauri/target/release/bundle/dmg/`) |
 
 **Setup test (1 lần):**
 1. **Cài font pack Tizino vào máy** (Mac: Font Book / kéo vào `~/Library/Fonts` · Windows: chọn tất cả file font → chuột phải → *Install*) — app tự nhận, không cần trỏ folder.
