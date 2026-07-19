@@ -1235,7 +1235,14 @@ export function SpreadCanvas() {
         else if (st.selectedText) {
           if (st.selectedText.kind === "tpl") st.deleteTplText(st.selectedText.index);
           else st.removeAddedText(st.selectedText.id);
-        } else if (st.selectedSlot !== null) st.clearSlot(st.selectedSlot);
+        } else if (st.selectedSlot !== null) {
+          // layout mode + hand-drawn extra frame → Delete removes the frame
+          const curSp = st.spreads[st.currentIndex];
+          const tplNow = getTemplate(curSp?.templateId ?? null);
+          const tplSlots = tplNow?.slots.length ?? 0;
+          if (st.spreadSelected && st.selectedSlot >= tplSlots) st.removeDrawnSlot(st.selectedSlot);
+          else st.clearSlot(st.selectedSlot);
+        }
         // nothing on the canvas selected (and no tray photos — the tray owns
         // Delete then) → remove the CURRENT spread
         else if (st.selectedPhotos.length === 0 && st.spreads.length > 1) {

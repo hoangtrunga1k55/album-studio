@@ -2,6 +2,7 @@ mod export;
 mod fonts;
 mod import;
 mod layouts;
+mod menu;
 mod packsync;
 mod project;
 mod typos;
@@ -12,33 +13,18 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init());
 
-    // macOS: ⌘+/⌘−/⌘0/⌘1 can be swallowed before they reach the webview
-    // (input methods, WKWebView) — register them as NATIVE menu accelerators
-    // so the OS delivers them reliably; the webview just receives an event.
-    #[cfg(target_os = "macos")]
+    // Native menu bar on BOTH platforms (SmartAlbums-style File/View):
+    // accelerators are handled by the OS so Vietnamese IMEs can't eat them;
+    // the webview just receives "menu-cmd" / "zoom-cmd" events.
     let builder = builder
-        .menu(|handle| {
-            use tauri::menu::{Menu, MenuItem, Submenu};
-            let menu = Menu::default(handle)?;
-            let view = Submenu::with_items(
-                handle,
-                "Xem",
-                true,
-                &[
-                    &MenuItem::with_id(handle, "zoom_in", "Phóng to", true, Some("CmdOrCtrl+="))?,
-                    &MenuItem::with_id(handle, "zoom_out", "Thu nhỏ", true, Some("CmdOrCtrl+-"))?,
-                    &MenuItem::with_id(handle, "zoom_fit", "Vừa khung nhìn", true, Some("CmdOrCtrl+0"))?,
-                    &MenuItem::with_id(handle, "zoom_100", "Kích thước in thật (100%)", true, Some("CmdOrCtrl+1"))?,
-                ],
-            )?;
-            menu.append(&view)?;
-            Ok(menu)
-        })
+        .menu(|handle| menu::build_menu(handle, &[]))
         .on_menu_event(|app, event| {
             use tauri::Emitter;
             let id = event.id().as_ref();
             if id.starts_with("zoom_") {
                 let _ = app.emit("zoom-cmd", id.to_string());
+            } else if id.starts_with("file_") || id.starts_with("recent:") || id.starts_with("app_") {
+                let _ = app.emit("menu-cmd", id.to_string());
             }
         });
 
@@ -94,7 +80,8 @@ pub fn run() {
             layouts::read_layout_json,
             layouts::read_layout_bg_path,
             packsync::sync_pack,
-            packsync::local_pack_version
+            packsync::local_pack_version,
+            menu::update_recent_menu
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

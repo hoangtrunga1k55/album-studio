@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 
 const clampN = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -45,6 +45,7 @@ import { SpreadsFilmstrip } from "./components/SpreadsFilmstrip";
 import { PropertiesPanel } from "./components/PropertiesPanel";
 import { PhotoTray } from "./components/PhotoTray";
 import { NextSpreadZone, PrevSpreadZone } from "./components/WorkZones";
+import { TooltipLayer } from "./components/TooltipLayer";
 import { LayoutDock } from "./components/LayoutStrip";
 import { ExportDialog } from "./components/ExportDialog";
 import { AutoDesignDialog } from "./components/AutoDesignDialog";
@@ -52,10 +53,11 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { getTemplate } from "./engine/templates";
 import { loadSystemFonts } from "./engine/fontLibrary";
 import { restoreLibraries } from "./flows/typoImport";
-import { openProject, saveNow, startAutosave } from "./flows/projectIO";
+import { openProject, saveAsCopy, saveNow, startAutosave } from "./flows/projectIO";
 import { useAlbum } from "./store/album";
 import { useFonts } from "./store/fonts";
-import { useProject } from "./store/project";
+import { syncRecentMenu, useProject } from "./store/project";
+import { clearHistory, initHistory, redo, undo } from "./store/history";
 import { IconExport, IconLayout, IconSettings, IconSparkle } from "./icons";
 import { mod } from "./engine/platform";
 import "./App.css";
@@ -114,14 +116,84 @@ function App() {
 
   // Autosave for the lifetime of the app.
   useEffect(() => startAutosave(), []);
+  // App-level Undo/Redo history (⌘Z / ⌘⇧Z).
+  useEffect(() => initHistory(), []);
+
+  // ONE dispatcher for both entrances (native menu event + JS keydown): the
+  // 350ms guard stops double-fire when an OS accelerator AND the webview both
+  // deliver the same combo (possible on Windows).
+  const lastMenuRun = useRef<Record<string, number>>({});
+  const menuAction = (id: string) => {
+    const now = Date.now();
+    if (now - (lastMenuRun.current[id] ?? 0) < 350) return;
+    lastMenuRun.current[id] = now;
+    if (id === "app_undo" || id === "app_redo") {
+      // inside a text field the NATIVE text undo must win, not the app history
+      const el = document.activeElement as HTMLElement | null;
+      const editing =
+        el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (editing) {
+        document.execCommand(id === "app_undo" ? "undo" : "redo");
+      } else if (id === "app_undo") {
+        undo();
+      } else {
+        redo();
+      }
+    } else if (id === "file_save") {
+      void saveNow();
+    } else if (id === "file_save_as") {
+      void saveAsCopy().catch((err) => alert("Lưu bản sao lỗi: " + String(err)));
+    } else if (id === "file_new") {
+      void (async () => {
+        await saveNow();
+        useProject.getState().requestWizard(true);
+        useProject.getState().closeProject();
+        useAlbum.getState().resetAlbum();
+        clearHistory();
+      })();
+    } else if (id === "file_open") {
+      void (async () => {
+        await saveNow();
+        await openProject().catch((err) => alert("Không mở được project: " + String(err)));
+      })();
+    } else if (id.startsWith("recent:")) {
+      const p = id.slice("recent:".length);
+      void (async () => {
+        await saveNow();
+        await openProject(p).catch((err) => alert("Không mở được project: " + String(err)));
+      })();
+    }
+  };
+  const menuActionRef = useRef(menuAction);
+  menuActionRef.current = menuAction;
+
+  // Native menu (Tệp/Xem trên macOS & Windows) → menu-cmd events.
+  useEffect(() => {
+    syncRecentMenu(); // đổ danh sách "Mở gần đây" vào menu ngay khi app mở
+    const un = listen<string>("menu-cmd", (e) => menuActionRef.current(e.payload));
+    return () => {
+      void un.then((f) => f());
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
       const k = e.key.toLowerCase();
-      if (k === "s") {
+      if (k === "z") {
+        const el = document.activeElement as HTMLElement | null;
+        const editing =
+          el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+        if (editing) return; // native text undo trong ô chữ
         e.preventDefault();
-        void saveNow();
+        menuActionRef.current(e.shiftKey ? "app_redo" : "app_undo");
+      } else if (k === "y") {
+        // Windows quen Ctrl+Y = redo
+        e.preventDefault();
+        menuActionRef.current("app_redo");
+      } else if (k === "s") {
+        e.preventDefault();
+        menuActionRef.current(e.shiftKey ? "file_save_as" : "file_save");
       } else if (k === "e") {
         e.preventDefault();
         setShowExport(true);
@@ -136,20 +208,11 @@ function App() {
         e.preventDefault();
         useAlbum.getState().toggleRuler();
       } else if (k === "n") {
-        // New Album: save current work, go to Welcome with the wizard open.
         e.preventDefault();
-        void (async () => {
-          await saveNow();
-          useProject.getState().requestWizard(true);
-          useProject.getState().closeProject();
-          useAlbum.getState().resetAlbum();
-        })();
+        menuActionRef.current("file_new");
       } else if (k === "o") {
         e.preventDefault();
-        void (async () => {
-          await saveNow();
-          await openProject().catch((err) => alert("Không mở được project: " + String(err)));
-        })();
+        menuActionRef.current("file_open");
       } else if (e.key === "=" || e.key === "+" || e.code === "Equal" || e.code === "NumpadAdd") {
         // match the PHYSICAL key too — Vietnamese input methods / numpads can
         // report a different e.key and the shortcut silently died
@@ -194,7 +257,13 @@ function App() {
     resetAlbum();
   }
 
-  if (!projectPath || !size) return <Welcome />;
+  if (!projectPath || !size)
+    return (
+      <>
+        <Welcome />
+        <TooltipLayer />
+      </>
+    );
 
   const spread = spreads[currentIndex];
   const tpl = getTemplate(spread?.templateId ?? null);
@@ -203,6 +272,7 @@ function App() {
 
   return (
     <div className="app">
+      <TooltipLayer />
       <header className="topbar">
         <div className="topleft">
           <div className="brand">

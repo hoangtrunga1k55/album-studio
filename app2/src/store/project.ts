@@ -9,6 +9,8 @@ export interface RecentProject {
   openedAt: number; // epoch ms
 }
 
+import { invoke } from "@tauri-apps/api/core";
+
 const RECENTS_KEY = "albumstudio2.recents";
 const RECENTS_MAX = 12;
 
@@ -30,6 +32,13 @@ export function rememberRecent(entry: Omit<RecentProject, "openedAt">) {
   } catch {
     /* ignore */
   }
+  syncRecentMenu();
+}
+
+/** Recents live in localStorage — push them into the NATIVE "Mở gần đây" menu. */
+export function syncRecentMenu() {
+  const recents = loadRecents().map((r) => [r.path, r.name] as [string, string]);
+  void invoke("update_recent_menu", { recents }).catch(() => {});
 }
 
 export function forgetRecent(path: string) {
@@ -38,6 +47,7 @@ export function forgetRecent(path: string) {
   } catch {
     /* ignore */
   }
+  syncRecentMenu();
 }
 
 type SaveState = "saved" | "saving" | "dirty" | "error";

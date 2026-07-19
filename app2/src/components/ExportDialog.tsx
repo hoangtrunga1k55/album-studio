@@ -173,7 +173,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
       <div className="modal" style={{ width: "min(460px, 92vw)" }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>Xuất album · {exportSet ? exportSet.length : 0} mục</h2>
-          <button className="btn icon" onClick={onClose} disabled={running}><IconClose /></button>
+          <button className="btn icon" title="Đóng" onClick={onClose} disabled={running}><IconClose /></button>
         </div>
 
         <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 16 }}>

@@ -127,7 +127,7 @@ export function AutoDesignDialog({ onClose }: { onClose: () => void }) {
       <div className="modal" style={{ width: "min(480px, 92vw)" }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>Auto Design · {importing ? `đang nhập ảnh… (${liveCount})` : `${count} ảnh`}</h2>
-          <button className="btn icon" onClick={onClose}><IconClose /></button>
+          <button className="btn icon" title="Đóng" onClick={onClose}><IconClose /></button>
         </div>
 
         <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 16 }}>

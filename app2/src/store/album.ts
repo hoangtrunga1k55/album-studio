@@ -1285,7 +1285,16 @@ export const useAlbum = create<AlbumState>((set) => ({
   // NOTE: selecting a slot KEEPS the layout mode (spreadSelected) — in layout
   // mode a click on a frame means "edit this frame", not "edit this photo".
   selectSlot: (selectedSlot) =>
-    set({ selectedSlot, selectedText: null, selectedTypo: null, swapSource: null, multiSel: [] }),
+    set((s) => ({
+      selectedSlot,
+      selectedText: null,
+      selectedTypo: null,
+      swapSource: null,
+      multiSel: [],
+      // canvas selection owns the keyboard now — tray selection would steal
+      // Delete (xoá spread bị "câm" khi khay còn ảnh đang chọn)
+      selectedPhotos: selectedSlot !== null ? [] : s.selectedPhotos,
+    })),
 
   spreadSelected: false,
   selectSpread: () =>
@@ -1296,6 +1305,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       selectedTypo: null,
       swapSource: null,
       multiSel: [],
+      selectedPhotos: [],
     }),
   /** Esc / panel ✕: drop every selection AND leave layout mode. */
   clearSelection: () =>

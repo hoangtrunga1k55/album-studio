@@ -6,6 +6,7 @@ import { saveProjectFile, openProjectFile } from "../ipc/project";
 import { importFiles } from "../ipc/import";
 import { useAlbum, type AlbumSettings } from "../store/album";
 import { useProject, rememberRecent } from "../store/project";
+import { clearHistory } from "../store/history";
 import type { AlbumSize } from "../engine/templates";
 
 function projectJson(): string {
@@ -35,6 +36,24 @@ export async function saveNow(): Promise<void> {
   } catch {
     setSaveState("error");
   }
+}
+
+/** Save As (SmartAlbums): write the CURRENT state to a new .album file and
+ *  switch the session to it (the old file keeps its last saved state). */
+export async function saveAsCopy(): Promise<boolean> {
+  const st = useProject.getState();
+  if (!st.path) return false;
+  const dest = await save({
+    title: "Lưu thành bản sao",
+    defaultPath: `${st.name || "album"} copy.album`,
+    filters: [{ name: "Album Studio", extensions: ["album"] }],
+  });
+  if (typeof dest !== "string" || !dest) return false;
+  const name = dest.split(/[/\\]/).pop()?.replace(/\.album$/i, "") || st.name;
+  await saveProjectFile(dest, projectJson());
+  useProject.getState().openProject(dest, name);
+  rememberRecent({ path: dest, name, size: useAlbum.getState().size ?? "" });
+  return true;
 }
 
 /** New Album wizard finish: pick where to store the file, write it, open editor. */
@@ -88,6 +107,7 @@ export async function openProject(fromPath?: string): Promise<boolean> {
     photoMeta: proj.photoMeta,
     settings: proj.settings,
   });
+  clearHistory(); // undo timeline restarts with the loaded project
 
   // Opening a backup RESTORES it: content from the snapshot, but the session
   // (and autosave) targets the original .album file.
