@@ -1,6 +1,6 @@
-# Báo cáo Phase "SmartAlbum Base" — Album Studio v0.6
+# Báo cáo Phase "SmartAlbum Base" — Album Studio v0.7
 
-**Ngày:** 14/07/2026 · **Bản build:** v0.6.0 · **Người thực hiện:** Trung (+ AI pair-programming)
+**Ngày:** 19/07/2026 · **Bản build:** v0.7.1 · **Người thực hiện:** Trung (+ AI pair-programming)
 **Tài liệu gốc đối chiếu:** `SmartAlbum_Phan_Tich_Chi_Tiet.docx` (nghiên cứu Pixellu SmartAlbum, 18 chương)
 
 ## 1. Mục tiêu phase
@@ -103,7 +103,39 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 - PSD nguồn tổ chức "**mỗi thư mục con = một nhóm**" (`source-layouts/layout-25x35/…`, `source-typos/vn/…`); nhóm quyết định khổ và bìa/spread trong app.
 - Kho hiện tại (**65 layout + 6 typo**): `github.com/hoangtrunga1k55/album-studio-packs`.
 
-## 6b. Ngoài tài liệu — tính năng riêng đã tích hợp sẵn
+## 7. Mới trong v0.7.0 — Hoàn thiện chỉnh sửa layout + Auto Build (theo feedback leader v0.6)
+
+**Khoảng cách & sắp xếp chính xác (feedback gap 16pt):**
+- **Gap hiển thị đúng như setup** — trước đây app cộng thêm khoảng đệm lên khoảng cách thiết kế sẵn của layout nên 8pt thành 16pt; nay ảnh lấp đầy khung, spacing là của layout.
+- **Snap theo gap, vạch vàng**: kéo khung lại gần ảnh khác → hít đúng khoảng cách đã setup (vd 8pt) và hiện **vạch vàng** dễ canh; căn mép/tâm/lưới giữ guide tím như cũ.
+- **Click ảnh chỉ còn 1 viền mảnh** (bỏ glow/viền chồng) — giao diện chọn giống SmartAlbums.
+
+**Màn sửa layout kiểu SmartAlbums:**
+- **Thanh công cụ** giữa mép trên: Chọn · Vẽ khung · Thêm chữ · **Bàn tay** (kéo vùng nhìn) · **Kính lúp** (click phóng to, Alt+click thu nhỏ, chuột phải ra menu Fit / 100% / In / Out).
+- **Phím tắt zoom cấp hệ điều hành**: ⌘/Ctrl +, −, 0 (vừa khung), 1 (**kích thước in thật**) — đăng ký native (menu "Xem" trên macOS, hotkey trên Windows) nên **bộ gõ tiếng Việt không nuốt phím**.
+- Bỏ chữ mẫu mặc định ("Mãi mãi bên nhau"…) và các nút trùng lặp ở panel phải.
+
+**Chỉnh ảnh sâu hơn (per ảnh):** **Viền (pt + màu riêng) · Bo góc (pt) · Độ đục (%)** — hiển thị và **file in ra giống hệt** (bo góc cắt thật, viền vẽ ở 300DPI).
+
+**Auto Design → "Auto Build" như SmartAlbums (⌘D):**
+- 2 thẻ số xem trước: **số spread (× 2 trang)** và **khoảng ảnh mỗi spread**.
+- Slider **số spread mong muốn** (biên tự tính theo số ảnh); nhóm ảnh **Thông minh** hoặc **tự chọn khoảng bằng slider 2 đầu** kèm preset **Thưa (1–2) / Cân (3–4) / Dày (5–8)**.
+- **Mức lặp layout**: Thấp (đa dạng nhất) / Vừa / Cao — thuật toán phạt điểm layout đã dùng.
+- Đang import ảnh thì **Auto Design tự khoá** đến khi nạp xong (hết cảnh số nhảy loạn).
+
+**Xuất album như SmartAlbums:** mọi lựa chọn thành **select** gọn; thêm **phạm vi xuất** (`1,2,5-7`), **kèm/không kèm bìa**, **JPG trang đơn** (bìa 1 trang không bị cắt đôi); **tên file giữ số spread gốc** (xuất 5–7 ra `Spread_05..07` — lab in lại khớp số ngay).
+
+**Menu bar chuẩn desktop (macOS & Windows):**
+- **Tệp**: Dự án mới (⌘/Ctrl+N) · Mở dự án (⌘/Ctrl+O) · **Mở gần đây** (danh sách project, tự cập nhật) · Lưu (⌘/Ctrl+S) · **Lưu thành bản sao** (⌘/Ctrl+Shift+S — Save As).
+- **Xem**: Phóng to / Thu nhỏ / Vừa khung / 100% kích thước in thật. macOS thêm menu **Sửa** (Hoàn tác, Làm lại, Cut/Copy/Paste).
+
+**Undo / Redo toàn app (mới):** **⌘Z / ⌘⇧Z** (Windows: Ctrl+Z / Ctrl+Y) hoàn tác **mọi thao tác thiết kế** — áp layout, di khung, thả/xoá ảnh, chữ, typo, sắp lớp, thêm/xoá spread…; một lần kéo slider = một bước undo; giữ 50 bước; trong ô nhập chữ ⌘Z vẫn là undo gõ chữ.
+
+**Trải nghiệm:** **tooltip đẹp hiện nhanh** trên mọi icon (thay tooltip chậm của hệ điều hành); **phím tắt Mac ↔ Windows đã rà tương đương 100%** (kể cả khi bật bộ gõ tiếng Việt).
+
+**Sửa lỗi:** nhân đôi spread rồi click ảnh không còn nhảy nhầm vào chế độ sửa layout / dính ghost kéo-thả; **Delete xoá spread hết bị "câm"** khi khay ảnh còn selection (chọn trên canvas tự bỏ chọn khay), Delete xoá được khung vẽ tay trong layout mode; **panel chỉnh sửa bên phải đóng/mở được** (nhớ trạng thái, canvas tự căn lại); tab **"Tất cả"** trong danh sách layout gộp cả kho Tizino với hover preview.
+
+## 7b. Ngoài tài liệu — tính năng riêng đã tích hợp sẵn
 
 - **Kho font Việt** — cài vào máy, app tự nhận và khớp tên font PSD tự động (khoảng trống 1 của doc)
 - **Typo pack** (bóc từ PSD kho typo) — chèn, kéo, resize, đổi màu, chữ vector sắc nét
@@ -111,7 +143,7 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 - **Khổ tuỳ chỉnh** đúng cm thật từ thiết kế đến file in (SmartAlbum Custom Lab tương đương)
 - Toàn bộ **tiếng Việt**, chạy **offline**, **không subscription** (khoảng trống 2)
 
-## 7. Chưa làm (roadmap tiếp)
+## 8. Chưa làm (roadmap tiếp)
 
 | Hạng mục | Ghi chú |
 |---|---|
@@ -121,12 +153,12 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 | Ký số app (Mac notarize / Win cert) | Trước launch chính thức — hiện cài được nhưng OS cảnh báo |
 | HEIC trên Windows | Mac đọc HEIC OK; Windows tạm dùng JPG/PNG |
 
-## 8. Bản build để test
+## 9. Bản build để test
 
 | Nền tảng | File | Nguồn |
 |---|---|---|
-| **Windows 10/11 x64** | `Album Studio 2_0.6.0_x64-setup.exe` | https://github.com/hoangtrunga1k55/album-studio/releases/latest |
-| macOS (Apple Silicon) | `Album Studio 2_0.6.0_aarch64.dmg` | build local (`app2/src-tauri/target/release/bundle/dmg/`) |
+| **Windows 10/11 x64** | `Album Studio 2_0.7.1_x64-setup.exe` | https://github.com/hoangtrunga1k55/album-studio/releases/latest |
+| macOS (Apple Silicon) | `Album Studio 2_0.7.1_aarch64.dmg` | build local (`app2/src-tauri/target/release/bundle/dmg/`) |
 
 **Setup test (1 lần):**
 1. **Cài font pack Tizino vào máy** (Mac: Font Book / kéo vào `~/Library/Fonts` · Windows: chọn tất cả file font → chuột phải → *Install*) — app tự nhận, không cần trỏ folder.
@@ -134,7 +166,7 @@ Nền tảng: Tauri 2 (Rust) + React + Konva — app nhẹ ~6–7MB, chạy offl
 
 **Lưu ý khi cài:** app chưa ký số → Windows SmartScreen bấm *More info → Run anyway*; Mac chuột phải → *Open*.
 
-## 9. Kịch bản test đề xuất cho leader (15 phút)
+## 10. Kịch bản test đề xuất cho leader (15 phút)
 
 1. Tạo album mới — **wizard 2 bước**: bước 1 chọn khổ (thử *Tuỳ chỉnh* xem DPI/đơn vị/kích thước spread/vùng an toàn/trim) → bước 2 giữ mặc định **viền 8pt · khoảng cách 12pt** → tạo. Album mới có **spread Bìa** ghim đầu (thử đổi 1 trang / 2 trang).
 2. Import 1 thư mục ~50 ảnh vào **khay ngang dưới** → chấm sao 5 (phím 5) → nhãn màu (6–9) → lọc; thử **kéo mép trên khay** cho cao lên, chọn vài ảnh bấm **Xoá** thử.
