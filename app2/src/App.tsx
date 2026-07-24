@@ -335,17 +335,46 @@ function App() {
         </div>
       </header>
 
-      <div className="body">
-        <LeftPanel />
-        <div className="center">
-          {layoutDock && <LayoutDock onClose={() => setLayoutDock(false)} />}
-          {/* layout mode = focused spread editor: side zones + filmstrip hide */}
-          <div className="workzone">
-            {!spreadSelected && <PrevSpreadZone />}
-            <SpreadCanvas />
-            {!spreadSelected && <NextSpreadZone />}
+      {/* right editing panel claims a FULL-HEIGHT column; the left stack (canvas
+          + photo tray) shares only the remaining width so the tray never runs
+          under the panel. Collapsing the panel gives that width back. */}
+      <div className="main">
+        <div className="left-stack">
+          <div className="body">
+            <LeftPanel />
+            <div className="center">
+              {layoutDock && <LayoutDock onClose={() => setLayoutDock(false)} />}
+              {/* layout mode = focused spread editor: side zones + filmstrip hide */}
+              <div className="workzone">
+                {!spreadSelected && <PrevSpreadZone />}
+                <SpreadCanvas />
+                {!spreadSelected && <NextSpreadZone />}
+              </div>
+              {!spreadSelected && <SpreadsFilmstrip />}
+            </div>
           </div>
-          {!spreadSelected && <SpreadsFilmstrip />}
+          {/* the photo tray yields its space while the layout dock is open */}
+          {!layoutDock &&
+            (trayMin ? (
+              <button className="tray-restore" onClick={() => setTrayMin(false)} title="Mở khay ảnh">
+                ▴ Ảnh ({images.length})
+              </button>
+            ) : (
+              <div className="photo-tray-host" style={{ height: trayH }}>
+                <ResizeHandle
+                  className="rz rz-h"
+                  onMove={(_, dy) => setTrayH((h) => clampN(h - dy, 110, 460))}
+                />
+                <button
+                  className="tray-min"
+                  title="Thu gọn khay ảnh"
+                  onClick={() => setTrayMin(true)}
+                >
+                  −
+                </button>
+                <PhotoTray />
+              </div>
+            ))}
         </div>
         {/* editing panel: collapsible to a slim rail — the canvas re-measures
             itself (ResizeObserver) so the spread just re-centers, never breaks */}
@@ -366,28 +395,6 @@ function App() {
           </div>
         )}
       </div>
-      {/* the photo tray yields its space while the layout dock is open */}
-      {!layoutDock &&
-        (trayMin ? (
-          <button className="tray-restore" onClick={() => setTrayMin(false)} title="Mở khay ảnh">
-            ▴ Ảnh ({images.length})
-          </button>
-        ) : (
-          <div className="photo-tray-host" style={{ height: trayH }}>
-            <ResizeHandle
-              className="rz rz-h"
-              onMove={(_, dy) => setTrayH((h) => clampN(h - dy, 110, 460))}
-            />
-            <button
-              className="tray-min"
-              title="Thu gọn khay ảnh"
-              onClick={() => setTrayMin(true)}
-            >
-              −
-            </button>
-            <PhotoTray />
-          </div>
-        ))}
       {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
       {showDesign && <AutoDesignDialog onClose={() => setShowDesign(false)} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}

@@ -203,15 +203,40 @@ export interface AlbumSettings {
 /** 1 point = 1/72 inch = 2.54/72 cm. */
 export const PT_TO_CM = 2.54 / 72;
 
+/** No trim/safe/border, 8pt gap — used by preset sizes and as the seed for
+ *  custom albums. Custom albums additionally remember their last edit. */
 export const DEFAULT_SETTINGS: AlbumSettings = {
   dpi: 300,
-  trimMm: 3,
-  safeMm: 5,
-  borderPt: 8,
+  trimMm: 0,
+  safeMm: 0,
+  borderPt: 0,
   borderColor: "#ffffff",
-  gapPt: 12,
+  gapPt: 8,
   layoutSource: "all",
 };
+
+export const CUSTOM_FACTORY_SETTINGS: AlbumSettings = { ...DEFAULT_SETTINGS };
+
+const CUSTOM_DEFAULTS_KEY = "albumstudio2.customDefaults";
+
+/** Persisted defaults for the next custom album — edits carry over. */
+export function loadCustomDefaults(): AlbumSettings {
+  try {
+    const raw = localStorage.getItem(CUSTOM_DEFAULTS_KEY);
+    if (raw) return { ...CUSTOM_FACTORY_SETTINGS, ...JSON.parse(raw) };
+  } catch {
+    /* corrupt storage — fall back to factory */
+  }
+  return CUSTOM_FACTORY_SETTINGS;
+}
+
+export function saveCustomDefaults(settings: AlbumSettings): void {
+  try {
+    localStorage.setItem(CUSTOM_DEFAULTS_KEY, JSON.stringify(settings));
+  } catch {
+    /* storage full/blocked — non-fatal */
+  }
+}
 
 let counter = 0;
 const newId = (p: string) => `${p}_${++counter}`;
@@ -222,19 +247,48 @@ let lastToggle = { key: "", t: 0 };
 /** Align/Distribute engine: collect every selected object's rect (stage
  *  fractions — slot coords match when padding = 0, the default), let `plan`
  *  fill target positions, then write the moves back per object type. */
+type GeoEntry = { k: string; r: { x: number; y: number; w: number; h: number }; to: { x: number | null; y: number | null } };
+
+/** Khóa của đối tượng đang chọn lẻ (khi không có nhóm nhiều phần tử). */
+function singleSelKeys(s: AlbumState): string[] {
+  if (s.selectedSlot != null) return [`s${s.selectedSlot}`];
+  if (s.selectedText?.kind === "tpl") return [`t${s.selectedText.index}`];
+  if (s.selectedText?.kind === "added") return [`a${s.selectedText.id}`];
+  if (s.selectedTypo != null) return [`y${s.selectedTypo}`];
+  return [];
+}
+
+/** Chia đối tượng theo TRANG. Chỉ spread 2 trang (khổ ngang) mới có rãnh gáy ở
+ *  x = 0.5; layout 1 trang (khổ dọc/vuông) coi cả canvas là một trang. */
+function byPage(entries: GeoEntry[], twoPage: boolean): GeoEntry[][] {
+  if (!twoPage) return [entries];
+  const left: GeoEntry[] = [];
+  const right: GeoEntry[] = [];
+  for (const e of entries) {
+    if (e.r.x + e.r.w / 2 < 0.5) left.push(e);
+    else right.push(e);
+  }
+  return [left, right].filter((g) => g.length > 0);
+}
+
 function groupGeometry(
   s: AlbumState,
-  plan: (entries: { k: string; r: { x: number; y: number; w: number; h: number }; to: { x: number | null; y: number | null } }[]) => void
+  plan: (entries: GeoEntry[], twoPage: boolean) => void
 ): Partial<AlbumState> | AlbumState {
-  if (s.multiSel.length < 2) return s;
+  // Căn/phân bố dùng nhóm nếu có; nếu không, dùng đúng đối tượng đang chọn lẻ
+  // (1 ảnh / 1 chữ / 1 typo) để căn nó theo mép trang.
+  const keys = s.multiSel.length ? s.multiSel : singleSelKeys(s);
+  if (keys.length < 1) return s;
   const spreads = [...s.spreads];
   const cur = { ...spreads[s.currentIndex] };
   const tpl = getTemplate(cur.templateId);
   const cm = spreadCmFor(tpl ?? { ratioWH: 2 } as Template, s.size);
   const stageRatio = cm ? cm.w / cm.h : 2;
+  // Khổ ngang (≈2 trang cạnh nhau) mới có 2 trang; dọc/vuông là 1 trang.
+  const twoPage = stageRatio >= 1.2;
 
   const entries: { k: string; r: { x: number; y: number; w: number; h: number }; to: { x: number | null; y: number | null } }[] = [];
-  for (const k of s.multiSel) {
+  for (const k of keys) {
     if (k[0] === "s") {
       const i = parseInt(k.slice(1), 10);
       const base = tpl && i < tpl.slots.length ? { ...tpl.slots[i], ...(cur.slotRects?.[i] ?? {}) } : cur.slotRects?.[i];
@@ -268,8 +322,8 @@ function groupGeometry(
       entries.push({ k, r: { x: t.x, y: t.y, w, h }, to: { x: null, y: null } });
     }
   }
-  if (entries.length < 2) return s;
-  plan(entries);
+  if (entries.length < 1) return s;
+  plan(entries, twoPage);
 
   const slotRects = { ...cur.slotRects };
   const textEdits = { ...cur.textEdits };
@@ -346,6 +400,9 @@ interface AlbumState {
   /** Album-wide settings from the New Album wizard. */
   settings: AlbumSettings;
   setSettings: (patch: Partial<AlbumSettings>) => void;
+  /** Change album size/ratio after creation — reflows spreads whose template no
+   *  longer fits the new size (keeps images), leaves fitting spreads untouched. */
+  setSize: (size: AlbumSize) => void;
 
   createAlbum: (
     size: AlbumSize,
@@ -560,6 +617,34 @@ export const useAlbum = create<AlbumState>((set) => ({
       const settings = { ...s.settings, ...patch };
       setPreferredSource(settings.layoutSource);
       return { settings };
+    }),
+
+  setSize: (size) =>
+    set((s) => {
+      if (!size || size === s.size) return { size };
+      const spreads = s.spreads.map((sp) => {
+        const forCover = !!sp.isCover;
+        const count = sp.imageIds.filter(Boolean).length || 1;
+        const slotN = nearestSlotCount(size, count, forCover);
+        const cur = getTemplate(sp.templateId);
+        // template that already fits the new size + slot count → keep frames/edits
+        if (cur && (cur.size === size || cur.size === "*") && cur.slotCount === slotN) {
+          return sp;
+        }
+        const next = randomTemplate(size, slotN, undefined, forCover);
+        if (!next) return sp;
+        // new frames: drop stale frame moves / text edits, keep images + framing
+        return { ...sp, templateId: next.id, slotRects: {}, textEdits: {}, zOrder: undefined };
+      });
+      return {
+        size,
+        spreads,
+        previewTemplateId: null,
+        selectedSlot: null,
+        selectedText: null,
+        selectedTypo: null,
+        multiSel: [],
+      };
     }),
 
   createAlbum: (size, spreadCount = 1, opts) =>
@@ -1281,36 +1366,44 @@ export const useAlbum = create<AlbumState>((set) => ({
     }),
 
   alignGroup: (op) =>
-    set((s) => groupGeometry(s, (entries) => {
-      const minX = Math.min(...entries.map((e) => e.r.x));
-      const maxR = Math.max(...entries.map((e) => e.r.x + e.r.w));
-      const minY = Math.min(...entries.map((e) => e.r.y));
-      const maxB = Math.max(...entries.map((e) => e.r.y + e.r.h));
+    set((s) => groupGeometry(s, (entries, twoPage) => {
+      // Căn theo mép TRANG (không theo bbox chọn, không theo spread): trên
+      // spread 2 trang, ảnh trang trái căn trong [0, 0.5], trang phải [0.5, 1];
+      // layout 1 trang thì cả canvas là [0, 1]. Dọc luôn [0, 1].
       for (const e of entries) {
-        if (op === "left") e.to.x = minX;
-        else if (op === "hcenter") e.to.x = (minX + maxR) / 2 - e.r.w / 2;
-        else if (op === "right") e.to.x = maxR - e.r.w;
-        else if (op === "top") e.to.y = minY;
-        else if (op === "vmiddle") e.to.y = (minY + maxB) / 2 - e.r.h / 2;
-        else e.to.y = maxB - e.r.h;
+        const onRight = twoPage && e.r.x + e.r.w / 2 >= 0.5;
+        const pageL = onRight ? 0.5 : 0;
+        const pageR = twoPage ? (onRight ? 1 : 0.5) : 1;
+        if (op === "left") e.to.x = pageL;
+        else if (op === "hcenter") e.to.x = (pageL + pageR) / 2 - e.r.w / 2;
+        else if (op === "right") e.to.x = pageR - e.r.w;
+        else if (op === "top") e.to.y = 0;
+        else if (op === "vmiddle") e.to.y = 0.5 - e.r.h / 2;
+        else e.to.y = 1 - e.r.h;
+        // Không cho ảnh lấn qua gáy: giữ trong đúng trang của nó (khi vừa khít).
+        if (e.to.x !== null && e.r.w <= pageR - pageL)
+          e.to.x = Math.min(Math.max(e.to.x, pageL), pageR - e.r.w);
       }
     })),
 
   distributeGroup: (axis) =>
-    set((s) => groupGeometry(s, (entries) => {
-      if (entries.length < 3) return;
+    set((s) => groupGeometry(s, (entries, twoPage) => {
       const X = axis === "h";
-      const sorted = [...entries].sort((a, b) => (X ? a.r.x - b.r.x : a.r.y - b.r.y));
-      const first = sorted[0].r;
-      const last = sorted[sorted.length - 1].r;
-      const span = X ? last.x + last.w - first.x : last.y + last.h - first.y;
-      const total = sorted.reduce((acc, e) => acc + (X ? e.r.w : e.r.h), 0);
-      const gap = (span - total) / (sorted.length - 1);
-      let cursor = X ? first.x : first.y;
-      for (const e of sorted) {
-        if (X) e.to.x = cursor;
-        else e.to.y = cursor;
-        cursor += (X ? e.r.w : e.r.h) + gap;
+      // Phân bố đều trong từng TRANG (cần ≥3 ảnh mỗi trang).
+      for (const group of byPage(entries, twoPage)) {
+        if (group.length < 3) continue;
+        const sorted = [...group].sort((a, b) => (X ? a.r.x - b.r.x : a.r.y - b.r.y));
+        const first = sorted[0].r;
+        const last = sorted[sorted.length - 1].r;
+        const span = X ? last.x + last.w - first.x : last.y + last.h - first.y;
+        const total = sorted.reduce((acc, e) => acc + (X ? e.r.w : e.r.h), 0);
+        const gap = (span - total) / (sorted.length - 1);
+        let cursor = X ? first.x : first.y;
+        for (const e of sorted) {
+          if (X) e.to.x = cursor;
+          else e.to.y = cursor;
+          cursor += (X ? e.r.w : e.r.h) + gap;
+        }
       }
     })),
 

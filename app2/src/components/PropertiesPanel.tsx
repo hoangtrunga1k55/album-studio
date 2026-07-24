@@ -9,7 +9,32 @@ import { fontAliases } from "../ipc/fonts";
 import { loadSystemFonts } from "../engine/fontLibrary";
 import { TYPO_DND_KEY } from "../constants";
 import { FontPicker } from "./FontPicker";
+import { AlbumConfig } from "./AlbumConfig";
 import { IconTrash } from "../icons";
+
+type PanelTab = "layout" | "photo" | "typo";
+
+/** The 3 tabs at the top of the right panel — Layout / Ảnh / Typo. */
+function PanelTabs({ active, onPick }: { active: PanelTab; onPick: (t: PanelTab) => void }) {
+  const items: { id: PanelTab; label: string }[] = [
+    { id: "layout", label: "Layout" },
+    { id: "photo", label: "Ảnh" },
+    { id: "typo", label: "Typo" },
+  ];
+  return (
+    <div className="pp-tabs">
+      {items.map((t) => (
+        <button
+          key={t.id}
+          className={"pp-tab" + (active === t.id ? " active" : "")}
+          onClick={() => onPick(t.id)}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** Arrange (SmartAlbums): Bring to Front / Forward / Backward / Send to Back. */
 function ArrangeButtons({ label, onOp }: { label?: string; onOp: (op: ArrangeOp) => void }) {
@@ -45,6 +70,7 @@ function AlignRows({ slot }: { slot: number }) {
   const alignAnchor = useAlbum((s) => s.alignAnchor);
   const setAlignAnchor = useAlbum((s) => s.setAlignAnchor);
   const setSlotRect = useAlbum((s) => s.setSlotRect);
+  const alignGroup = useAlbum((s) => s.alignGroup);
 
   const spread = spreads[currentIndex];
   const tpl = getTemplate(spread?.templateId ?? null);
@@ -64,12 +90,12 @@ function AlignRows({ slot }: { slot: number }) {
       <div className="prop-group">
         <div className="prop-label">Căn theo trang</div>
         <div className="prop-row">
-          <button className="btn" title="Mép trái trang" onClick={() => put(0, me.y)}>⇤</button>
-          <button className="btn" title="Giữa ngang trang" onClick={() => put((1 - me.w) / 2, me.y)}>↔</button>
-          <button className="btn" title="Mép phải trang" onClick={() => put(1 - me.w, me.y)}>⇥</button>
-          <button className="btn" title="Mép trên trang" onClick={() => put(me.x, 0)}>⤒</button>
-          <button className="btn" title="Giữa dọc trang" onClick={() => put(me.x, (1 - me.h) / 2)}>↕</button>
-          <button className="btn" title="Mép dưới trang" onClick={() => put(me.x, 1 - me.h)}>⤓</button>
+          <button className="btn" title="Mép trái trang" onClick={() => alignGroup("left")}>⇤</button>
+          <button className="btn" title="Giữa ngang trang" onClick={() => alignGroup("hcenter")}>↔</button>
+          <button className="btn" title="Mép phải trang" onClick={() => alignGroup("right")}>⇥</button>
+          <button className="btn" title="Mép trên trang" onClick={() => alignGroup("top")}>⤒</button>
+          <button className="btn" title="Giữa dọc trang" onClick={() => alignGroup("vmiddle")}>↕</button>
+          <button className="btn" title="Mép dưới trang" onClick={() => alignGroup("bottom")}>⤓</button>
         </div>
       </div>
       <div className="prop-group">
@@ -283,50 +309,6 @@ function PhotoEditSections({
             </div>
           </div>
 
-          <div className="prop-label" style={{ marginTop: 12 }}>Tông màu</div>
-          <div className="sa-rows">
-            <div className="sa-row">
-              <span className="sa-name">Sáng:</span>
-              <input
-                type="range"
-                min={-100}
-                max={100}
-                step={1}
-                value={Math.round((t.brightness ?? 0) * 100)}
-                onChange={(e) => setT({ ...t, brightness: parseInt(e.target.value, 10) / 100 })}
-              />
-              <span className="sa-val">{Math.round((t.brightness ?? 0) * 100)}</span>
-              <button
-                className="sa-reset"
-                title="Về 0"
-                disabled={(t.brightness ?? 0) === 0}
-                onClick={() => setT({ ...t, brightness: 0 })}
-              >
-                ×
-              </button>
-            </div>
-            <div className="sa-row">
-              <span className="sa-name">T.phản:</span>
-              <input
-                type="range"
-                min={-100}
-                max={100}
-                step={1}
-                value={t.contrast ?? 0}
-                onChange={(e) => setT({ ...t, contrast: parseInt(e.target.value, 10) })}
-              />
-              <span className="sa-val">{t.contrast ?? 0}</span>
-              <button
-                className="sa-reset"
-                title="Về 0"
-                disabled={(t.contrast ?? 0) === 0}
-                onClick={() => setT({ ...t, contrast: 0 })}
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
           <div className="prop-label" style={{ marginTop: 12 }}>Viền · Bo góc · Đục</div>
           <div className="sa-rows">
             <div className="sa-row">
@@ -465,10 +447,7 @@ export function PropertiesPanel() {
   const spreadSelected = useAlbum((s) => s.spreadSelected);
   const updateTypo = useAlbum((s) => s.updateTypo);
   const removeTypo = useAlbum((s) => s.removeTypo);
-  const bgColor = useAlbum((s) => s.bgColor);
-  const setBgColor = useAlbum((s) => s.setBgColor);
   const settings = useAlbum((s) => s.settings);
-  const showBleed = useAlbum((s) => s.showBleed);
   const setMargin = useAlbum((s) => s.setMargin);
   const editTplText = useAlbum((s) => s.editTplText);
   const deleteTplText = useAlbum((s) => s.deleteTplText);
@@ -488,20 +467,6 @@ export function PropertiesPanel() {
 
   const loadedSet = new Set(fonts.flatMap((f) => fontAliases(f)));
 
-  // fonts referenced by templates but not yet loaded (whole album)
-  const missing = new Set<string>();
-  for (const sp of spreads) {
-    const t = getTemplate(sp.templateId);
-    t?.texts.forEach((tx, i) => {
-      const f = sp.textEdits[i]?.font ?? tx.font;
-      if (f && !loadedSet.has(f)) missing.add(f);
-    });
-    sp.addedTexts.forEach((a) => {
-      if (a.font && !loadedSet.has(a.font)) missing.add(a.font);
-    });
-  }
-  const missingList = [...missing];
-
   // Fonts come from the machine now — re-scan after the user installs the
   // missing ones (no more manual per-file loading).
   const [fontBusy, setFontBusy] = useState(false);
@@ -516,24 +481,92 @@ export function PropertiesPanel() {
   }
 
 
+  // ---------- 3-tab shell (Layout / Ảnh / Typo) ----------
+  const multiSel = useAlbum((s) => s.multiSel);
+  const clearSelection = useAlbum((s) => s.clearSelection);
+  // panel-level view when nothing on the canvas is selected
+  const [bgTab, setBgTab] = useState<PanelTab>("layout");
+  // which tab lights up follows the current selection; else the panel view
+  const activeTab: PanelTab = selectedTypo
+    ? "typo"
+    : multiSel.length >= 2 || selectedSlot !== null
+      ? "photo"
+      : selectedText
+        ? "layout"
+        : bgTab;
+  const pickTab = (t: PanelTab) => {
+    if (t === activeTab) return;
+    setBgTab(t);
+    // tabs are panel-level views — drop any canvas selection to reveal them
+    clearSelection();
+  };
+  const tabs = <PanelTabs active={activeTab} onPick={pickTab} />;
+
+  // Typo picker gallery — shown in the Typo tab (insert by click or drag).
+  const typoGallery = (
+    <div className="prop-group">
+      <div className="prop-label">Typo trang trí</div>
+      {typos.length > 0 ? (
+        <>
+          <div className="typo-tabs">
+            <button
+              className={"typo-tab" + (typoCat === "all" ? " active" : "")}
+              onClick={() => setTypoCat("all")}
+            >
+              Tất cả ({typos.length})
+            </button>
+            {typoCats.map((c) => (
+              <button
+                key={c}
+                className={"typo-tab" + (typoCat === c ? " active" : "")}
+                onClick={() => setTypoCat(c)}
+                title={`Nhóm typo: ${c}`}
+              >
+                {c} ({typos.filter((t) => (t.category ?? "khac") === c).length})
+              </button>
+            ))}
+          </div>
+          <div className="pp-typos">
+            {shownTypos.map((t) => (
+              <figure
+                key={t.id}
+                className="pp-typo"
+                title={`${t.category ?? ""} · bấm để chèn (kéo thả cũng được)`}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(TYPO_DND_KEY, t.id);
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
+                onClick={() => {
+                  void ensureTypoDeco(t.id);
+                  addTypoToSpread(t.id, 0.34, 0.4);
+                }}
+              >
+                <img src={t.preview} alt="" draggable={false} loading="lazy" />
+              </figure>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="hint-sm">Chưa có kho typo — nạp trong ⚙ Cài đặt.</div>
+      )}
+    </div>
+  );
+
   // ---------- GROUP selected (Shift-click nhiều phần tử) ----------
-  const multiSel = useAlbum.getState().multiSel;
   if (multiSel.length >= 2) {
     const st = useAlbum.getState();
     const photoIdx = multiSel
       .filter((k) => k[0] === "s")
       .map((k) => parseInt(k.slice(1), 10))
       .filter((i) => !!spread?.imageIds[i]);
-    const first = photoIdx.length ? spread.transforms[photoIdx[0]] : undefined;
-    const gb = first?.brightness ?? 0;
-    const gc = first?.contrast ?? 0;
     const counts = {
       s: multiSel.filter((k) => k[0] === "s").length,
       t: multiSel.filter((k) => k[0] === "t" || k[0] === "a").length,
       y: multiSel.filter((k) => k[0] === "y").length,
     };
     return (
-      <aside className="props">
+      <aside className="props">{tabs}
         <h3>Nhóm · {multiSel.length} phần tử</h3>
         <div className="prop-meta">
           <div>
@@ -545,13 +578,13 @@ export function PropertiesPanel() {
         <div className="hint-sm" style={{ marginTop: 6 }}>
           {spreadSelected
             ? "Kéo khung tím trên canvas để di chuyển cả nhóm. Shift-click để thêm/bớt."
-            : "Nhóm để chỉnh cơ bản (tông màu…). Muốn DI CHUYỂN/CĂN: vào chế độ sửa layout rồi quây lại."}
+            : "Nhóm để chỉnh nhanh ảnh (phủ kín/trọn ảnh). Muốn DI CHUYỂN/CĂN: vào chế độ sửa layout rồi quây lại."}
         </div>
 
         {spreadSelected && (
           <>
             <div className="prop-group" style={{ marginTop: 14 }}>
-              <div className="prop-label">Căn hàng (theo khung bao của nhóm)</div>
+              <div className="prop-label">Căn hàng (theo mép trang)</div>
               <div className="prop-row">
                 <button className="btn" title="Thẳng mép trái" onClick={() => st.alignGroup("left")}>⇤</button>
                 <button className="btn" title="Thẳng tâm ngang" onClick={() => st.alignGroup("hcenter")}>↔</button>
@@ -587,54 +620,7 @@ export function PropertiesPanel() {
 
         {photoIdx.length > 0 && (
           <>
-            <div className="prop-label" style={{ marginTop: 14 }}>
-              Tông màu ({photoIdx.length} ảnh)
-            </div>
-            <div className="sa-rows">
-              <div className="sa-row">
-                <span className="sa-name">Sáng:</span>
-                <input
-                  type="range"
-                  min={-100}
-                  max={100}
-                  step={1}
-                  value={Math.round(gb * 100)}
-                  onChange={(e) =>
-                    st.adjustGroupPhotos({ brightness: parseInt(e.target.value, 10) / 100 })
-                  }
-                />
-                <span className="sa-val">{Math.round(gb * 100)}</span>
-                <button
-                  className="sa-reset"
-                  title="Về 0"
-                  disabled={gb === 0}
-                  onClick={() => st.adjustGroupPhotos({ brightness: 0 })}
-                >
-                  ×
-                </button>
-              </div>
-              <div className="sa-row">
-                <span className="sa-name">T.phản:</span>
-                <input
-                  type="range"
-                  min={-100}
-                  max={100}
-                  step={1}
-                  value={gc}
-                  onChange={(e) => st.adjustGroupPhotos({ contrast: parseInt(e.target.value, 10) })}
-                />
-                <span className="sa-val">{gc}</span>
-                <button
-                  className="sa-reset"
-                  title="Về 0"
-                  disabled={gc === 0}
-                  onClick={() => st.adjustGroupPhotos({ contrast: 0 })}
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-            <div className="prop-group" style={{ marginTop: 10 }}>
+            <div className="prop-group" style={{ marginTop: 14 }}>
               <div className="prop-row">
                 <button
                   className="btn"
@@ -672,7 +658,7 @@ export function PropertiesPanel() {
     const typo = pt ? getTypo(pt.typoId) : undefined;
     if (pt) {
       return (
-        <aside className="props">
+        <aside className="props">{tabs}
           <h3>Typo{typo ? ` · ${typo.texts.length} chữ` : ""}</h3>
           <div className="prop-group">
             <div className="prop-label">Kích thước ({Math.round(pt.w * 100)}%)</div>
@@ -724,7 +710,7 @@ export function PropertiesPanel() {
       const color = ed.color ?? base?.color ?? "#222222";
       const sizeScale = ed.sizeScale ?? 1;
       return (
-        <aside className="props">
+        <aside className="props">{tabs}
           <h3>Chữ (từ layout)</h3>
           <div className="prop-group">
             <div className="prop-label">Nội dung</div>
@@ -773,7 +759,7 @@ export function PropertiesPanel() {
       const a = spread.addedTexts.find((t) => t.id === selectedText.id);
       if (!a) return <aside className="props" />;
       return (
-        <aside className="props">
+        <aside className="props">{tabs}
           <h3>Chữ thêm mới</h3>
           <div className="prop-group">
             <div className="prop-label">Nội dung</div>
@@ -814,7 +800,7 @@ export function PropertiesPanel() {
 
     if (!spreadSelected && img) {
       return (
-        <aside className="props">
+        <aside className="props">{tabs}
           <PhotoEditSections slot={selectedSlot} header withArrange />
         </aside>
       );
@@ -824,7 +810,7 @@ export function PropertiesPanel() {
     // belongs to layout mode — point the user there.
     if (!spreadSelected) {
       return (
-        <aside className="props">
+        <aside className="props">{tabs}
           <h3>Khung ảnh #{selectedSlot + 1}</h3>
           <div className="prop-empty">
             Khung trống — kéo ảnh từ khay dưới vào.
@@ -857,7 +843,7 @@ export function PropertiesPanel() {
     }));
 
     return (
-      <aside className="props">
+      <aside className="props">{tabs}
         <h3>Khung ảnh #{selectedSlot + 1}</h3>
         {eff && cm && (
           <div className="prop-group">
@@ -890,8 +876,17 @@ export function PropertiesPanel() {
 
   // ---------- LAYOUT selected (click the spread background) ----------
   return (
-    <aside className="props">
+    <aside className="props">{tabs}
+      {activeTab === "typo" ? (
+        typoGallery
+      ) : activeTab === "photo" ? (
+        <div className="prop-empty">
+          Chọn một ảnh trên canvas để chỉnh (viền, bo góc, xoay, đổi chỗ…).
+        </div>
+      ) : (
+        <>
       <h3>Layout · {spreadLabel(spreads, currentIndex)}</h3>
+      <AlbumConfig />
       {spread?.isCover && (
         <div className="prop-group">
           <div className="prop-label">Khổ bìa</div>
@@ -912,37 +907,9 @@ export function PropertiesPanel() {
           <div className="hint-sm">1 trang = bìa trước · 2 trang = trải cả mặt trước + sau.</div>
         </div>
       )}
-      {missingList.length > 0 && (
-        <div className="font-warn">
-          <b>⚠ {missingList.length} font mẫu chưa cài trên máy</b>
-          <div className="font-warn-list">
-            {missingList.slice(0, 8).join(", ")}
-            {missingList.length > 8 ? "…" : ""}
-          </div>
-          <div className="hint-sm" style={{ marginTop: 6 }}>
-            Cài các font này vào máy (Library/Fonts · Windows Fonts) để chữ đúng kiểu.
-          </div>
-          <button
-            className="btn"
-            style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
-            onClick={rescanFonts}
-            disabled={fontBusy}
-          >
-            {fontBusy ? "Đang quét…" : "⟳ Quét lại font máy"}
-          </button>
-        </div>
-      )}
-      <div className="prop-group">
-        <div className="prop-label">Màu nền</div>
-        <div className="prop-row">
-          <input type="color" className="swatch" value={bgColor} onChange={(e) => setBgColor(e.target.value)} />
-          <input className="input" value={bgColor.toUpperCase()} onChange={(e) => setBgColor(e.target.value)} />
-        </div>
-      </div>
-
       {/* print guides (⌘B): red = trim (lab cut), green = safe zone */}
       <div className="prop-group">
-        <div className="prop-label">Đường canh in ấn</div>
+        <div className="prop-label" title="Bật/tắt bằng ⌘B (Ctrl+B)">Đường canh in ấn</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5 }}>
             <span style={{ width: 60, color: "#ef6666" }}>▦ Xén (đỏ)</span>
@@ -973,15 +940,8 @@ export function PropertiesPanel() {
             <span style={{ color: "var(--text-faint)" }}>mm</span>
           </label>
         </div>
-        <button
-          className={"btn" + (showBleed ? " primary" : "")}
-          style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
-          onClick={() => useAlbum.getState().toggleBleed()}
-        >
-          {showBleed ? "Đang hiện đường canh (⌘B)" : "Hiện đường canh (⌘B)"}
-        </button>
-        <div className="hint-sm">
-          Đỏ = mép lab có thể xén · Xanh = vùng an toàn giữ mặt/chữ bên trong. Chỉ hiển thị, không in ra.
+        <div className="hint-sm" style={{ marginTop: 8 }}>
+          <b>⌘B</b> (Ctrl+B) để bật/tắt. Đỏ = mép lab có thể xén · Xanh = vùng an toàn giữ mặt/chữ bên trong. Chỉ hiển thị, không in ra.
         </div>
       </div>
       <div className="prop-group">
@@ -1036,59 +996,13 @@ export function PropertiesPanel() {
         </div>
       )}
 
-      <div className="prop-group">
-        <div className="prop-label">Typo trang trí</div>
-        {typos.length > 0 ? (
-          <>
-            {/* category tabs (vn / korea / fashion…) — same look as the layout dock */}
-            <div className="typo-tabs">
-              <button
-                className={"typo-tab" + (typoCat === "all" ? " active" : "")}
-                onClick={() => setTypoCat("all")}
-              >
-                Tất cả ({typos.length})
-              </button>
-              {typoCats.map((c) => (
-                <button
-                  key={c}
-                  className={"typo-tab" + (typoCat === c ? " active" : "")}
-                  onClick={() => setTypoCat(c)}
-                  title={`Nhóm typo: ${c}`}
-                >
-                  {c} ({typos.filter((t) => (t.category ?? "khac") === c).length})
-                </button>
-              ))}
-            </div>
-            <div className="pp-typos">
-              {shownTypos.map((t) => (
-                <figure
-                  key={t.id}
-                  className="pp-typo"
-                  title={`${t.category ?? ""} · bấm để chèn (kéo thả cũng được)`}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData(TYPO_DND_KEY, t.id);
-                    e.dataTransfer.effectAllowed = "copy";
-                  }}
-                  onClick={() => {
-                    void ensureTypoDeco(t.id);
-                    addTypoToSpread(t.id, 0.34, 0.4);
-                  }}
-                >
-                  <img src={t.preview} alt="" draggable={false} loading="lazy" />
-                </figure>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="hint-sm">Chưa có kho typo — nạp trong ⚙ Cài đặt.</div>
-        )}
-      </div>
       <div className="prop-empty">
         Ở chế độ layout, ảnh chỉ để kéo đổi chỗ giữa các khung.
         <br />
         Click thẳng vào ảnh để chỉnh ảnh.
       </div>
+        </>
+      )}
     </aside>
   );
 }

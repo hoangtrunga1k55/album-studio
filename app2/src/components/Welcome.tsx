@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ALBUM_SIZES,
   parseSizeCm,
@@ -7,7 +7,7 @@ import {
 } from "../engine/templates";
 import { createProject, openProject } from "../flows/projectIO";
 import { loadRecents, forgetRecent, useProject, type RecentProject } from "../store/project";
-import { DEFAULT_SETTINGS } from "../store/album";
+import { DEFAULT_SETTINGS, loadCustomDefaults, saveCustomDefaults } from "../store/album";
 import "./Welcome.css";
 
 /** SmartAlbums-style welcome: New Album / Open Album + recent projects. */
@@ -135,6 +135,19 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
     DEFAULT_SETTINGS.layoutSource
   );
 
+  // Preset sizes keep the factory defaults; custom sizes remember the last-used
+  // settings (trim/safe/border/gap) so the next custom album starts from them.
+  useEffect(() => {
+    const src = custom ? loadCustomDefaults() : DEFAULT_SETTINGS;
+    setDpi(src.dpi);
+    setSafeMm(String(src.safeMm));
+    setTrimMm(String(src.trimMm));
+    setBorderPt(String(src.borderPt));
+    setBorderColor(src.borderColor);
+    setGapPt(String(src.gapPt));
+    setLayoutSource(src.layoutSource);
+  }, [custom]);
+
   function switchUnit(next: Unit) {
     // Keep the physical size when switching units (convert the field values).
     const from = UNITS.find((u) => u.id === unit)!;
@@ -182,18 +195,21 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
       return;
     }
     const spreads = Math.min(50, Math.max(1, parseInt(spreadCount, 10) || 1));
+    const settings = {
+      dpi,
+      trimMm: mmVal(trimMm),
+      safeMm: mmVal(safeMm),
+      borderPt: mmVal(borderPt, 200),
+      borderColor,
+      gapPt: mmVal(gapPt, 200),
+      layoutSource,
+    };
+    // Remember custom-album settings for next time (presets stay factory).
+    if (custom) saveCustomDefaults(settings);
     setBusy(true);
     try {
       const ok = await createProject(name, chosen, spreads, {
-        settings: {
-          dpi,
-          trimMm: mmVal(trimMm),
-          safeMm: mmVal(safeMm),
-          borderPt: mmVal(borderPt, 200),
-          borderColor,
-          gapPt: mmVal(gapPt, 200),
-          layoutSource,
-        },
+        settings,
         bgColor,
       });
       if (ok) onClose();

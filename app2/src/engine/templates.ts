@@ -377,6 +377,10 @@ export type LayoutSourceFilter = "all" | TemplateSource;
 
 let preferredSource: LayoutSourceFilter = "all";
 
+export function getPreferredSource(): LayoutSourceFilter {
+  return preferredSource;
+}
+
 export function setPreferredSource(f: LayoutSourceFilter) {
   preferredSource = f;
 }

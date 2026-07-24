@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import {
   coverTemplates,
+  getPreferredSource,
   getTemplate,
   libraryTemplate,
   registerLibraryTemplate,
-  suggestionTemplates,
+  setPreferredSource,
   templateFromJson,
+  templatesForSize,
+  type LayoutSourceFilter,
   type Template,
   type TemplateSource,
 } from "../engine/templates";
@@ -90,8 +93,13 @@ function useStripTemplates(): { list: Template[]; currentId: string; photoCount:
   const currentId = spread?.templateId ?? "";
   const photoCount = spread?.imageIds.filter(Boolean).length ?? 0;
   if (!size) return { list: [], currentId, photoCount };
-  // The cover browses its OWN layout pool, never the spread designs.
-  const all = spread?.isCover ? coverTemplates(size) : suggestionTemplates(size);
+  // Built-in list = basics + customs only. The Tizino pack is shown separately
+  // via libItems, so drop pack templates here to avoid double-counting in the
+  // "Tất cả" tab. Source filter (preferredSource) only drives SPACE. Cover has
+  // its own pool.
+  const all = spread?.isCover
+    ? coverTemplates(size)
+    : templatesForSize(size).filter((t) => (t.source ?? "tizino") !== "tizino");
   const list = [...all].sort((a, b) => {
     if (photoCount > 0) {
       const am = a.slotCount === photoCount ? 0 : 1;
@@ -132,7 +140,13 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
   const isCover = !!spreads[currentIndex]?.isCover;
   const { list, currentId, photoCount } = useStripTemplates();
   const library = useLibrary((s) => s.layouts);
-  const [tab, setTab] = useState<string>("all");
+  // Tab drives the SPACE/shuffle pool too: "Cơ bản" cycles only basics,
+  // "Tizino" only the pack, "Tất cả" everything.
+  const [tab, setTab] = useState<string>(() => getPreferredSource());
+  const chooseTab = (id: string) => {
+    setTab(id);
+    setPreferredSource(id as LayoutSourceFilter);
+  };
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -222,7 +236,7 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
             <button
               key={t.id}
               className={"lp-tab" + (tab === t.id ? " active" : "")}
-              onClick={() => setTab(t.id)}
+              onClick={() => chooseTab(t.id)}
             >
               {t.label} ({bySrc(t.id).length + (t.id === "all" ? libItems.length : 0)})
             </button>
@@ -230,7 +244,7 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
           {libItems.length > 0 && (
             <button
               className={"lp-tab lib" + (tab === "tizino" ? " active" : "")}
-              onClick={() => setTab("tizino")}
+              onClick={() => chooseTab("tizino")}
               title={`Kho layout Tizino${size ? ` · khổ ${size}` : ""}${
                 cats.length ? ` · nhóm: ${cats.join(", ")}` : ""
               }`}
