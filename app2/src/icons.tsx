@@ -66,6 +66,14 @@ export const IconExport = (p: SVGProps<SVGSVGElement>) => (
   </Svg>
 );
 
+export const IconFlip = (p: SVGProps<SVGSVGElement>) => (
+  <Svg {...p}>
+    <path d="M12 4v16" />
+    <path d="M12 5c-1.8-1-4.2-1.6-7-1.6V17c2.8 0 5.2.6 7 1.6" />
+    <path d="M12 5c1.8-1 4.2-1.6 7-1.6V17c-2.8 0-5.2.6-7 1.6" />
+  </Svg>
+);
+
 export const IconSettings = (p: SVGProps<SVGSVGElement>) => (
   <Svg {...p}>
     <circle cx="12" cy="12" r="3" />

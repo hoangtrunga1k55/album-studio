@@ -50,6 +50,7 @@ import { LayoutDock } from "./components/LayoutStrip";
 import { ExportDialog } from "./components/ExportDialog";
 import { AutoDesignDialog } from "./components/AutoDesignDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { FlipShow } from "./components/FlipShow";
 import { getTemplate } from "./engine/templates";
 import { loadSystemFonts } from "./engine/fontLibrary";
 import { restoreLibraries } from "./flows/typoImport";
@@ -58,7 +59,7 @@ import { useAlbum } from "./store/album";
 import { useFonts } from "./store/fonts";
 import { syncRecentMenu, useProject } from "./store/project";
 import { clearHistory, initHistory, redo, undo } from "./store/history";
-import { IconExport, IconLayout, IconSettings, IconSparkle } from "./icons";
+import { IconExport, IconFlip, IconLayout, IconSettings, IconSparkle } from "./icons";
 import { mod } from "./engine/platform";
 import "./App.css";
 
@@ -82,6 +83,7 @@ function App() {
   const [showExport, setShowExport] = useState(false);
   const [showDesign, setShowDesign] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showFlip, setShowFlip] = useState(false);
 
   // Resizable panels (drag bars) — remembered across sessions.
   const [trayH, setTrayH] = useState(() => loadPx("albumstudio2.ui.trayH", 190));
@@ -183,6 +185,17 @@ function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Q = 3D show (no modifier) — but never while typing in a field.
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "q") {
+        const el = document.activeElement as HTMLElement | null;
+        const editing =
+          el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+        if (!editing && useAlbum.getState().spreads.length) {
+          e.preventDefault();
+          setShowFlip((v) => !v);
+        }
+        return;
+      }
       if (!(e.metaKey || e.ctrlKey)) return;
       const k = e.key.toLowerCase();
       if (k === "z") {
@@ -321,6 +334,15 @@ function App() {
             <IconSparkle />
             {importing ? "Đang nhập ảnh…" : "Auto Design"}
           </button>
+          <button
+            className="btn"
+            onClick={() => setShowFlip(true)}
+            disabled={!spreads.length}
+            title="Trình khách — lật album 3D (Q)"
+          >
+            <IconFlip />
+            3D Show
+          </button>
           <button className="btn primary" onClick={() => setShowExport(true)}>
             <IconExport />
             Xuất album
@@ -398,6 +420,7 @@ function App() {
       {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
       {showDesign && <AutoDesignDialog onClose={() => setShowDesign(false)} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
+      {showFlip && <FlipShow onClose={() => setShowFlip(false)} />}
     </div>
   );
 }

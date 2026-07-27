@@ -45,7 +45,11 @@ export async function renderSpread(
   cropMarks = false,
   /** album setting: border around every photo, points (0 = off). */
   borderPt = 0,
-  borderColor = "#ffffff"
+  borderColor = "#ffffff",
+  /** how to fetch a photo's pixels — print export decodes full-res
+   *  (`getExportImage`); the on-screen 3D preview passes the lighter,
+   *  already-cached display image for speed. */
+  loadImage: (path: string) => Promise<string> = getExportImage
 ): Promise<RenderResult> {
   // Print at the album's true page size (cm). The cover decides its own page
   // count (1 = front only, 2 = wrap); content spreads follow the template
@@ -94,7 +98,7 @@ export async function renderSpread(
       const meta = images.find((m) => m.id === spread.bgImageId);
       if (meta) {
         try {
-          const bg = await loadImg(await getExportImage(meta.path));
+          const bg = await loadImg(await loadImage(meta.path));
           const scale = Math.max(W / bg.width, H / bg.height);
           const dw = bg.width * scale;
           const dh = bg.height * scale;
@@ -177,7 +181,7 @@ export async function renderSpread(
       };
       let img: HTMLImageElement;
       try {
-        img = await loadImg(await getExportImage(meta.path));
+        img = await loadImg(await loadImage(meta.path));
       } catch {
         continue;
       }
