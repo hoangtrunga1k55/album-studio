@@ -20,6 +20,7 @@ import {
   registerLibraryTemplate,
 } from "../engine/templates";
 import { ensureTypoDeco, getTypo, type Typo } from "../engine/typos";
+import { ensureElementImage, getElement, type Element } from "../engine/elements";
 import { useLibrary } from "../store/library";
 import { readLayoutBgPath } from "../ipc/library";
 import {
@@ -32,11 +33,12 @@ import {
   type SlotTransform,
   type TextEdit,
   type PlacedTypo,
+  type PlacedElement,
 } from "../store/album";
 import { useFonts } from "../store/fonts";
 import { sampleBgColor } from "../engine/sampleBg";
 import { fitFontSizeToWidth, isSingleLine } from "../engine/fitText";
-import { IMAGE_DND_KEY, TYPO_DND_KEY } from "../constants";
+import { ELEMENT_DND_KEY, IMAGE_DND_KEY, TYPO_DND_KEY } from "../constants";
 import { mod } from "../engine/platform";
 import { rotaterIconStyle } from "../engine/rotateAnchor";
 import "./SpreadCanvas.css";
@@ -440,6 +442,91 @@ function TypoNode(props: {
           borderStroke="#6e76ff"
           borderStrokeWidth={1.5}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 12 || newBox.height < 10 ? oldBox : newBox)}
+        />
+      )}
+    </>
+  );
+}
+
+/** A placed element/sticker (F3): a single transparent image, movable /
+ *  resizable / rotatable with opacity — same handles as a typo. */
+function ElementNode(props: {
+  element: Element;
+  pe: PlacedElement;
+  stageW: number;
+  stageH: number;
+  selected: boolean;
+  onSelect: () => void;
+  onMoved: (nx: number, ny: number) => void;
+  onResize: (w: number) => void;
+  onTransformed: (t: NodeTransform) => void;
+}) {
+  const { element, pe, stageW, stageH, selected, onSelect, onMoved, onResize, onTransformed } = props;
+  const [img] = useImage(element.src ?? "");
+  const W = pe.w * stageW;
+  const H = W / (element.ratioWH || 1);
+  const groupRef = useRef<Konva.Group>(null);
+  const trRef = useRef<Konva.Transformer>(null);
+
+  useEffect(() => {
+    if (selected && trRef.current && groupRef.current) {
+      trRef.current.nodes([groupRef.current]);
+      trRef.current.getLayer()?.batchDraw();
+    }
+  }, [selected, W, H, pe.scaleX, pe.scaleY]);
+
+  return (
+    <>
+      <Group
+        ref={groupRef}
+        x={pe.x * stageW}
+        y={pe.y * stageH}
+        scaleX={pe.scaleX ?? 1}
+        scaleY={pe.scaleY ?? 1}
+        rotation={pe.rotDeg ?? 0}
+        opacity={pe.opacity ?? 1}
+        draggable
+        onClick={onSelect}
+        onTap={onSelect}
+        onDragEnd={(e) => onMoved(e.target.x() / stageW, e.target.y() / stageH)}
+        onWheel={(e) => {
+          e.evt.preventDefault();
+          onResize(clamp(pe.w * (e.evt.deltaY > 0 ? 0.94 : 1.06), 0.03, 1.5));
+        }}
+        onTransformEnd={() => {
+          const g = groupRef.current;
+          if (!g) return;
+          onTransformed({
+            xPx: g.x(),
+            yPx: g.y(),
+            scaleX: g.scaleX(),
+            scaleY: g.scaleY(),
+            rotDeg: g.rotation(),
+          });
+        }}
+      >
+        {img && (
+          <KonvaImage image={img} x={0} y={0} width={W} height={H} perfectDrawEnabled={false} />
+        )}
+        {/* invisible hit area so an SVG/not-yet-loaded element is still grabbable */}
+        <Rect x={0} y={0} width={W} height={H} fill="#fff" opacity={0} />
+      </Group>
+      {selected && (
+        <Transformer
+          ref={trRef}
+          rotateEnabled
+          rotateAnchorOffset={28}
+          anchorStyleFunc={rotaterIconStyle}
+          rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
+          rotationSnapTolerance={6}
+          keepRatio
+          enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]}
+          anchorSize={9}
+          anchorCornerRadius={5}
+          anchorStroke="#6e76ff"
+          borderStroke="#6e76ff"
+          borderStrokeWidth={1.5}
+          boundBoxFunc={(oldBox, newBox) => (newBox.width < 10 || newBox.height < 10 ? oldBox : newBox)}
         />
       )}
     </>
@@ -1059,6 +1146,10 @@ export function SpreadCanvas() {
   const selectTypo = useAlbum((s) => s.selectTypo);
   const addTypo = useAlbum((s) => s.addTypo);
   const updateTypo = useAlbum((s) => s.updateTypo);
+  const selectedElement = useAlbum((s) => s.selectedElement);
+  const selectElement = useAlbum((s) => s.selectElement);
+  const addElement = useAlbum((s) => s.addElement);
+  const updateElement = useAlbum((s) => s.updateElement);
   const swapSource = useAlbum((s) => s.swapSource);
   const swapImages = useAlbum((s) => s.swapImages);
   // Re-render (and re-measure text fit) whenever the loaded font set changes.
@@ -1290,7 +1381,8 @@ export function SpreadCanvas() {
         }
       } else if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        if (st.selectedTypo) st.removeTypo(st.selectedTypo);
+        if (st.selectedElement) st.removeElement(st.selectedElement);
+        else if (st.selectedTypo) st.removeTypo(st.selectedTypo);
         else if (st.selectedText) {
           if (st.selectedText.kind === "tpl") st.deleteTplText(st.selectedText.index);
           else st.removeAddedText(st.selectedText.id);
@@ -1427,6 +1519,18 @@ export function SpreadCanvas() {
         h: fs * 1.12 * lines * (a.scaleY ?? 1),
       };
     }
+    if (k[0] === "e") {
+      const pe = (spread.elements ?? []).find((x) => x.id === k.slice(1));
+      if (!pe) return null;
+      const el = getElement(pe.elementId);
+      const w = pe.w * stageW * (pe.scaleX ?? 1);
+      return {
+        x: pe.x * stageW,
+        y: pe.y * stageH,
+        w,
+        h: ((pe.w * stageW) / (el?.ratioWH || 1)) * (pe.scaleY ?? 1),
+      };
+    }
     const pt = (spread.typos ?? []).find((x) => x.id === k.slice(1));
     if (!pt) return null;
     const typo = getTypo(pt.typoId);
@@ -1542,6 +1646,12 @@ export function SpreadCanvas() {
     if (typoId) {
       void ensureTypoDeco(typoId); // decoration PNG loads on first use
       addTypo(typoId, Math.max(0, nx - 0.16), Math.max(0, ny - 0.08));
+      return;
+    }
+    const elementId = e.dataTransfer.getData(ELEMENT_DND_KEY);
+    if (elementId) {
+      void ensureElementImage(elementId); // pixels load on first use
+      addElement(elementId, Math.max(0, nx - 0.12), Math.max(0, ny - 0.12));
       return;
     }
     const data = e.dataTransfer.getData(IMAGE_DND_KEY);
@@ -2076,6 +2186,40 @@ export function SpreadCanvas() {
                   }
                 />
               );
+              }
+
+              // ---- placed element/sticker `e<id>`
+              if (zk[0] === "e") {
+                const pe = (spread.elements ?? []).find((x) => x.id === zk.slice(1));
+                if (!pe) return null;
+                const el = getElement(pe.elementId);
+                if (!el) return null;
+                return (
+                  <ElementNode
+                    key={pe.id}
+                    element={el}
+                    pe={pe}
+                    stageW={stageW}
+                    stageH={stageH}
+                    selected={selectedElement === pe.id}
+                    onSelect={() =>
+                      shiftRef.current
+                        ? useAlbum.getState().toggleMultiSel(`e${pe.id}`)
+                        : selectElement(pe.id)
+                    }
+                    onMoved={(nx, ny) => updateElement(pe.id, { x: nx, y: ny })}
+                    onResize={(w) => updateElement(pe.id, { w })}
+                    onTransformed={(t) =>
+                      updateElement(pe.id, {
+                        scaleX: t.scaleX,
+                        scaleY: t.scaleY,
+                        rotDeg: t.rotDeg,
+                        x: t.xPx / stageW,
+                        y: t.yPx / stageH,
+                      })
+                    }
+                  />
+                );
               }
 
               // ---- placed typo `y<id>`

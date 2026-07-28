@@ -4,6 +4,8 @@ import type { Template } from "./templates";
 import type { ImageMeta } from "../ipc/import";
 import { getExportImage } from "../ipc/export";
 import { getTypo } from "./typos";
+import { getElement } from "./elements";
+import { readElementImage } from "../ipc/elements";
 import { sampleBgColor } from "./sampleBg";
 import { fitFontSizeToWidth, isSingleLine } from "./fitText";
 
@@ -328,6 +330,37 @@ export async function renderSpread(
         })
       );
       continue;
+      }
+
+      // placed element/sticker `e<id>` (single transparent image)
+      if (zk[0] === "e") {
+        const pe = (spread.elements ?? []).find((x) => x.id === zk.slice(1));
+        if (!pe) continue;
+        const el = getElement(pe.elementId);
+        if (!el) continue;
+        const src = el.src ?? (await readElementImage(el.path).catch(() => null));
+        if (!src) continue;
+        const ew = pe.w * W;
+        const eh = ew / (el.ratioWH || 1);
+        try {
+          const im = await loadImg(src);
+          root.add(
+            new Konva.Image({
+              image: im,
+              x: pe.x * W,
+              y: pe.y * H,
+              width: ew,
+              height: eh,
+              scaleX: pe.scaleX ?? 1,
+              scaleY: pe.scaleY ?? 1,
+              rotation: pe.rotDeg ?? 0,
+              opacity: pe.opacity ?? 1,
+            })
+          );
+        } catch {
+          /* ignore a broken element image */
+        }
+        continue;
       }
 
       // placed typo design `y<id>` (decoration + vector text)

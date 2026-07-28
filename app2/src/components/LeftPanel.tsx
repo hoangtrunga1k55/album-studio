@@ -2,8 +2,8 @@ import { useState } from "react";
 import { FontPanel } from "./FontPanel";
 import "./ImagePanel.css";
 
-/** Left dock: the font library. Photos live in the bottom tray, typos in the
- *  Layout panel — the dock stays collapsed until needed. */
+/** Left dock: the font library. Photos live in the bottom tray, typos and
+ *  elements in the right panel — the dock stays collapsed until needed. */
 export function LeftPanel() {
   const [open, setOpen] = useState(false);
 

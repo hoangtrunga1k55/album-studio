@@ -1,3 +1,4 @@
+mod elements;
 mod export;
 mod fonts;
 mod import;
@@ -74,6 +75,8 @@ pub fn run() {
             typos::load_typo_folder,
             typos::scan_typo_library,
             typos::read_typo_deco,
+            elements::scan_element_folder,
+            elements::read_element_image,
             layouts::read_layout_bg,
             layouts::scan_layout_pack,
             layouts::scan_layout_library,

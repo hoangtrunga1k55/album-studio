@@ -13,6 +13,7 @@ import {
   type Template,
 } from "../engine/templates";
 import { getTypo } from "../engine/typos";
+import { getElement } from "../engine/elements";
 import { planAutoDesign, type Density, planAutoBuild, type TemplateReuse } from "../engine/autoLayout";
 
 /** Pan/zoom of an image inside its slot. zoom>=1; pan in [-1,1] (fraction of overflow). */
@@ -96,6 +97,19 @@ export interface PlacedTypo {
   color: string | null; // null = original per-text colors; hex = flood recolor
 }
 
+/** A decorative element/sticker (F3) placed on a spread. */
+export interface PlacedElement {
+  id: string;
+  elementId: string; // library element id
+  x: number; // normalized top-left
+  y: number;
+  w: number; // normalized width (height derived from the element ratio)
+  scaleX?: number; // free horizontal stretch, default 1
+  scaleY?: number; // free vertical stretch, default 1
+  rotDeg?: number; // free rotation, degrees
+  opacity?: number; // 0..1, default 1
+}
+
 /** One album spread: a chosen template + the images assigned to its slots (in order). */
 export interface Spread {
   id: string;
@@ -109,6 +123,8 @@ export interface Spread {
   addedTexts: AddedText[];
   /** typo designs placed on this spread. */
   typos: PlacedTypo[];
+  /** decorative elements/stickers placed on this spread (F3). */
+  elements?: PlacedElement[];
   /** gap between photos, fraction of spread height (§4.1 Margin slider). */
   margin: number;
   /** photo → edge padding, fraction of spread height (§6.6). */
@@ -167,6 +183,7 @@ export function zKeysOf(spread: Spread, slotCount: number, tplTextCount: number)
     ...Array.from({ length: tplTextCount }, (_, i) => `t${i}`),
     ...spread.addedTexts.map((a) => `a${a.id}`),
     ...(spread.typos ?? []).map((t) => `y${t.id}`),
+    ...(spread.elements ?? []).map((e) => `e${e.id}`),
   ];
 }
 
@@ -255,6 +272,7 @@ function singleSelKeys(s: AlbumState): string[] {
   if (s.selectedText?.kind === "tpl") return [`t${s.selectedText.index}`];
   if (s.selectedText?.kind === "added") return [`a${s.selectedText.id}`];
   if (s.selectedTypo != null) return [`y${s.selectedTypo}`];
+  if (s.selectedElement != null) return [`e${s.selectedElement}`];
   return [];
 }
 
@@ -313,6 +331,13 @@ function groupGeometry(
         r: { x: a.x, y: a.y, w: 0.5 * (a.scaleX ?? 1), h: Math.max(0.02, a.sizeFrac * 1.12 * lines * (a.scaleY ?? 1)) },
         to: { x: null, y: null },
       });
+    } else if (k[0] === "e") {
+      const el = (cur.elements ?? []).find((x) => `e${x.id}` === k);
+      if (!el) continue;
+      const meta = getElement(el.elementId);
+      const w = el.w * (el.scaleX ?? 1);
+      const h = ((el.w * stageRatio) / (meta?.ratioWH || 1)) * (el.scaleY ?? 1);
+      entries.push({ k, r: { x: el.x, y: el.y, w, h }, to: { x: null, y: null } });
     } else {
       const t = (cur.typos ?? []).find((x) => `y${x.id}` === k);
       if (!t) continue;
@@ -329,6 +354,7 @@ function groupGeometry(
   const textEdits = { ...cur.textEdits };
   let addedTexts = cur.addedTexts;
   let typos = cur.typos ?? [];
+  let elements = cur.elements ?? [];
   for (const e of entries) {
     const X = e.to.x;
     const Y = e.to.y;
@@ -349,6 +375,8 @@ function groupGeometry(
       addedTexts = addedTexts.map((a) =>
         `a${a.id}` === e.k ? { ...a, x: X ?? a.x, y: Y ?? a.y } : a
       );
+    } else if (k[0] === "e") {
+      elements = elements.map((el) => (`e${el.id}` === e.k ? { ...el, x: X ?? el.x, y: Y ?? el.y } : el));
     } else {
       typos = typos.map((t) => (`y${t.id}` === e.k ? { ...t, x: X ?? t.x, y: Y ?? t.y } : t));
     }
@@ -357,6 +385,7 @@ function groupGeometry(
   cur.textEdits = textEdits;
   cur.addedTexts = addedTexts;
   cur.typos = typos;
+  cur.elements = elements;
   spreads[s.currentIndex] = cur;
   return { spreads };
 }
@@ -393,6 +422,7 @@ interface AlbumState {
   selectedSlot: number | null;
   selectedText: TextSel;
   selectedTypo: string | null;
+  selectedElement: string | null;
   bgColor: string;
   photoMeta: Record<string, PhotoMeta>;
   /** Photos highlighted in the Photos panel (rating keys apply to these). */
@@ -594,6 +624,11 @@ interface AlbumState {
   addTypo: (typoId: string, x: number, y: number) => void;
   updateTypo: (id: string, patch: Partial<PlacedTypo>) => void;
   removeTypo: (id: string) => void;
+  // ---- elements / stickers (current spread) ----
+  selectElement: (id: string | null) => void;
+  addElement: (elementId: string, x: number, y: number, w?: number) => void;
+  updateElement: (id: string, patch: Partial<PlacedElement>) => void;
+  removeElement: (id: string) => void;
 
   setBgColor: (color: string) => void;
 }
@@ -606,6 +641,7 @@ export const useAlbum = create<AlbumState>((set) => ({
   selectedSlot: null,
   selectedText: null,
   selectedTypo: null,
+  selectedElement: null,
   swapSource: null,
   bgColor: "#ffffff",
   photoMeta: {},
@@ -703,11 +739,12 @@ export const useAlbum = create<AlbumState>((set) => ({
       bgColor: p.bgColor,
       density: p.density,
       currentIndex: p.currentIndex,
-      spreads: p.spreads.map((sp) => ({ ...sp, typos: sp.typos ?? [] })),
+      spreads: p.spreads.map((sp) => ({ ...sp, typos: sp.typos ?? [], elements: sp.elements ?? [] })),
       images: [],
       selectedSlot: null,
       selectedText: null,
       selectedTypo: null,
+      selectedElement: null,
       photoMeta: p.photoMeta ?? {},
       selectedPhotos: [],
       settings,
@@ -1104,7 +1141,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       cur.slotRects = {};
       cur.zOrder = undefined;
       spreads[s.currentIndex] = cur;
-      return { spreads, swapSource: null, selectedSlot: null, selectedText: null, selectedTypo: null };
+      return { spreads, swapSource: null, selectedSlot: null, selectedText: null, selectedTypo: null, selectedElement: null };
     }),
 
   addSpread: () =>
@@ -1301,7 +1338,7 @@ export const useAlbum = create<AlbumState>((set) => ({
 
   multiSel: [],
   setMultiSel: (multiSel) =>
-    set({ multiSel, selectedSlot: null, selectedText: null, selectedTypo: null }),
+    set({ multiSel, selectedSlot: null, selectedText: null, selectedTypo: null, selectedElement: null }),
   toggleMultiSel: (key) => {
     // one physical click can arrive as TWO events (Konva click + tap ~90ms
     // apart) — an instant re-toggle of the SAME key is never a human intent
@@ -1317,10 +1354,11 @@ export const useAlbum = create<AlbumState>((set) => ({
         if (s.selectedText)
           seed.push(s.selectedText.kind === "tpl" ? `t${s.selectedText.index}` : `a${s.selectedText.id}`);
         if (s.selectedTypo) seed.push(`y${s.selectedTypo}`);
+        if (s.selectedElement) seed.push(`e${s.selectedElement}`);
         sel = seed;
       }
       sel = sel.includes(key) ? sel.filter((k) => k !== key) : [...sel, key];
-      return { multiSel: sel, selectedSlot: null, selectedText: null, selectedTypo: null };
+      return { multiSel: sel, selectedSlot: null, selectedText: null, selectedTypo: null, selectedElement: null };
     });
   },
 
@@ -1334,6 +1372,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       const textEdits = { ...cur.textEdits };
       let addedTexts = cur.addedTexts;
       let typos = cur.typos ?? [];
+      let elements = cur.elements ?? [];
       for (const k of s.multiSel) {
         if (k[0] === "s") {
           const i = parseInt(k.slice(1), 10);
@@ -1351,6 +1390,10 @@ export const useAlbum = create<AlbumState>((set) => ({
           addedTexts = addedTexts.map((a) =>
             `a${a.id}` === k ? { ...a, x: a.x + d.stage.dx, y: a.y + d.stage.dy } : a
           );
+        } else if (k[0] === "e") {
+          elements = elements.map((el) =>
+            `e${el.id}` === k ? { ...el, x: el.x + d.stage.dx, y: el.y + d.stage.dy } : el
+          );
         } else {
           typos = typos.map((t) =>
             `y${t.id}` === k ? { ...t, x: t.x + d.stage.dx, y: t.y + d.stage.dy } : t
@@ -1361,6 +1404,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       cur.textEdits = textEdits;
       cur.addedTexts = addedTexts;
       cur.typos = typos;
+      cur.elements = elements;
       spreads[s.currentIndex] = cur;
       return { spreads };
     }),
@@ -1510,7 +1554,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       // Auto Design fills the CONTENT spreads — the cover stays untouched.
       const cover = s.spreads[0]?.isCover ? [s.spreads[0]] : [];
       const spreads = [...cover, ...planned];
-      return { spreads, currentIndex: cover.length, selectedSlot: null, selectedText: null, selectedTypo: null };
+      return { spreads, currentIndex: cover.length, selectedSlot: null, selectedText: null, selectedTypo: null, selectedElement: null };
     }),
 
   // NOTE: selecting a slot KEEPS the layout mode (spreadSelected) — in layout
@@ -1520,6 +1564,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       selectedSlot,
       selectedText: null,
       selectedTypo: null,
+      selectedElement: null,
       swapSource: null,
       multiSel: [],
       // canvas selection owns the keyboard now — tray selection would steal
@@ -1534,6 +1579,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       selectedSlot: null,
       selectedText: null,
       selectedTypo: null,
+      selectedElement: null,
       swapSource: null,
       multiSel: [],
       selectedPhotos: [],
@@ -1544,6 +1590,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       selectedSlot: null,
       selectedText: null,
       selectedTypo: null,
+      selectedElement: null,
       swapSource: null,
       spreadSelected: false,
       multiSel: [],
@@ -1554,6 +1601,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       selectedText,
       selectedSlot: null,
       selectedTypo: null,
+      selectedElement: null,
       swapSource: null,
       spreadSelected: false,
       multiSel: [],
@@ -1564,6 +1612,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       selectedTypo,
       selectedSlot: null,
       selectedText: null,
+      selectedElement: null,
       swapSource: null,
       spreadSelected: false,
       multiSel: [],
@@ -1576,7 +1625,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       const cur = { ...spreads[s.currentIndex] };
       cur.typos = [...(cur.typos ?? []), { id, typoId, x, y, w: 0.32, color: null }];
       spreads[s.currentIndex] = cur;
-      return { spreads, selectedTypo: id, selectedSlot: null, selectedText: null };
+      return { spreads, selectedTypo: id, selectedSlot: null, selectedText: null, selectedElement: null };
     }),
 
   updateTypo: (id, patch) =>
@@ -1595,6 +1644,45 @@ export const useAlbum = create<AlbumState>((set) => ({
       cur.typos = (cur.typos ?? []).filter((t) => t.id !== id);
       spreads[s.currentIndex] = cur;
       return { spreads, selectedTypo: null };
+    }),
+
+  selectElement: (selectedElement) =>
+    set({
+      selectedElement,
+      selectedSlot: null,
+      selectedText: null,
+      selectedTypo: null,
+      swapSource: null,
+      spreadSelected: false,
+      multiSel: [],
+    }),
+
+  addElement: (elementId, x, y, w = 0.24) =>
+    set((s) => {
+      const id = newId("el");
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      cur.elements = [...(cur.elements ?? []), { id, elementId, x, y, w, opacity: 1 }];
+      spreads[s.currentIndex] = cur;
+      return { spreads, selectedElement: id, selectedSlot: null, selectedText: null, selectedTypo: null };
+    }),
+
+  updateElement: (id, patch) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      cur.elements = (cur.elements ?? []).map((e) => (e.id === id ? { ...e, ...patch } : e));
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
+
+  removeElement: (id) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      cur.elements = (cur.elements ?? []).filter((e) => e.id !== id);
+      spreads[s.currentIndex] = cur;
+      return { spreads, selectedElement: null };
     }),
 
   editTplText: (index, patch) =>

@@ -10,16 +10,18 @@ import { loadSystemFonts } from "../engine/fontLibrary";
 import { TYPO_DND_KEY } from "../constants";
 import { FontPicker } from "./FontPicker";
 import { AlbumConfig } from "./AlbumConfig";
+import { ElementPanel } from "./ElementPanel";
 import { IconTrash } from "../icons";
 
-type PanelTab = "layout" | "photo" | "typo";
+type PanelTab = "layout" | "photo" | "typo" | "element";
 
-/** The 3 tabs at the top of the right panel — Layout / Ảnh / Typo. */
+/** The tabs at the top of the right panel — Layout / Ảnh / Typo / Element. */
 function PanelTabs({ active, onPick }: { active: PanelTab; onPick: (t: PanelTab) => void }) {
   const items: { id: PanelTab; label: string }[] = [
     { id: "layout", label: "Layout" },
     { id: "photo", label: "Ảnh" },
     { id: "typo", label: "Typo" },
+    { id: "element", label: "Element" },
   ];
   return (
     <div className="pp-tabs">
@@ -444,9 +446,12 @@ export function PropertiesPanel() {
   const selectedSlot = useAlbum((s) => s.selectedSlot);
   const selectedText = useAlbum((s) => s.selectedText);
   const selectedTypo = useAlbum((s) => s.selectedTypo);
+  const selectedElement = useAlbum((s) => s.selectedElement);
   const spreadSelected = useAlbum((s) => s.spreadSelected);
   const updateTypo = useAlbum((s) => s.updateTypo);
   const removeTypo = useAlbum((s) => s.removeTypo);
+  const updateElement = useAlbum((s) => s.updateElement);
+  const removeElement = useAlbum((s) => s.removeElement);
   const settings = useAlbum((s) => s.settings);
   const setMargin = useAlbum((s) => s.setMargin);
   const editTplText = useAlbum((s) => s.editTplText);
@@ -487,13 +492,15 @@ export function PropertiesPanel() {
   // panel-level view when nothing on the canvas is selected
   const [bgTab, setBgTab] = useState<PanelTab>("layout");
   // which tab lights up follows the current selection; else the panel view
-  const activeTab: PanelTab = selectedTypo
-    ? "typo"
-    : multiSel.length >= 2 || selectedSlot !== null
-      ? "photo"
-      : selectedText
-        ? "layout"
-        : bgTab;
+  const activeTab: PanelTab = selectedElement
+    ? "element"
+    : selectedTypo
+      ? "typo"
+      : multiSel.length >= 2 || selectedSlot !== null
+        ? "photo"
+        : selectedText
+          ? "layout"
+          : bgTab;
   const pickTab = (t: PanelTab) => {
     if (t === activeTab) return;
     setBgTab(t);
@@ -699,6 +706,47 @@ export function PropertiesPanel() {
     }
   }
 
+  // ---------- ELEMENT / STICKER selected ----------
+  if (selectedElement) {
+    const pe = (spread?.elements ?? []).find((e) => e.id === selectedElement);
+    if (pe) {
+      const opacity = pe.opacity ?? 1;
+      return (
+        <aside className="props">{tabs}
+          <h3>Element</h3>
+          <div className="prop-group">
+            <div className="prop-label">Kích thước ({Math.round(pe.w * 100)}%)</div>
+            <input
+              type="range"
+              min={0.03}
+              max={1.5}
+              step={0.01}
+              value={pe.w}
+              onChange={(e) => updateElement(pe.id, { w: parseFloat(e.target.value) })}
+              style={{ width: "100%" }}
+            />
+          </div>
+          <div className="prop-group">
+            <div className="prop-label">Độ trong ({Math.round(opacity * 100)}%)</div>
+            <input
+              type="range"
+              min={0.05}
+              max={1}
+              step={0.05}
+              value={opacity}
+              onChange={(e) => updateElement(pe.id, { opacity: parseFloat(e.target.value) })}
+              style={{ width: "100%" }}
+            />
+          </div>
+          <ArrangeDecorRow decorKey={`e${pe.id}`} />
+          <button className="danger" onClick={() => removeElement(pe.id)}>
+            <IconTrash width={15} height={15} /> Xoá element
+          </button>
+        </aside>
+      );
+    }
+  }
+
   // ---------- TEXT selected ----------
   if (selectedText) {
     if (selectedText.kind === "tpl" && tpl) {
@@ -877,7 +925,9 @@ export function PropertiesPanel() {
   // ---------- LAYOUT selected (click the spread background) ----------
   return (
     <aside className="props">{tabs}
-      {activeTab === "typo" ? (
+      {activeTab === "element" ? (
+        <ElementPanel />
+      ) : activeTab === "typo" ? (
         typoGallery
       ) : activeTab === "photo" ? (
         <div className="prop-empty">
