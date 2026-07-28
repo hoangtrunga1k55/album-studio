@@ -6,6 +6,7 @@ import {
   type LayoutSourceFilter,
 } from "../engine/templates";
 import { createProject, openProject } from "../flows/projectIO";
+import { newFromAlbumTemplate } from "../flows/albumTemplate";
 import { loadRecents, forgetRecent, useProject, type RecentProject } from "../store/project";
 import { DEFAULT_SETTINGS, loadCustomDefaults, saveCustomDefaults } from "../store/album";
 import "./Welcome.css";
@@ -36,6 +37,17 @@ export function Welcome() {
     }
   }
 
+  async function handleFromTemplate() {
+    setBusy(true);
+    try {
+      await newFromAlbumTemplate();
+    } catch (e) {
+      alert("Không tạo được từ mẫu: " + String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="welcome">
       {/* the card hides while the wizard is up — only ONE modal on screen */}
@@ -50,6 +62,9 @@ export function Welcome() {
           <div className="welcome-actions">
             <button className="w-btn primary" onClick={() => setWizard(true)} disabled={busy}>
               + Tạo album mới
+            </button>
+            <button className="w-btn" onClick={() => handleFromTemplate()} disabled={busy}>
+              Tạo từ mẫu album…
             </button>
             <button className="w-btn" onClick={() => handleOpen()} disabled={busy}>
               Mở album…

@@ -9,6 +9,8 @@ import {
 } from "../ipc/library";
 import { useFonts } from "../store/fonts";
 import { categoriesOf, useLibrary } from "../store/library";
+import { saveAlbumTemplate } from "../flows/albumTemplate";
+import { useAlbum } from "../store/album";
 import { IconClose } from "../icons";
 
 /** One-stop setup: the three libraries the app needs (fonts from the machine,
@@ -19,6 +21,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const addFonts = useFonts((s) => s.addFonts);
   const layouts = useLibrary((s) => s.layouts);
   const typos = useLibrary((s) => s.typos);
+  const spreadCount = useAlbum((s) => s.spreads.length);
+  const [savedTpl, setSavedTpl] = useState(false);
   const [busy, setBusy] = useState<"font" | "layout" | "typo" | "sync-layout" | "sync-typo" | null>(null);
   const [msg, setMsg] = useState("");
   // online packs (GitHub Release) — the app only downloads what changed
@@ -196,6 +200,34 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               >
                 {busy === "sync-typo" ? "Đang tải…" : "⟳ Cập nhật"}
               </button>
+            </div>
+          </div>
+
+          {/* ---- album template (F5) ---- */}
+          <div>
+            <div className="prop-label">4 · Mẫu album (lưu cả bộ, không kèm ảnh)</div>
+            <div className="set-row">
+              <span className="set-stat">
+                {spreadCount > 0 ? `${spreadCount} spread — lưu bố cục dùng lại cho khách khác` : "Chưa có album"}
+              </span>
+              <button
+                className="btn"
+                disabled={spreadCount === 0}
+                onClick={async () => {
+                  const ok = await saveAlbumTemplate();
+                  if (ok) {
+                    setSavedTpl(true);
+                    setTimeout(() => setSavedTpl(false), 2500);
+                  }
+                }}
+              >
+                Lưu làm mẫu…
+              </button>
+            </div>
+            <div className="hint-sm">
+              {savedTpl
+                ? "✓ Đã lưu mẫu album."
+                : "Giữ layout + chữ + typo + element + nền, bỏ ảnh khách. Tạo album mới từ mẫu ở màn hình chính."}
             </div>
           </div>
 

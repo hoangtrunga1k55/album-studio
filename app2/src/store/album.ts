@@ -599,7 +599,12 @@ interface AlbumState {
     range?: [number, number];
     smart?: boolean;
     reuse?: TemplateReuse;
+    /** which layout pool to draw from (all / basic / custom / tizino). */
+    layoutSource?: LayoutSourceFilter;
   }) => void;
+  /** F5 fill mode: keep every spread's layout/text/typo/element as-is and pour
+   *  the photos into the existing slots in order (no new layouts generated). */
+  fillTemplateSlots: (o?: { source?: "all" | "selected" | "starred"; order?: "date" | "name" }) => void;
 
   selectSlot: (slot: number | null) => void;
   /** SmartAlbums click model: click the spread background = LAYOUT mode
@@ -1524,6 +1529,8 @@ export const useAlbum = create<AlbumState>((set) => ({
       for (const [id, m] of Object.entries(s.photoMeta)) {
         if (m.rating) ratings[id] = m.rating;
       }
+      // Auto Build draws from suggestionTemplates → set the source pool first.
+      if (o?.layoutSource) setPreferredSource(o.layoutSource);
       const plans = o?.spreads
         ? planAutoBuild(s.size, photos, {
             order: o.order,
@@ -1555,6 +1562,40 @@ export const useAlbum = create<AlbumState>((set) => ({
       const cover = s.spreads[0]?.isCover ? [s.spreads[0]] : [];
       const spreads = [...cover, ...planned];
       return { spreads, currentIndex: cover.length, selectedSlot: null, selectedText: null, selectedTypo: null, selectedElement: null };
+    }),
+
+  fillTemplateSlots: (o) =>
+    set((s) => {
+      if (!s.size || s.images.length === 0) return s;
+      let photos = s.images.filter((i) => !s.photoMeta[i.id]?.rejected);
+      if (o?.source === "selected" && s.selectedPhotos.length > 0) {
+        photos = photos.filter((i) => s.selectedPhotos.includes(i.id));
+      } else if (o?.source === "starred") {
+        photos = photos.filter((i) => (s.photoMeta[i.id]?.rating ?? 0) > 0);
+      }
+      if (photos.length === 0) return s;
+      const order = o?.order ?? "date";
+      const queue = [...photos]
+        .sort(
+          order === "name"
+            ? (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })
+            : (a, b) => a.capturedAt.localeCompare(b.capturedAt)
+        )
+        .map((p) => p.id);
+      let qi = 0;
+      // Pour photos into existing slots, spread by spread (cover untouched).
+      const spreads = s.spreads.map((sp) => {
+        if (sp.isCover) return sp;
+        const tpl = getTemplate(sp.templateId);
+        const tplSlots = tpl?.slots.length ?? 0;
+        // hand-drawn extra frames (slotRects beyond the template) count too
+        const extra = Object.keys(sp.slotRects ?? {}).filter((k) => Number(k) >= tplSlots).length;
+        const cap = Math.max(1, (tpl?.slotCount ?? sp.imageIds.length ?? 1) + extra);
+        const ids: string[] = [];
+        for (let i = 0; i < cap && qi < queue.length; i++) ids.push(queue[qi++]);
+        return { ...sp, imageIds: ids, transforms: {} };
+      });
+      return { spreads, selectedSlot: null, selectedText: null, selectedTypo: null, selectedElement: null };
     }),
 
   // NOTE: selecting a slot KEEPS the layout mode (spreadSelected) — in layout

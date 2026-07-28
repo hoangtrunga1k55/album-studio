@@ -377,6 +377,7 @@ function TypoNode(props: {
         onTap={onSelect}
         onDragEnd={(e) => onMoved(e.target.x() / stageW, e.target.y() / stageH)}
         onWheel={(e) => {
+          if (e.evt.ctrlKey || e.evt.metaKey) return; // pinch/⌘-wheel = view zoom
           e.evt.preventDefault();
           onResize(clamp(pt.w * (e.evt.deltaY > 0 ? 0.94 : 1.06), 0.05, 1.2));
         }}
@@ -490,6 +491,7 @@ function ElementNode(props: {
         onTap={onSelect}
         onDragEnd={(e) => onMoved(e.target.x() / stageW, e.target.y() / stageH)}
         onWheel={(e) => {
+          if (e.evt.ctrlKey || e.evt.metaKey) return; // pinch/⌘-wheel = view zoom
           e.evt.preventDefault();
           onResize(clamp(pe.w * (e.evt.deltaY > 0 ? 0.94 : 1.06), 0.03, 1.5));
         }}
@@ -596,6 +598,7 @@ function SlotFrame(props: {
           onChange(r);
         }}
         onWheel={(e) => {
+          if (e.evt.ctrlKey || e.evt.metaKey) return; // pinch/⌘-wheel = view zoom
           e.evt.preventDefault();
           onWheelZoom(e.evt.deltaY);
         }}
@@ -971,6 +974,8 @@ function Slot(props: {
 
   function onWheel(e: { evt: WheelEvent }) {
     if (!img) return;
+    // ⌘/Ctrl + wheel (and trackpad pinch) is VIEW zoom — let it bubble up.
+    if (e.evt.ctrlKey || e.evt.metaKey) return;
     e.evt.preventDefault();
     const factor = e.evt.deltaY > 0 ? 0.9 : 1.1;
     onTransform({ ...t, zoom: clamp(t.zoom * factor, 1, 6) });
@@ -1780,6 +1785,16 @@ export function SpreadCanvas() {
         className="stage-host"
         ref={hostRef}
         style={{ width: stageW, height: stageH }}
+        onWheel={(e) => {
+          // Trackpad pinch arrives as a wheel event with ctrlKey set (browser
+          // gesture); ⌘/Ctrl + wheel does the same on a mouse. Plain wheel is
+          // left alone. Exponential step → smooth for both pinch and notches.
+          if (!e.ctrlKey && !e.metaKey) return;
+          e.preventDefault();
+          const st = useAlbum.getState();
+          const factor = Math.exp(-e.deltaY * 0.01);
+          st.setViewZoom(clamp(st.viewZoom * factor, 0.4, 4));
+        }}
         onDoubleClick={(e) => {
           // SmartAlbums: double-click anywhere on the spread → layout editing.
           // Works even when a full-bleed photo covers every pixel. A photo's
