@@ -32,7 +32,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
   async function sync(kind: "layout" | "typo", url: string) {
     if (!url.trim()) {
-      setMsg("Dán link release của kho vào ô bên trên trước.");
+      setMsg("Paste the pack's release link in the box above first.");
       return;
     }
     setBusy(kind === "layout" ? "sync-layout" : "sync-typo");
@@ -44,11 +44,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       );
       setMsg(
         r.downloaded === 0 && r.removed === 0
-          ? `Kho ${kind} đã là bản mới nhất (${r.kept} file).`
-          : `Cập nhật kho ${kind}: tải ${r.downloaded} file mới, gỡ ${r.removed}, giữ ${r.kept}.`
+          ? `${kind} pack is already up to date (${r.kept} files).`
+          : `Updated ${kind} pack: downloaded ${r.downloaded} new files, removed ${r.removed}, kept ${r.kept}.`
       );
     } catch (e) {
-      setMsg("Lỗi cập nhật: " + String(e));
+      setMsg("Update error: " + String(e));
     } finally {
       setBusy(null);
       setProg(null);
@@ -66,9 +66,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       const r = await loadSystemFonts();
       addFonts(r.loaded);
       setFontIndex(r.entries);
-      setMsg(`Font máy: ${r.entries.length} font · nạp ${r.loaded.length} cho mẫu`);
+      setMsg(`Machine fonts: ${r.entries.length} fonts · loaded ${r.loaded.length} for templates`);
     } catch (e) {
-      setMsg("Lỗi quét font: " + String(e));
+      setMsg("Font scan error: " + String(e));
     } finally {
       setBusy(null);
     }
@@ -79,9 +79,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     setMsg("");
     try {
       const ok = await importLayoutLibrary();
-      if (ok) setMsg("Đã nạp kho layout.");
+      if (ok) setMsg("Layout pack loaded.");
     } catch (e) {
-      setMsg("Lỗi nạp kho layout: " + String(e));
+      setMsg("Load layout pack error: " + String(e));
     } finally {
       setBusy(null);
     }
@@ -92,9 +92,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     setMsg("");
     try {
       const ok = await importTypoLibrary();
-      if (ok) setMsg("Đã nạp kho typo.");
+      if (ok) setMsg("Typo pack loaded.");
     } catch (e) {
-      setMsg("Lỗi nạp kho typo: " + String(e));
+      setMsg("Load typo pack error: " + String(e));
     } finally {
       setBusy(null);
     }
@@ -104,8 +104,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ width: "min(560px, 94vw)" }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>Cài đặt · Kho tài nguyên</h2>
-          <button className="btn icon" onClick={onClose} aria-label="Đóng">
+          <h2>Settings · Resource libraries</h2>
+          <button className="btn icon" onClick={onClose} aria-label="Close">
             <IconClose />
           </button>
         </div>
@@ -113,49 +113,49 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 18 }}>
           {/* ---- fonts ---- */}
           <div>
-            <div className="prop-label">1 · Font (lấy từ máy tính)</div>
+            <div className="prop-label">1 · Fonts (from your computer)</div>
             <div className="set-row">
               <span className="set-stat">
-                {fontIndex.length > 0 ? `${fontIndex.length} font trên máy` : "Chưa thấy font"}
+                {fontIndex.length > 0 ? `${fontIndex.length} fonts on machine` : "No fonts found"}
               </span>
               <button className="btn" onClick={rescanFonts} disabled={busy !== null}>
-                {busy === "font" ? "Đang quét…" : "⟳ Quét lại"}
+                {busy === "font" ? "Scanning…" : "⟳ Rescan"}
               </button>
             </div>
             {missing.length > 0 ? (
               <div className="set-warn">
-                ⚠ {missing.length} font mẫu chưa cài trên máy: {missing.slice(0, 6).join(", ")}
+                ⚠ {missing.length} template fonts not installed: {missing.slice(0, 6).join(", ")}
                 {missing.length > 6 ? "…" : ""}
                 <div className="hint-sm">
-                  Cài các font này vào máy (Mac: Font Book · Windows: chọn file → chuột phải →
-                  Install) rồi bấm Quét lại.
+                  Install these fonts (Mac: Font Book · Windows: select file → right-click →
+                  Install) then click Rescan.
                 </div>
               </div>
             ) : (
-              <div className="hint-sm">Đủ font cho các mẫu đang dùng.</div>
+              <div className="hint-sm">All fonts available for the templates in use.</div>
             )}
           </div>
 
           {/* ---- layout library ---- */}
           <div>
-            <div className="prop-label">2 · Kho layout (Tizino)</div>
+            <div className="prop-label">2 · Layout pack (Tizino)</div>
             <div className="set-row">
               <span className="set-stat">
                 {layouts.length > 0
-                  ? `${layouts.length} mẫu · ${layoutCats.length} nhóm: ${layoutCats.join(", ")}`
-                  : "Chưa nạp"}
+                  ? `${layouts.length} items · ${layoutCats.length} groups: ${layoutCats.join(", ")}`
+                  : "Not loaded"}
               </span>
               <button className="btn" onClick={pickLayouts} disabled={busy !== null}>
-                {busy === "layout" ? "Đang nạp…" : layouts.length ? "Đổi thư mục…" : "Nạp kho…"}
+                {busy === "layout" ? "Loading…" : layouts.length ? "Change folder…" : "Load pack…"}
               </button>
             </div>
             <div className="hint-sm">
-              {savedLayoutLibrary() ?? "Chọn thư mục kho layout (mỗi thư mục con = 1 nhóm: cover-25x35, layout-30x30…)"}
+              {savedLayoutLibrary() ?? "Choose the layout pack folder (each subfolder = 1 group: cover-25x35, layout-30x30…)"}
             </div>
             <div className="prop-row" style={{ marginTop: 8 }}>
               <input
                 className="input"
-                placeholder="Link kho trên mạng (GitHub Release)…"
+                placeholder="Online pack link (GitHub Release)…"
                 value={layoutUrl}
                 onChange={(e) => setLayoutUrl(e.target.value)}
               />
@@ -163,33 +163,33 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 className="btn"
                 onClick={() => sync("layout", layoutUrl)}
                 disabled={busy !== null}
-                title="Chỉ tải mẫu mới/đã đổi — không tải lại cả kho"
+                title="Downloads only new/changed items — not the whole pack"
               >
-                {busy === "sync-layout" ? "Đang tải…" : "⟳ Cập nhật"}
+                {busy === "sync-layout" ? "Downloading…" : "⟳ Update"}
               </button>
             </div>
           </div>
 
           {/* ---- typo library ---- */}
           <div>
-            <div className="prop-label">3 · Kho typo</div>
+            <div className="prop-label">3 · Typo pack</div>
             <div className="set-row">
               <span className="set-stat">
                 {typos.length > 0
-                  ? `${typos.length} typo · ${typoCats.length} nhóm: ${typoCats.join(", ")}`
-                  : "Chưa nạp"}
+                  ? `${typos.length} typos · ${typoCats.length} groups: ${typoCats.join(", ")}`
+                  : "Not loaded"}
               </span>
               <button className="btn" onClick={pickTypos} disabled={busy !== null}>
-                {busy === "typo" ? "Đang nạp…" : typos.length ? "Đổi thư mục…" : "Nạp kho…"}
+                {busy === "typo" ? "Loading…" : typos.length ? "Change folder…" : "Load pack…"}
               </button>
             </div>
             <div className="hint-sm">
-              {savedTypoLibrary() ?? "Chọn thư mục kho typo (thư mục con = nhóm: vn, korea, fashion…)"}
+              {savedTypoLibrary() ?? "Choose the typo pack folder (subfolder = group: vn, korea, fashion…)"}
             </div>
             <div className="prop-row" style={{ marginTop: 8 }}>
               <input
                 className="input"
-                placeholder="Link kho trên mạng (GitHub Release)…"
+                placeholder="Online pack link (GitHub Release)…"
                 value={typoUrl}
                 onChange={(e) => setTypoUrl(e.target.value)}
               />
@@ -198,17 +198,17 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 onClick={() => sync("typo", typoUrl)}
                 disabled={busy !== null}
               >
-                {busy === "sync-typo" ? "Đang tải…" : "⟳ Cập nhật"}
+                {busy === "sync-typo" ? "Downloading…" : "⟳ Update"}
               </button>
             </div>
           </div>
 
           {/* ---- album template (F5) ---- */}
           <div>
-            <div className="prop-label">4 · Mẫu album (lưu cả bộ, không kèm ảnh)</div>
+            <div className="prop-label">4 · Album template (saves the whole set, no photos)</div>
             <div className="set-row">
               <span className="set-stat">
-                {spreadCount > 0 ? `${spreadCount} spread — lưu bố cục dùng lại cho khách khác` : "Chưa có album"}
+                {spreadCount > 0 ? `${spreadCount} spreads — save the layout to reuse for other clients` : "No album yet"}
               </span>
               <button
                 className="btn"
@@ -221,13 +221,13 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                   }
                 }}
               >
-                Lưu làm mẫu…
+                Save as template…
               </button>
             </div>
             <div className="hint-sm">
               {savedTpl
-                ? "✓ Đã lưu mẫu album."
-                : "Giữ layout + chữ + typo + element + nền, bỏ ảnh khách. Tạo album mới từ mẫu ở màn hình chính."}
+                ? "✓ Album template saved."
+                : "Keeps layout + text + typo + elements + backgrounds, drops client photos. Create a new album from a template on the home screen."}
             </div>
           </div>
 
@@ -246,7 +246,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
         <div className="modal-foot">
           <button className="btn primary" onClick={onClose}>
-            Xong
+            Done
           </button>
         </div>
       </div>

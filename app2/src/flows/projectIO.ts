@@ -44,7 +44,7 @@ export async function saveAsCopy(): Promise<boolean> {
   const st = useProject.getState();
   if (!st.path) return false;
   const dest = await save({
-    title: "Lưu thành bản sao",
+    title: "Save as a copy",
     defaultPath: `${st.name || "album"} copy.album`,
     filters: [{ name: "Album Studio", extensions: ["album"] }],
   });

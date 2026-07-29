@@ -16,11 +16,11 @@ type SortBy = "date" | "name" | "rating";
 type Filter = "all" | "used" | "unused" | "starred" | "rejected";
 
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: "all", label: "Tất cả" },
-  { id: "used", label: "Đã dùng" },
-  { id: "unused", label: "Chưa dùng" },
+  { id: "all", label: "All" },
+  { id: "used", label: "Used" },
+  { id: "unused", label: "Unused" },
   { id: "starred", label: "★" },
-  { id: "rejected", label: "Loại" },
+  { id: "rejected", label: "Rejected" },
 ];
 
 export function ImagePanel() {
@@ -72,7 +72,7 @@ export function ImagePanel() {
     } catch (err) {
       setScanning(false);
       useAlbum.getState().setImporting(false);
-      alert("Không import được: " + String(err));
+      alert("Import failed: " + String(err));
     }
   }
 
@@ -86,7 +86,7 @@ export function ImagePanel() {
     } catch (err) {
       setScanning(false);
       useAlbum.getState().setImporting(false);
-      alert("Không import được thư mục: " + String(err));
+      alert("Folder import failed: " + String(err));
     }
   }
 
@@ -181,9 +181,9 @@ export function ImagePanel() {
       <div className="panel-actions ip-actions">
         <button className="btn primary" onClick={pickImages} disabled={scanning}>
           <IconImagePlus />
-          {scanning ? "Đang nạp…" : "Chọn ảnh"}
+          {scanning ? "Loading…" : "Select photos"}
         </button>
-        <button className="btn" onClick={pickFolder} disabled={scanning} title="Import cả thư mục ảnh">
+        <button className="btn" onClick={pickFolder} disabled={scanning} title="Import an entire photo folder">
           <IconFolder />
         </button>
       </div>
@@ -191,11 +191,11 @@ export function ImagePanel() {
       <div className="ip-tools">
         <div className="search-wrap">
           <IconSearch width={15} height={15} />
-          <input placeholder="Tìm theo tên…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input placeholder="Search by name…" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
-        <select className="ip-sort" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)} title="Sắp xếp">
-          <option value="date">Ngày chụp</option>
-          <option value="name">Tên file</option>
+        <select className="ip-sort" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)} title="Sort">
+          <option value="date">Capture date</option>
+          <option value="name">File name</option>
           <option value="rating">Sao ★</option>
         </select>
       </div>
@@ -206,7 +206,7 @@ export function ImagePanel() {
             key={f.id}
             className={"ip-filter" + (filter === f.id ? " active" : "")}
             onClick={() => setFilter(f.id)}
-            title={f.id === "rejected" ? `${rejectedCount} ảnh đã loại` : undefined}
+            title={f.id === "rejected" ? `${rejectedCount} rejected photos` : undefined}
           >
             {f.label}
           </button>
@@ -214,14 +214,14 @@ export function ImagePanel() {
       </div>
 
       <div className="ip-filters">
-        <span className="ip-row-label">Nhãn:</span>
+        <span className="ip-row-label">Label:</span>
         {([1, 2, 3, 4] as const).map((l) => (
           <button
             key={l}
             className={"ip-labelfilter" + (labelFilter === l ? " active" : "")}
             style={{ ["--dot" as string]: LABEL_COLORS[l] }}
             onClick={() => setLabelFilter(labelFilter === l ? null : l)}
-            title={`Lọc theo nhãn màu (phím ${l + 5} để gán)`}
+            title={`Filter by color label (key ${l + 5} to assign)`}
           />
         ))}
         <input
@@ -231,7 +231,7 @@ export function ImagePanel() {
           max={THUMB_MAX}
           value={thumbSize}
           onChange={(e) => setThumbSize(parseInt(e.target.value, 10))}
-          title="Cỡ thumbnail"
+          title="Thumbnail size"
         />
       </div>
 
@@ -244,24 +244,24 @@ export function ImagePanel() {
         images.length > 0 && (
           <div className="panel-subbar">
             <span className="panel-count">
-              {visible.length}/{images.length} ảnh
-              {selected.length > 0 ? ` · chọn ${selected.length}` : ""}
+              {visible.length}/{images.length} photos
+              {selected.length > 0 ? ` · ${selected.length} selected` : ""}
             </span>
             {selected.length > 0 && (
               <>
                 <button
                   className="ip-tospread"
                   onClick={() => addToSpread(selected)}
-                  title="Đưa các ảnh đang chọn vào spread hiện tại (Enter)"
+                  title="Add selected photos to the current spread (Enter)"
                 >
                   → Spread ({selected.length})
                 </button>
                 <button
                   className="ip-remove"
                   onClick={() => useAlbum.getState().removeImages(selected)}
-                  title="Xoá khỏi album (Delete) — file gốc trên máy không bị xoá"
+                  title="Remove from album (Delete) — the original file is not deleted"
                 >
-                  Xoá ({selected.length})
+                  Delete ({selected.length})
                 </button>
               </>
             )}
@@ -284,7 +284,7 @@ export function ImagePanel() {
                 (meta?.rejected ? " rejected" : "") +
                 (used > 0 ? " used" : "")
               }
-              title={`${img.name}\n${img.capturedAt}\nDouble-click: thêm/bỏ khỏi spread · 1–5: sao · X: loại`}
+              title={`${img.name}\n${img.capturedAt}\nDouble-click: add/remove from spread · 1–5: rate · X: reject`}
               draggable
               onDragStart={(e) => {
                 // Dragging a selected photo carries the whole selection.
@@ -302,8 +302,8 @@ export function ImagePanel() {
               {meta?.label && (
                 <span className="ip-label" style={{ background: LABEL_COLORS[meta.label] }} />
               )}
-              {used > 1 && <span className="ip-used" title={`Dùng ${used} lần trong album`}>{used}</span>}
-              {used === 1 && <span className="ip-used one" title="Đã dùng trong album">✓</span>}
+              {used > 1 && <span className="ip-used" title={`Used ${used}× in the album`}>{used}</span>}
+              {used === 1 && <span className="ip-used one" title="Used in the album">✓</span>}
               {(meta?.rating ?? 0) > 0 && (
                 <span className="ip-stars">{"★".repeat(meta!.rating!)}</span>
               )}
@@ -314,11 +314,11 @@ export function ImagePanel() {
 
       {images.length === 0 && !scanning && (
         <div className="ip-empty">
-          Bấm <b>Chọn ảnh</b> hoặc import thư mục.
+          Click <b>Select photos</b> or import a folder.
           <br />
-          Click chọn · phím <b>1–5</b> gán sao · <b>X</b> loại
+          Click to select · <b>1–5</b> to rate · <b>X</b> to reject
           <br />
-          Double-click thêm vào spread · kéo thả vào ô
+          Double-click to add to a spread · drag onto a slot
         </div>
       )}
     </>

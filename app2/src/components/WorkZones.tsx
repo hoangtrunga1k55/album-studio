@@ -32,7 +32,7 @@ export function PrevSpreadZone() {
   return (
     <div
       className={"side-zone left" + (over ? " over" : "")}
-      title="Spread trước — click để chuyển, thả ảnh để thêm"
+      title="Previous spread — click to go, drop photos to add"
       onClick={() => setCurrent(currentIndex - 1)}
       onDragOver={(e) => {
         if (!acceptsImage(e)) return;
@@ -118,7 +118,7 @@ export function NextSpreadZone() {
   return (
     <div
       className={"side-zone right" + (over ? " over" : "")}
-      title={next ? "Spread kế tiếp — click để chuyển, thả ảnh để thêm" : "Thêm spread mới"}
+      title={next ? "Next spread — click to go, drop photos to add" : "Add a new spread"}
       onClick={() => (next ? setCurrent(currentIndex + 1) : addSpread())}
       onDragOver={(e) => {
         if (!acceptsImage(e)) return;
@@ -169,11 +169,11 @@ export function NextSpreadZone() {
       ) : (
         <span className="sz-label sz-add">
           <IconPlus width={18} height={18} />
-          Thêm spread
+          Add spread
           <br />
-          hoặc thả ảnh
+          or drop
           <br />
-          vào đây
+          photos here
         </span>
       )}
     </div>

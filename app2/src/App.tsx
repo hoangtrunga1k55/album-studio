@@ -149,7 +149,7 @@ function App() {
     } else if (id === "file_save") {
       void saveNow();
     } else if (id === "file_save_as") {
-      void saveAsCopy().catch((err) => alert("Lưu bản sao lỗi: " + String(err)));
+      void saveAsCopy().catch((err) => alert("Save copy error: " + String(err)));
     } else if (id === "file_new") {
       void (async () => {
         await saveNow();
@@ -161,13 +161,13 @@ function App() {
     } else if (id === "file_open") {
       void (async () => {
         await saveNow();
-        await openProject().catch((err) => alert("Không mở được project: " + String(err)));
+        await openProject().catch((err) => alert("Couldn't open project: " + String(err)));
       })();
     } else if (id.startsWith("recent:")) {
       const p = id.slice("recent:".length);
       void (async () => {
         await saveNow();
-        await openProject(p).catch((err) => alert("Không mở được project: " + String(err)));
+        await openProject(p).catch((err) => alert("Couldn't open project: " + String(err)));
       })();
     }
   };
@@ -286,7 +286,7 @@ function App() {
   const spread = spreads[currentIndex];
   const tpl = getTemplate(spread?.templateId ?? null);
   const saveLabel =
-    saveState === "saved" ? "Đã lưu" : saveState === "error" ? "Lỗi lưu!" : "Đang lưu…";
+    saveState === "saved" ? "Saved" : saveState === "error" ? "Save error!" : "Saving…";
 
   return (
     <div className="app">
@@ -294,7 +294,7 @@ function App() {
       <header className="topbar">
         <div className="topleft">
           <div className="brand">
-            <div className="brand-mark" onClick={backToWelcome} title="Về màn hình chính">
+            <div className="brand-mark" onClick={backToWelcome} title="Back to home">
               A
             </div>
             <div className="brand-text">
@@ -311,7 +311,7 @@ function App() {
           <div className="toolbar-row">
             <button
               className={"tbtn" + (layoutDock ? " active" : "")}
-              title="Layout (bấm lại để đóng)"
+              title="Layout (click again to close)"
               onClick={() => setLayoutDock(!layoutDock)}
             >
               <IconLayout />
@@ -319,8 +319,7 @@ function App() {
           </div>
           <div className="toolbar-status">
             {spreads.length} spread ({spreads.length * 2} trang) ·{" "}
-            {new Set(spreads.flatMap((sp) => sp.imageIds.filter(Boolean))).size}/{images.length} ảnh
-            đã dùng{tpl ? ` · ${tpl.name}` : ""}
+            {new Set(spreads.flatMap((sp) => sp.imageIds.filter(Boolean))).size}/{images.length} photos used{tpl ? ` · ${tpl.name}` : ""}
           </div>
         </div>
 
@@ -329,27 +328,27 @@ function App() {
             className="btn"
             onClick={() => setShowDesign(true)}
             disabled={!images.length || importing}
-            title={importing ? "Đang nhập ảnh — chờ xong để Auto Design" : `Tự dàn cả album (${mod("D")})`}
+            title={importing ? "Importing photos — wait to finish before Auto Design" : `Auto-build the album (${mod("D")})`}
           >
             <IconSparkle />
-            {importing ? "Đang nhập ảnh…" : "Auto Design"}
+            {importing ? "Importing photos…" : "Auto Design"}
           </button>
           <button
             className="btn"
             onClick={() => setShowFlip(true)}
             disabled={!spreads.length}
-            title="Trình khách — lật album 3D (Q)"
+            title="Client view — 3D album flip (Q)"
           >
             <IconFlip />
             3D Show
           </button>
           <button className="btn primary" onClick={() => setShowExport(true)}>
             <IconExport />
-            Xuất album
+            Export album
           </button>
           <button
             className="btn icon"
-            title="Cài đặt · nạp kho font / layout / typo"
+            title="Settings · load font / layout / typo packs"
             onClick={() => setShowSettings(true)}
           >
             <IconSettings />
@@ -378,8 +377,8 @@ function App() {
           {/* the photo tray yields its space while the layout dock is open */}
           {!layoutDock &&
             (trayMin ? (
-              <button className="tray-restore" onClick={() => setTrayMin(false)} title="Mở khay ảnh">
-                ▴ Ảnh ({images.length})
+              <button className="tray-restore" onClick={() => setTrayMin(false)} title="Open photo tray">
+                ▴ Photos ({images.length})
               </button>
             ) : (
               <div className="photo-tray-host" style={{ height: trayH }}>
@@ -389,7 +388,7 @@ function App() {
                 />
                 <button
                   className="tray-min"
-                  title="Thu gọn khay ảnh"
+                  title="Collapse photo tray"
                   onClick={() => setTrayMin(true)}
                 >
                   −
@@ -401,8 +400,8 @@ function App() {
         {/* editing panel: collapsible to a slim rail — the canvas re-measures
             itself (ResizeObserver) so the spread just re-centers, never breaks */}
         {propsMin ? (
-          <button className="props-restore" onClick={() => setPropsMin(false)} title="Mở bảng chỉnh sửa">
-            ‹ Chỉnh sửa
+          <button className="props-restore" onClick={() => setPropsMin(false)} title="Open editor panel">
+            ‹ Editor
           </button>
         ) : (
           <div className="props-host" style={{ width: propsW }}>
@@ -410,7 +409,7 @@ function App() {
               className="rz rz-v"
               onMove={(dx) => setPropsW((w) => clampN(w - dx, 200, 460))}
             />
-            <button className="props-min" onClick={() => setPropsMin(true)} title="Thu gọn bảng chỉnh sửa">
+            <button className="props-min" onClick={() => setPropsMin(true)} title="Collapse editor panel">
               ›
             </button>
             <PropertiesPanel />

@@ -15,7 +15,7 @@ export function SpreadsSidebar() {
     <aside className="spreads">
       <div className="spreads-head">
         <span>Spread · {spreads.length}</span>
-        <button className="mini-btn" onClick={addSpread} title="Thêm spread">
+        <button className="mini-btn" onClick={addSpread} title="Add spread">
           <IconPlus width={15} height={15} />
         </button>
       </div>
@@ -61,7 +61,7 @@ export function SpreadsSidebar() {
               {spreads.length > 1 && (
                 <button
                   className="spread-del"
-                  title="Xoá spread"
+                  title="Delete spread"
                   onClick={(e) => {
                     e.stopPropagation();
                     removeSpread(idx);

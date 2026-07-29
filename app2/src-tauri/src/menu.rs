@@ -12,9 +12,9 @@ pub fn build_menu<R: Runtime>(
     recents: &[(String, String)],
 ) -> tauri::Result<Menu<R>> {
     // --- Tệp > Mở gần đây ---
-    let recent = Submenu::with_id(handle, "recent_menu", "Mở gần đây", true)?;
+    let recent = Submenu::with_id(handle, "recent_menu", "Open Recent", true)?;
     if recents.is_empty() {
-        recent.append(&MenuItem::with_id(handle, "recent_none", "(Trống)", false, None::<&str>)?)?;
+        recent.append(&MenuItem::with_id(handle, "recent_none", "(Empty)", false, None::<&str>)?)?;
     } else {
         for (path, name) in recents {
             recent.append(&MenuItem::with_id(
@@ -29,18 +29,18 @@ pub fn build_menu<R: Runtime>(
 
     let file = Submenu::with_items(
         handle,
-        "Tệp",
+        "File",
         true,
         &[
-            &MenuItem::with_id(handle, "file_new", "Dự án mới…", true, Some("CmdOrCtrl+N"))?,
-            &MenuItem::with_id(handle, "file_open", "Mở dự án…", true, Some("CmdOrCtrl+O"))?,
+            &MenuItem::with_id(handle, "file_new", "New Project…", true, Some("CmdOrCtrl+N"))?,
+            &MenuItem::with_id(handle, "file_open", "Open Project…", true, Some("CmdOrCtrl+O"))?,
             &recent,
             &PredefinedMenuItem::separator(handle)?,
-            &MenuItem::with_id(handle, "file_save", "Lưu", true, Some("CmdOrCtrl+S"))?,
+            &MenuItem::with_id(handle, "file_save", "Save", true, Some("CmdOrCtrl+S"))?,
             &MenuItem::with_id(
                 handle,
                 "file_save_as",
-                "Lưu thành bản sao…",
+                "Save as Copy…",
                 true,
                 Some("CmdOrCtrl+Shift+S"),
             )?,
@@ -49,13 +49,13 @@ pub fn build_menu<R: Runtime>(
 
     let view = Submenu::with_items(
         handle,
-        "Xem",
+        "View",
         true,
         &[
-            &MenuItem::with_id(handle, "zoom_in", "Phóng to", true, Some("CmdOrCtrl+="))?,
-            &MenuItem::with_id(handle, "zoom_out", "Thu nhỏ", true, Some("CmdOrCtrl+-"))?,
-            &MenuItem::with_id(handle, "zoom_fit", "Vừa khung nhìn", true, Some("CmdOrCtrl+0"))?,
-            &MenuItem::with_id(handle, "zoom_100", "Kích thước in thật (100%)", true, Some("CmdOrCtrl+1"))?,
+            &MenuItem::with_id(handle, "zoom_in", "Zoom In", true, Some("CmdOrCtrl+="))?,
+            &MenuItem::with_id(handle, "zoom_out", "Zoom Out", true, Some("CmdOrCtrl+-"))?,
+            &MenuItem::with_id(handle, "zoom_fit", "Fit to View", true, Some("CmdOrCtrl+0"))?,
+            &MenuItem::with_id(handle, "zoom_100", "Actual Print Size (100%)", true, Some("CmdOrCtrl+1"))?,
         ],
     )?;
 
@@ -74,7 +74,7 @@ pub fn build_menu<R: Runtime>(
                 &PredefinedMenuItem::hide_others(handle, None)?,
                 &PredefinedMenuItem::show_all(handle, None)?,
                 &PredefinedMenuItem::separator(handle)?,
-                &PredefinedMenuItem::quit(handle, Some("Thoát Album Studio 2"))?,
+                &PredefinedMenuItem::quit(handle, Some("Quit Album Studio 2"))?,
             ],
         )?;
         menu.append(&app_menu)?;
@@ -87,13 +87,13 @@ pub fn build_menu<R: Runtime>(
     {
         let edit = Submenu::with_items(
             handle,
-            "Sửa",
+            "Edit",
             true,
             &[
                 // custom: ⌘Z phải tới được app (undo thiết kế) — item undo
                 // mặc định chỉ gửi cho ô chữ và nuốt mất phím
-                &MenuItem::with_id(handle, "app_undo", "Hoàn tác", true, Some("CmdOrCtrl+Z"))?,
-                &MenuItem::with_id(handle, "app_redo", "Làm lại", true, Some("CmdOrCtrl+Shift+Z"))?,
+                &MenuItem::with_id(handle, "app_undo", "Undo", true, Some("CmdOrCtrl+Z"))?,
+                &MenuItem::with_id(handle, "app_redo", "Redo", true, Some("CmdOrCtrl+Shift+Z"))?,
                 &PredefinedMenuItem::separator(handle)?,
                 &PredefinedMenuItem::cut(handle, None)?,
                 &PredefinedMenuItem::copy(handle, None)?,

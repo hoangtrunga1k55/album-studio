@@ -25,7 +25,7 @@ function LayoutThumb({ t, active, onApply }: { t: Template; active: boolean; onA
   return (
     <button
       className={"ls-thumb" + (active ? " active" : "")}
-      title={`${t.name} · ${t.slotCount} ô`}
+      title={`${t.name} · ${t.slotCount} slots`}
       onMouseEnter={() => setPreview(t.id)}
       onMouseLeave={() => setPreview(null)}
       onClick={onApply}
@@ -68,7 +68,7 @@ function LibraryThumb({
   return (
     <button
       className={"ls-thumb ls-lib" + (active ? " active" : "") + (busy ? " busy" : "")}
-      title={`${item.name} · ${item.category}${known ? ` · ${known.slotCount} ô` : ""}`}
+      title={`${item.name} · ${item.category}${known ? ` · ${known.slotCount} slots` : ""}`}
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
       onClick={onPick}
@@ -112,9 +112,9 @@ function useStripTemplates(): { list: Template[]; currentId: string; photoCount:
 }
 
 const BUILTIN_TABS: { id: "all" | TemplateSource; label: string }[] = [
-  { id: "all", label: "Tất cả" },
-  { id: "basic", label: "Cơ bản" },
-  { id: "custom", label: "Mẫu của tôi" },
+  { id: "all", label: "All" },
+  { id: "basic", label: "Basic" },
+  { id: "custom", label: "My templates" },
 ];
 
 /** Album size a pack category targets, parsed from its folder name
@@ -229,7 +229,7 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
     <div className="layout-dock" onMouseLeave={() => setPreview(null)}>
       <div className="lp-bar">
         <span className="lp-head">
-          {photoCount > 0 ? `Layout ${photoCount} ảnh` : "Tất cả layout"}
+          {photoCount > 0 ? `Layout · ${photoCount} photos` : "All layouts"}
         </span>
         <span className="lp-tabs">
           {BUILTIN_TABS.map((t) => (
@@ -245,16 +245,16 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
             <button
               className={"lp-tab lib" + (tab === "tizino" ? " active" : "")}
               onClick={() => chooseTab("tizino")}
-              title={`Kho layout Tizino${size ? ` · khổ ${size}` : ""}${
-                cats.length ? ` · nhóm: ${cats.join(", ")}` : ""
+              title={`Tizino layout pack${size ? ` · size ${size}` : ""}${
+                cats.length ? ` · groups: ${cats.join(", ")}` : ""
               }`}
             >
               Tizino ({libItems.length})
             </button>
           )}
         </span>
-        <span className="lp-head">hover = xem trước · click = áp dụng</span>
-        <button className="lp-close" title="Đóng (Esc)" onClick={onClose}>
+        <span className="lp-head">hover = preview · click = apply</span>
+        <button className="lp-close" title="Close (Esc)" onClick={onClose}>
           ✕
         </button>
       </div>
@@ -291,13 +291,13 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
           <div className="lp-empty">
             {tab === "custom" ? (
               <>
-                Chưa có mẫu của bạn{photoCount > 0 ? ` (${photoCount} ô)` : ""}. Sắp layout ưng ý
-                rồi chuột phải nền spread → <b>“Lưu layout thành mẫu”</b>.
+                No templates yet{photoCount > 0 ? ` (${photoCount} slots)` : ""}. Arrange a layout you like,
+                then right-click the spread background → <b>“Save layout as template”</b>.
               </>
             ) : cats.length === 0 && tab === "all" ? (
-              <>Chưa nạp kho layout — panel Layout → <b>Nạp kho layout</b>.</>
+              <>No layout pack loaded — Layout panel → <b>Load layout pack</b>.</>
             ) : (
-              <>Nhóm này chưa có mẫu {photoCount > 0 ? `${photoCount} ô` : ""}.</>
+              <>No templates in this group {photoCount > 0 ? `(${photoCount} slots)` : ""}.</>
             )}
           </div>
         )}

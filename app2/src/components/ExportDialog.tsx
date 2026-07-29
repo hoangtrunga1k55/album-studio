@@ -15,7 +15,7 @@ import { IconClose } from "../icons";
 
 /** VN lab presets (§12.5) — DPI + bleed per lab; always confirm with the lab. */
 const LAB_PRESETS: { id: string; label: string; dpi: number; bleedMm: number }[] = [
-  { id: "custom", label: "Tuỳ chỉnh…", dpi: 300, bleedMm: 0 },
+  { id: "custom", label: "Custom…", dpi: 300, bleedMm: 0 },
   { id: "hongquan", label: "Hồng Quân (HN)", dpi: 300, bleedMm: 3 },
   { id: "whitehouse", label: "WhiteHouse (HCM)", dpi: 300, bleedMm: 3 },
   { id: "saigonlab", label: "Saigon Lab", dpi: 300, bleedMm: 3 },
@@ -61,14 +61,14 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     try {
       const n = await scanLayoutPack(path);
       if (n === 0) {
-        alert("Thư mục không có nền layout (lay-*.bg.jpg). Chọn đúng folder layout pack.");
+        alert("Folder has no layout backgrounds (lay-*.bg.jpg). Choose a valid layout pack folder.");
         return;
       }
       saveLayoutFolder(path);
       setLayoutFolder(path);
       setLayoutCount(n);
     } catch (e) {
-      alert("Nạp layout pack lỗi: " + String(e));
+      alert("Load layout pack failed: " + String(e));
     }
   }
 
@@ -118,11 +118,11 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
 
   async function run() {
     if (!folder) {
-      alert("Chọn thư mục lưu trước.");
+      alert("Choose a save folder first.");
       return;
     }
     if (!exportSet || exportSet.length === 0) {
-      alert("Phạm vi spread không hợp lệ — ví dụ: 1,2,5-7");
+      alert("Invalid spread range — e.g. 1,2,5-7");
       return;
     }
     cancelRef.current = { cancelled: false };
@@ -172,13 +172,13 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     <div className="modal-overlay" onClick={running ? undefined : onClose}>
       <div className="modal" style={{ width: "min(460px, 92vw)" }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>Xuất album · {exportSet ? exportSet.length : 0} mục</h2>
-          <button className="btn icon" title="Đóng" onClick={onClose} disabled={running}><IconClose /></button>
+          <h2>Export album · {exportSet ? exportSet.length : 0} items</h2>
+          <button className="btn icon" title="Close" onClick={onClose} disabled={running}><IconClose /></button>
         </div>
 
         <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <div className="prop-label">Lab in (§12.5 — luôn hỏi lab trước khi in loạt lớn)</div>
+            <div className="prop-label">Print lab (§12.5 — always confirm with the lab before large print runs)</div>
             <select
               className="input"
               value={lab}
@@ -196,15 +196,15 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
 
           <div className="seg-2">
             <div>
-              <div className="prop-label">Phạm vi xuất</div>
+              <div className="prop-label">Export range</div>
               <select
                 className="input"
                 style={{ width: "100%" }}
                 value={rangeMode}
                 onChange={(e) => setRangeMode(e.target.value as "all" | "range")}
               >
-                <option value="all">Tất cả spread ({content.length})</option>
-                <option value="range">Chọn phạm vi…</option>
+                <option value="all">All spreads ({content.length})</option>
+                <option value="range">Select range…</option>
               </select>
               {rangeMode === "range" && (
                 <>
@@ -213,16 +213,16 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                     style={{ marginTop: 6, width: "100%" }}
                     value={rangeText}
                     onChange={(e) => setRangeText(e.target.value)}
-                    placeholder="vd: 1,2,5-7"
+                    placeholder="e.g. 1,2,5-7"
                   />
                   {rangeText.trim() !== "" && !picked && (
-                    <div className="err-msg" style={{ marginTop: 4 }}>Không hợp lệ — dạng 1,2,5-7 (1–{content.length})</div>
+                    <div className="err-msg" style={{ marginTop: 4 }}>Invalid — format 1,2,5-7 (1–{content.length})</div>
                   )}
                 </>
               )}
             </div>
             <div>
-              <div className="prop-label">Bìa album</div>
+              <div className="prop-label">Album cover</div>
               <select
                 className="input"
                 style={{ width: "100%" }}
@@ -230,15 +230,15 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setIncludeCover(e.target.value === "yes")}
                 disabled={!cover}
               >
-                <option value="yes">Kèm bìa</option>
-                <option value="no">Không kèm bìa</option>
+                <option value="yes">Include cover</option>
+                <option value="no">No cover</option>
               </select>
             </div>
           </div>
 
           <div className="seg-2">
             <div>
-              <div className="prop-label">Định dạng</div>
+              <div className="prop-label">Format</div>
               <select
                 className="input"
                 style={{ width: "100%" }}
@@ -251,7 +251,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
               </select>
             </div>
             <div>
-              <div className="prop-label">Kiểu file JPG</div>
+              <div className="prop-label">JPG file type</div>
               <select
                 className="input"
                 style={{ width: "100%" }}
@@ -259,8 +259,8 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setPageMode(e.target.value as "spread" | "page")}
                 disabled={format === "pdf"}
               >
-                <option value="spread">Theo spread (2 trang liền)</option>
-                <option value="page">Trang đơn (cắt đôi spread)</option>
+                <option value="spread">Per spread (2 pages joined)</option>
+                <option value="page">Single page (split spread)</option>
               </select>
             </div>
           </div>
@@ -280,7 +280,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
               </select>
             </div>
             <div>
-              <div className="prop-label">Chất lượng JPG</div>
+              <div className="prop-label">JPG quality</div>
               <select
                 className="input"
                 style={{ width: "100%" }}
@@ -296,7 +296,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
 
           <div className="seg-2">
             <div>
-              <div className="prop-label">Bleed (chừa xén)</div>
+              <div className="prop-label">Bleed (trim margin)</div>
               <select
                 className="input"
                 style={{ width: "100%" }}
@@ -308,7 +308,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                   if (b === 0) setCropMarks(false);
                 }}
               >
-                <option value={0}>Không</option>
+                <option value={0}>None</option>
                 <option value={3}>3mm</option>
                 <option value={5}>5mm</option>
               </select>
@@ -321,47 +321,47 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 value={cropMarks ? "on" : "off"}
                 onChange={(e) => setCropMarks(e.target.value === "on")}
                 disabled={bleedMm === 0}
-                title={bleedMm === 0 ? "Cần bleed > 0" : ""}
+                title={bleedMm === 0 ? "Needs bleed > 0" : ""}
               >
-                <option value="off">Tắt</option>
-                <option value="on">Bật</option>
+                <option value="off">Off</option>
+                <option value="on">On</option>
               </select>
             </div>
           </div>
 
           <div>
-            <div className="prop-label">Tiền tố tên file</div>
+            <div className="prop-label">Filename prefix</div>
             <input className="input" value={prefix} onChange={(e) => setPrefix(e.target.value)} />
           </div>
 
           <div>
-            <div className="prop-label">Thư mục lưu</div>
+            <div className="prop-label">Save folder</div>
             <div className="prop-row">
-              <input className="input" value={folder} placeholder="Chưa chọn…" readOnly />
-              <button className="btn" onClick={pickFolder} disabled={running}>Chọn…</button>
+              <input className="input" value={folder} placeholder="Not selected…" readOnly />
+              <button className="btn" onClick={pickFolder} disabled={running}>Choose…</button>
             </div>
-            <div className="hint-sm">Sẽ tạo thư mục con Export_YYYY-MM-DD/ · màu sRGB</div>
+            <div className="hint-sm">Creates subfolder Export_YYYY-MM-DD/ · sRGB color</div>
           </div>
 
           <div>
-            <div className="prop-label">Layout in nét cao (tuỳ chọn)</div>
+            <div className="prop-label">High-res print layout (optional)</div>
             <div className="prop-row">
               <input
                 className="input"
-                value={layoutFolder ? `${layoutFolder}${layoutCount != null ? `  ·  ${layoutCount} nền` : ""}` : ""}
-                placeholder="Chưa nạp — sẽ dùng nền preview (kém nét khi in to)"
+                value={layoutFolder ? `${layoutFolder}${layoutCount != null ? `  ·  ${layoutCount} backgrounds` : ""}` : ""}
+                placeholder="Not loaded — will use preview backgrounds (low quality at large print sizes)"
                 readOnly
               />
               <button className="btn" onClick={importLayoutPack} disabled={running}>
-                {layoutFolder ? "Đổi…" : "Nạp…"}
+                {layoutFolder ? "Change…" : "Load…"}
               </button>
             </div>
             <div className="hint-sm">
-              Nạp layout pack (nền full-res) → nền + chữ in sắc nét. Chữ render vector từ font kho.
+              Load layout pack (full-res backgrounds) → sharp backgrounds + text in print. Text renders as vector from the font library.
             </div>
             {layoutFolder && missingFonts.size > 0 && (
               <div className="font-warn-sm">
-                ⚠ {missingFonts.size} font layout chưa nạp → chữ sẽ dùng font thay thế khi in. Nạp kho font để đúng kiểu.
+                ⚠ {missingFonts.size} layout fonts not loaded → text will use fallback fonts in print. Load the font library for correct styling.
               </div>
             )}
           </div>
@@ -372,17 +372,17 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
               <span>{progress.done}/{progress.total} — {pct}%</span>
             </div>
           )}
-          {status === "done" && <div className="ok-msg">✓ Đã xuất vào: {result}</div>}
-          {status === "error" && <div className="err-msg">Lỗi: {result}</div>}
+          {status === "done" && <div className="ok-msg">✓ Exported to: {result}</div>}
+          {status === "error" && <div className="err-msg">Error: {result}</div>}
         </div>
 
         <div className="modal-foot">
           {running ? (
-            <button className="btn" onClick={() => (cancelRef.current.cancelled = true)}>Huỷ</button>
+            <button className="btn" onClick={() => (cancelRef.current.cancelled = true)}>Cancel</button>
           ) : (
             <>
-              <button className="btn" onClick={onClose}>Đóng</button>
-              <button className="btn primary" onClick={run} disabled={!exportSet || exportSet.length === 0}>Xuất album</button>
+              <button className="btn" onClick={onClose}>Close</button>
+              <button className="btn primary" onClick={run} disabled={!exportSet || exportSet.length === 0}>Export album</button>
             </>
           )}
         </div>

@@ -28,7 +28,7 @@ export function ElementPanel() {
       const items = await scanElementFolder(path);
       setElements(items.map(elementFromItem));
     } catch (err) {
-      alert("Không nạp được thư mục element: " + String(err));
+      alert("Couldn't load element folder: " + String(err));
     } finally {
       setLoading(false);
     }
@@ -63,21 +63,21 @@ export function ElementPanel() {
           className="btn primary"
           onClick={pick}
           disabled={loading}
-          title="Chọn thư mục element (PNG/SVG nền trong) — mỗi thư mục con là một nhóm"
+          title="Choose an element folder (transparent PNG/SVG) — each subfolder is a group"
         >
-          {loading ? "Đang nạp…" : "＋ Nạp thư mục element"}
+          {loading ? "Loading…" : "＋ Load element folder"}
         </button>
         <div className="folder-msg">
           {elements.length > 0
-            ? `${elements.length} element · kéo/click để thả lên spread`
-            : "Chưa nạp — chọn thư mục PNG/SVG (nơ, seal, hoa, viền…)"}
+            ? `${elements.length} elements · drag/click to place on a spread`
+            : "Not loaded — choose a PNG/SVG folder (ribbons, seals, florals, borders…)"}
         </div>
       </div>
 
       {cats.length > 1 && (
         <div className="ip-filters">
           <button className={"ip-filter" + (cat === "all" ? " active" : "")} onClick={() => setCat("all")}>
-            Tất cả
+            All
           </button>
           {cats.map((c) => (
             <button
@@ -96,7 +96,7 @@ export function ElementPanel() {
           <button
             key={e.id}
             className="el-cell"
-            title={`${e.name} — kéo hoặc click để thả`}
+            title={`${e.name} — drag or click to place`}
             draggable
             onDragStart={(ev) => ev.dataTransfer.setData(ELEMENT_DND_KEY, e.id)}
             onClick={() => place(e.id)}
@@ -108,13 +108,13 @@ export function ElementPanel() {
 
       {elements.length === 0 && !loading && (
         <div className="ip-empty">
-          Kéo-thả element trang trí (nơ, ghim, seal, hoa, viền…).
+          Drag & drop decorative elements (ribbons, pins, seals, florals, borders…).
           <br />
-          Bấm <b>＋ Nạp thư mục element</b> để chọn folder PNG/SVG.
+          Click <b>＋ Load element folder</b> to choose a PNG/SVG folder.
         </div>
       )}
       {elements.length > 0 && shown.length === 0 && (
-        <div className="ip-empty">Nhóm này chưa có element.</div>
+        <div className="ip-empty">No elements in this group.</div>
       )}
     </>
   );

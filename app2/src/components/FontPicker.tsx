@@ -59,7 +59,7 @@ export function FontPicker({ value, onPick }: { value: string; onPick: (family: 
   return (
     <div className="fontpick">
       <button type="button" className="input fontpick-btn" onClick={() => setOpen((o) => !o)}>
-        <span style={{ fontFamily: value ? `"${value}"` : undefined }}>{value || "(mặc định)"}</span>
+        <span style={{ fontFamily: value ? `"${value}"` : undefined }}>{value || "(default)"}</span>
         <span className="fp-caret">▾</span>
       </button>
       {open && (
@@ -69,7 +69,7 @@ export function FontPicker({ value, onPick }: { value: string; onPick: (family: 
             <input
               autoFocus
               className="input"
-              placeholder="Tìm trong kho…"
+              placeholder="Search library…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
@@ -77,12 +77,12 @@ export function FontPicker({ value, onPick }: { value: string; onPick: (family: 
               {filtered.map((f) => (
                 <button type="button" key={f.name} className="fontpick-item" onClick={() => pick(f)}>
                   <span style={{ fontFamily: f.loaded ? `"${f.name}"` : undefined }}>{f.name}</span>
-                  {!f.loaded && <span className="fp-tag">tải</span>}
+                  {!f.loaded && <span className="fp-tag">load</span>}
                 </button>
               ))}
-              {filtered.length === 0 && <div className="fp-empty">Không thấy font</div>}
+              {filtered.length === 0 && <div className="fp-empty">No fonts</div>}
             </div>
-            {busy && <div className="fp-busy">Đang tải font…</div>}
+            {busy && <div className="fp-busy">Loading fonts…</div>}
             <div className="fp-count">{families.length} font trong kho</div>
           </div>
         </>

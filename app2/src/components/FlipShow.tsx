@@ -109,9 +109,9 @@ export function FlipShow({ onClose }: { onClose: () => void }) {
               {res ? (
                 <img src={res.dataUrl} alt={spreadLabel(spreads, i)} draggable={false} />
               ) : errs[i] ? (
-                <div className="flip-loading err">Lỗi dựng: {errs[i]}</div>
+                <div className="flip-loading err">Render error: {errs[i]}</div>
               ) : (
-                <div className="flip-loading">Đang dựng…</div>
+                <div className="flip-loading">Rendering…</div>
               )}
             </div>
           );
@@ -125,7 +125,7 @@ export function FlipShow({ onClose }: { onClose: () => void }) {
           e.stopPropagation();
           go(-1);
         }}
-        title="Trước (← hoặc <)"
+        title="Previous (← or <)"
       >
         ‹
       </button>
@@ -136,7 +136,7 @@ export function FlipShow({ onClose }: { onClose: () => void }) {
           e.stopPropagation();
           go(1);
         }}
-        title="Sau (→ hoặc >)"
+        title="Next (→ or >)"
       >
         ›
       </button>
@@ -144,7 +144,7 @@ export function FlipShow({ onClose }: { onClose: () => void }) {
       <div className="flip-hud" onClick={(e) => e.stopPropagation()}>
         {active + 1} / {total} · {spreadLabel(spreads, active)}
       </div>
-      <button className="flip-close" onClick={onClose} title="Thoát (Esc)">
+      <button className="flip-close" onClick={onClose} title="Exit (Esc)">
         ✕
       </button>
     </div>

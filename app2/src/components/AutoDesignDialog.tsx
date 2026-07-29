@@ -8,19 +8,19 @@ type Source = "all" | "selected" | "starred";
 type Order = "date" | "name";
 
 const LAYOUT_SOURCES: { id: LayoutSourceFilter; label: string }[] = [
-  { id: "all", label: "Tất cả" },
-  { id: "basic", label: "Cơ bản" },
+  { id: "all", label: "All" },
+  { id: "basic", label: "Basic" },
   { id: "tizino", label: "Tizino" },
-  { id: "custom", label: "Mẫu của tôi" },
+  { id: "custom", label: "My templates" },
 ];
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /** Mật độ quen thuộc (topbar cũ) → khoảng ảnh/spread, dùng làm preset. */
 const DENSITY_PRESETS: { id: "thua" | "can" | "day"; label: string; range: [number, number] }[] = [
-  { id: "thua", label: "Thưa", range: [1, 2] },
-  { id: "can", label: "Cân", range: [3, 4] },
-  { id: "day", label: "Dày", range: [5, 8] },
+  { id: "thua", label: "Sparse", range: [1, 2] },
+  { id: "can", label: "Balanced", range: [3, 4] },
+  { id: "day", label: "Dense", range: [5, 8] },
 ];
 
 /** SmartAlbums dual-handle slider: two overlapped range inputs, one track. */
@@ -62,7 +62,7 @@ function DualRange({
           onChange(Math.min(lo, v), Math.max(lo, v));
         }}
       />
-      <span className="dr-label">{lo} – {hi} ảnh</span>
+      <span className="dr-label">{lo} – {hi} photos</span>
     </div>
   );
 }
@@ -146,26 +146,26 @@ export function AutoDesignDialog({ onClose }: { onClose: () => void }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ width: "min(480px, 92vw)" }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>Auto Design · {importing ? `đang nhập ảnh… (${liveCount})` : `${count} ảnh`}</h2>
-          <button className="btn icon" title="Đóng" onClick={onClose}><IconClose /></button>
+          <h2>Auto Design · {importing ? `importing photos… (${liveCount})` : `${count} photos`}</h2>
+          <button className="btn icon" title="Close" onClick={onClose}><IconClose /></button>
         </div>
 
         <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
           {/* mode: generate fresh layouts vs pour photos into existing ones */}
           {contentSpreads > 0 && (
             <div>
-              <div className="prop-label">Cách dàn</div>
+              <div className="prop-label">Build mode</div>
               <div className="seg-row">
                 <button className={"seg" + (mode === "build" ? " active" : "")} onClick={() => setMode("build")}>
-                  Tạo layout mới
+                  New layouts
                 </button>
                 <button className={"seg" + (mode === "fill" ? " active" : "")} onClick={() => setMode("fill")}>
-                  Đổ ảnh vào mẫu ({contentSpreads})
+                  Fill photos into template ({contentSpreads})
                 </button>
               </div>
               {mode === "fill" && (
                 <div className="hint-sm">
-                  Giữ nguyên layout/chữ/typo/element của {contentSpreads} spread, chỉ đổ ảnh vào slot theo thứ tự.
+                  Keep the layout/text/typo/elements of {contentSpreads} spreads, just fill photos into slots in order.
                 </div>
               )}
             </div>
@@ -177,20 +177,20 @@ export function AutoDesignDialog({ onClose }: { onClose: () => void }) {
           <div className="ab-cards">
             <div className="ab-card">
               <div className="ab-num">{S}</div>
-              <div className="ab-cap">Spread ({S * 2} trang)</div>
+              <div className="ab-cap">Spreads ({S * 2} pages)</div>
             </div>
             <div className="ab-card">
               <div className="ab-num">
                 {effLo}
-                <span className="ab-to">đến</span>
+                <span className="ab-to">to</span>
                 {effHi}
               </div>
-              <div className="ab-cap">Ảnh mỗi spread</div>
+              <div className="ab-cap">Photos per spread</div>
             </div>
           </div>
 
           <div>
-            <div className="prop-label">Số spread mong muốn · {minS}–{maxS}</div>
+            <div className="prop-label">Target spreads · {minS}–{maxS}</div>
             <input
               type="range"
               min={minS}
@@ -204,13 +204,13 @@ export function AutoDesignDialog({ onClose }: { onClose: () => void }) {
           </div>
 
           <div>
-            <div className="prop-label">Nhóm ảnh</div>
+            <div className="prop-label">Grouping</div>
             <div className="seg-row">
               <button className={"seg" + (smart ? " active" : "")} onClick={() => setSmart(true)}>
-                Thông minh
+                Smart
               </button>
               <button className={"seg" + (!smart ? " active" : "")} onClick={() => setSmart(false)}>
-                Tự chọn khoảng
+                Custom range
               </button>
             </div>
             {!smart && (
@@ -250,22 +250,22 @@ export function AutoDesignDialog({ onClose }: { onClose: () => void }) {
           <div className="seg-2">
             {mode === "build" && (
             <div>
-              <div className="prop-label">Lặp layout</div>
+              <div className="prop-label">Layout reuse</div>
               <select
                 className="input"
                 style={{ width: "100%" }}
                 value={reuse}
                 onChange={(e) => setReuse(e.target.value as TemplateReuse)}
               >
-                <option value="low">Thấp — layout đa dạng nhất</option>
-                <option value="medium">Vừa</option>
-                <option value="high">Cao — cho phép lặp thoải mái</option>
+                <option value="low">Low — most varied layouts</option>
+                <option value="medium">Medium</option>
+                <option value="high">High — allow free reuse</option>
               </select>
             </div>
             )}
             {mode === "build" && (
             <div>
-              <div className="prop-label">Nguồn layout</div>
+              <div className="prop-label">Layout source</div>
               <select
                 className="input"
                 style={{ width: "100%" }}
@@ -281,59 +281,59 @@ export function AutoDesignDialog({ onClose }: { onClose: () => void }) {
             </div>
             )}
             <div>
-              <div className="prop-label">Thứ tự ảnh</div>
+              <div className="prop-label">Photo order</div>
               <select
                 className="input"
                 style={{ width: "100%" }}
                 value={order}
                 onChange={(e) => setOrder(e.target.value as Order)}
               >
-                <option value="date">Thời gian chụp</option>
-                <option value="name">Tên file</option>
+                <option value="date">Capture time</option>
+                <option value="name">File name</option>
               </select>
             </div>
           </div>
 
           <div>
-            <div className="prop-label">Ảnh sử dụng</div>
+            <div className="prop-label">Photos to use</div>
             <select
               className="input"
               style={{ width: "100%" }}
               value={source}
               onChange={(e) => setSource(e.target.value as Source)}
             >
-              <option value="all">Tất cả ({usable.length})</option>
+              <option value="all">All ({usable.length})</option>
               <option value="selected" disabled={selectedPhotos.length === 0}>
-                Đang chọn ({selectedPhotos.length})
+                Selected ({selectedPhotos.length})
               </option>
               <option value="starred" disabled={starred.length === 0}>
-                Có sao ★ ({starred.length})
+                Starred ★ ({starred.length})
               </option>
             </select>
-            <div className="hint-sm">Spread 1 ảnh ưu tiên ảnh có sao ★ gần đó.</div>
+            <div className="hint-sm">Single-photo spreads prefer a nearby starred ★ photo.</div>
           </div>
 
           {mode === "build" && hasWork && (
             <div className="hint-sm" style={{ textAlign: "center" }}>
-              ⚠ Album hiện tại sẽ được thay bằng thiết kế mới (bìa giữ nguyên).
+              ⚠ The current album will be replaced with a new design (cover kept).
             </div>
           )}
           {mode === "fill" && (
             <div className="hint-sm" style={{ textAlign: "center" }}>
-              Đổ ảnh vào {contentSpreads} spread có sẵn (giữ layout · bìa giữ nguyên).
+              Fill photos into {contentSpreads} existing spreads (keep layout · cover kept).
             </div>
           )}
         </div>
 
         <div className="modal-foot">
-          <button className="btn" onClick={onClose}>Huỷ</button>
+          <button className="btn" onClick={onClose}>Cancel</button>
           <button className="btn primary" onClick={run} disabled={count === 0 || importing}>
             <IconSparkle />{" "}
             {importing
-              ? "Đang nhập ảnh…"
+              ? "Importing photos…"
               : mode === "fill"
-                ? `Đổ ảnh vào ${contentSpreads} spread`
-                : `Auto Build (${S} spread)`}
+                ? `Fill photos into ${contentSpreads} spreads`
+                : `Auto Build (${S} spreads)`}
           </button>
         </div>
       </div>

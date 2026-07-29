@@ -147,7 +147,7 @@ export interface Spread {
 /** Display name of a spread ("Bìa" / "Spread N") — cover-aware numbering. */
 export function spreadLabel(spreads: Spread[], i: number): string {
   const hasCover = !!spreads[0]?.isCover;
-  if (hasCover) return i === 0 ? "Bìa" : `Spread ${i}`;
+  if (hasCover) return i === 0 ? "Cover" : `Spread ${i}`;
   return `Spread ${i + 1}`;
 }
 

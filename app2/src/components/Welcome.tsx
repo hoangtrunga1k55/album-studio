@@ -27,7 +27,7 @@ export function Welcome() {
     try {
       await openProject(path);
     } catch (e) {
-      alert("Không mở được project: " + String(e));
+      alert("Could not open project: " + String(e));
       if (path) {
         forgetRecent(path);
         setRecents(loadRecents());
@@ -42,7 +42,7 @@ export function Welcome() {
     try {
       await newFromAlbumTemplate();
     } catch (e) {
-      alert("Không tạo được từ mẫu: " + String(e));
+      alert("Could not create from template: " + String(e));
     } finally {
       setBusy(false);
     }
@@ -56,24 +56,24 @@ export function Welcome() {
           <div className="welcome-brand">
             <div className="welcome-mark">A</div>
             <h1>Album Studio</h1>
-            <p className="welcome-sub">Thiết kế album ảnh cưới chuyên nghiệp</p>
+            <p className="welcome-sub">Professional wedding album design</p>
           </div>
 
           <div className="welcome-actions">
             <button className="w-btn primary" onClick={() => setWizard(true)} disabled={busy}>
-              + Tạo album mới
+              + New album
             </button>
             <button className="w-btn" onClick={() => handleFromTemplate()} disabled={busy}>
-              Tạo từ mẫu album…
+              New from template…
             </button>
             <button className="w-btn" onClick={() => handleOpen()} disabled={busy}>
-              Mở album…
+              Open album…
             </button>
           </div>
 
           {recents.length > 0 && (
             <div className="welcome-recents">
-              <div className="recents-title">Gần đây</div>
+              <div className="recents-title">Recent</div>
               {recents.map((r) => (
                 <button key={r.path} className="recent-row" onClick={() => handleOpen(r.path)} disabled={busy}>
                   <span className="recent-name">{r.name}</span>
@@ -107,10 +107,10 @@ const UNITS: { id: Unit; label: string; toCm: (v: number) => number }[] = [
 
 const DPI_CHOICES = [150, 200, 300, 400, 600];
 const LAYOUT_SETS: { id: LayoutSourceFilter; label: string }[] = [
-  { id: "all", label: "Tất cả bộ layout" },
-  { id: "basic", label: "Cơ bản (SmartAlbums)" },
+  { id: "all", label: "All layout sets" },
+  { id: "basic", label: "Basic (SmartAlbums)" },
   { id: "tizino", label: "Tizino (PSD)" },
-  { id: "custom", label: "Mẫu của tôi" },
+  { id: "custom", label: "My templates" },
 ];
 
 /** Parse a mm field: empty/garbage → 0, clamped to [0, max]. */
@@ -195,8 +195,8 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
   function next() {
     if (!validSize()) {
       alert(
-        `Kích thước trang phải từ ${CUSTOM_MIN_CM}–${CUSTOM_MAX_CM} cm ` +
-          `(spread rộng ${CUSTOM_MIN_CM * 2}–${CUSTOM_MAX_CM * 2} cm).`
+        `Page size must be ${CUSTOM_MIN_CM}–${CUSTOM_MAX_CM} cm ` +
+          `(spread width ${CUSTOM_MIN_CM * 2}–${CUSTOM_MAX_CM * 2} cm).`
       );
       return;
     }
@@ -229,7 +229,7 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
       });
       if (ok) onClose();
     } catch (e) {
-      alert("Không tạo được project: " + String(e));
+      alert("Could not create project: " + String(e));
     } finally {
       setBusy(false);
     }
@@ -249,26 +249,26 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
     <div className="wizard-overlay" onClick={busy ? undefined : onClose}>
       <div className="wizard" onClick={(e) => e.stopPropagation()}>
         <div className="wz-head">
-          <h2>Album mới</h2>
-          <span className="wz-step">Bước {step}/2 · {step === 1 ? "Khổ album" : "Trang trí"}</span>
-          <button className="wz-close" title="Đóng" onClick={onClose} disabled={busy}>
+          <h2>New album</h2>
+          <span className="wz-step">Step {step}/2 · {step === 1 ? "Album size" : "Decoration"}</span>
+          <button className="wz-close" title="Close" onClick={onClose} disabled={busy}>
             ✕
           </button>
         </div>
 
         {step === 1 ? (
           <>
-            <label className="wz-label">Tên album</label>
+            <label className="wz-label">Album name</label>
             <input
               className="wz-input"
-              placeholder="VD: Hiền & Hiếu 2026"
+              placeholder="e.g. Hien & Hieu 2026"
               value={name}
               autoFocus
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && next()}
             />
 
-            <label className="wz-label">Khổ album</label>
+            <label className="wz-label">Album size</label>
             <div className="wz-size-row">
               <select
                 className="wz-input"
@@ -286,7 +286,7 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
                     {s.label} — {s.note}
                   </option>
                 ))}
-                <option value="custom">Tuỳ chỉnh…</option>
+                <option value="custom">Custom…</option>
               </select>
               {/* live illustration: the 2-page spread at the chosen ratio */}
               <div className="wz-size-preview">
@@ -297,7 +297,7 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
                   <span className="wz-spine" />
                 </div>
                 <span className="wz-size-note">
-                  Spread 2 trang · {round1(pageCm.w * 2)} × {round1(pageCm.h)} cm
+                  2-page spread · {round1(pageCm.w * 2)} × {round1(pageCm.h)} cm
                 </span>
               </div>
             </div>
@@ -306,7 +306,7 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
               <div className="wz-adv">
                 <div className="wz-grid">
                   <div className="wz-field">
-                    <span className="wz-field-name">Đơn vị</span>
+                    <span className="wz-field-name">Unit</span>
                     <select
                       className="wz-unit-sel"
                       value={unit}
@@ -320,7 +320,7 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
                     </select>
                   </div>
                   <div className="wz-field">
-                    <span className="wz-field-name">DPI in</span>
+                    <span className="wz-field-name">Print DPI</span>
                     <select
                       className="wz-unit-sel"
                       value={dpi}
@@ -334,7 +334,7 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
                     </select>
                   </div>
                   <div className="wz-field wz-field-wide">
-                    <span className="wz-field-name">Kích thước spread (rộng × cao)</span>
+                    <span className="wz-field-name">Spread size (width × height)</span>
                     <span className="wz-mm-wrap">
                       <input
                         className="wz-cm"
@@ -353,7 +353,7 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
                     </span>
                   </div>
                   <div className="wz-field">
-                    <span className="wz-field-name">Vùng an toàn</span>
+                    <span className="wz-field-name">Safe zone</span>
                     <span className="wz-mm-wrap">
                       <input
                         className="wz-cm"
@@ -367,7 +367,7 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
                     </span>
                   </div>
                   <div className="wz-field">
-                    <span className="wz-field-name">Trim (xén mép)</span>
+                    <span className="wz-field-name">Trim (edge cut)</span>
                     <span className="wz-mm-wrap">
                       <input
                         className="wz-cm"
@@ -384,7 +384,7 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
               </div>
             )}
 
-            <label className="wz-label">Số spread ban đầu</label>
+            <label className="wz-label">Initial spreads</label>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <input
                 className="wz-input"
@@ -396,24 +396,24 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
                 style={{ width: 90 }}
               />
               <span className="wz-size-note">
-                = {(parseInt(spreadCount, 10) || 1) * 2} trang · chuẩn lab tối thiểu 20 trang
+                = {(parseInt(spreadCount, 10) || 1) * 2} pages · lab minimum 20 pages
               </span>
             </div>
 
             <div className="wz-foot">
               <button className="w-btn" onClick={onClose} disabled={busy}>
-                Huỷ
+                Cancel
               </button>
               <button className="w-btn primary" onClick={next} disabled={busy}>
-                Tiếp tục →
+                Continue →
               </button>
             </div>
           </>
         ) : (
           <>
-            <label className="wz-label">Màu nền layout</label>
+            <label className="wz-label">Layout background</label>
             <div className="wz-field">
-              <span className="wz-field-name">Màu nền trang</span>
+              <span className="wz-field-name">Page background color</span>
               <span className="wz-mm-wrap">
                 <input
                   className="wz-color"
@@ -425,10 +425,10 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
               </span>
             </div>
 
-            <label className="wz-label">Ảnh trong trang</label>
+            <label className="wz-label">Photos on the page</label>
             <div className="wz-grid">
               <div className="wz-field">
-                <span className="wz-field-name">Viền quanh ảnh</span>
+                <span className="wz-field-name">Border around photos</span>
                 <span className="wz-mm-wrap">
                   <input
                     className="wz-cm"
@@ -444,13 +444,13 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
                     className="wz-color"
                     type="color"
                     value={borderColor}
-                    title="Màu viền"
+                    title="Border color"
                     onChange={(e) => setBorderColor(e.target.value)}
                   />
                 </span>
               </div>
               <div className="wz-field">
-                <span className="wz-field-name">Khoảng cách giữa ảnh</span>
+                <span className="wz-field-name">Gap between photos</span>
                 <span className="wz-mm-wrap">
                   <input
                     className="wz-cm"
@@ -466,7 +466,7 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
-            <label className="wz-label">Bộ layout gợi ý</label>
+            <label className="wz-label">Suggested layout set</label>
             <select
               className="wz-input"
               value={layoutSource}
@@ -481,16 +481,16 @@ function NewAlbumWizard({ onClose }: { onClose: () => void }) {
 
             <div className="wz-foot">
               <button className="w-btn" onClick={() => setStep(1)} disabled={busy}>
-                ← Quay lại
+                ← Back
               </button>
               <button className="w-btn primary" onClick={finish} disabled={busy}>
-                {busy ? "Đang tạo…" : "Tạo & chọn nơi lưu"}
+                {busy ? "Creating…" : "Create & choose save location"}
               </button>
             </div>
           </>
         )}
 
-        <div className="wz-hint">Project sẽ được lưu thành file .album — tự động lưu khi bạn thiết kế.</div>
+        <div className="wz-hint">The project is saved as a .album file — auto-saved as you design.</div>
       </div>
     </div>
   );

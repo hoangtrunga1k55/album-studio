@@ -23,13 +23,13 @@ function stripPhotos(sp: Spread): Spread {
 export async function saveAlbumTemplate(): Promise<boolean> {
   const st = useAlbum.getState();
   if (!st.spreads.length) {
-    alert("Chưa có spread nào để lưu làm mẫu.");
+    alert("No spreads to save as a template.");
     return false;
   }
   const dest = await save({
-    title: "Lưu mẫu album",
+    title: "Save album template",
     defaultPath: `mau-album.${EXT}`,
-    filters: [{ name: "Mẫu Album", extensions: [EXT] }],
+    filters: [{ name: "Album Template", extensions: [EXT] }],
   });
   if (typeof dest !== "string" || !dest) return false;
   const content = JSON.stringify({
@@ -44,7 +44,7 @@ export async function saveAlbumTemplate(): Promise<boolean> {
     await saveProjectFile(dest, content);
     return true;
   } catch (err) {
-    alert("Lưu mẫu album lỗi: " + String(err));
+    alert("Save album template error: " + String(err));
     return false;
   }
 }
@@ -55,7 +55,7 @@ export async function newFromAlbumTemplate(): Promise<boolean> {
   const picked = await open({
     multiple: false,
     directory: false,
-    filters: [{ name: "Mẫu Album", extensions: [EXT] }],
+    filters: [{ name: "Album Template", extensions: [EXT] }],
   });
   if (typeof picked !== "string") return false;
 
@@ -69,16 +69,16 @@ export async function newFromAlbumTemplate(): Promise<boolean> {
   try {
     tpl = JSON.parse(await openProjectFile(picked));
   } catch (err) {
-    alert("Không đọc được mẫu album: " + String(err));
+    alert("Couldn't read the album template: " + String(err));
     return false;
   }
   if (tpl.kind !== KIND || !Array.isArray(tpl.spreads)) {
-    alert("File không phải mẫu album hợp lệ.");
+    alert("This file is not a valid album template.");
     return false;
   }
 
   let path = await save({
-    title: "Album mới từ mẫu — lưu ở đâu",
+    title: "New album from template — where to save",
     defaultPath: "album-tu-mau.album",
     filters: [{ name: "Album Studio", extensions: ["album"] }],
   });

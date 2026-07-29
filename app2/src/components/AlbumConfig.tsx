@@ -30,8 +30,8 @@ export function AlbumConfig() {
     if (!next || next === size) return;
     if (
       !window.confirm(
-        `Đổi khổ album sang ${label}?\n\nCác spread có layout không hợp khổ mới sẽ ` +
-          `được dàn lại (giữ ảnh, nhưng khung/căn chỉnh tay có thể thay đổi).`
+        `Change album size to ${label}?\n\nSpreads whose layout doesn't fit the new size will ` +
+          `be relaid out (photos kept, but manual frames/alignment may change).`
       )
     )
       return;
@@ -52,18 +52,18 @@ export function AlbumConfig() {
     const h = Math.round(parseFloat(hCm) * 10) / 10;
     const ok = (n: number) => Number.isFinite(n) && n >= CUSTOM_MIN_CM && n <= CUSTOM_MAX_CM;
     if (!ok(w) || !ok(h)) {
-      window.alert(`Kích thước 1 trang phải từ ${CUSTOM_MIN_CM}–${CUSTOM_MAX_CM} cm.`);
+      window.alert(`One-page size must be ${CUSTOM_MIN_CM}–${CUSTOM_MAX_CM} cm.`);
       return;
     }
-    applySize(`${w}x${h}`, `${w}×${h} cm (tuỳ chỉnh)`);
+    applySize(`${w}x${h}`, `${w}×${h} cm (custom)`);
   }
 
   return (
     <div className="prop-group">
-      <div className="prop-label">Khổ &amp; thông số album</div>
+      <div className="prop-label">Album size &amp; settings</div>
       <div className="set-cfg-grid">
         <label className="set-cfg">
-          <span>Khổ / tỷ lệ</span>
+          <span>Size / ratio</span>
           <select
             className="input"
             value={customMode || isCustomSize ? "__custom__" : size}
@@ -74,12 +74,12 @@ export function AlbumConfig() {
                 {a.label}
               </option>
             ))}
-            <option value="__custom__">Tuỳ chỉnh (nhập số)…</option>
+            <option value="__custom__">Custom (enter values)…</option>
           </select>
         </label>
         {(customMode || isCustomSize) && (
           <label className="set-cfg" style={{ gridColumn: "1 / -1" }}>
-            <span>Khổ 1 trang (cm) · Rộng × Cao</span>
+            <span>One page (cm) · W × H</span>
             <div className="prop-row" style={{ gap: 6 }}>
               <input
                 className="input"
@@ -103,13 +103,13 @@ export function AlbumConfig() {
                 style={{ width: 64 }}
               />
               <button className="btn" onClick={applyCustomSize}>
-                Áp dụng
+                Apply
               </button>
             </div>
           </label>
         )}
         <label className="set-cfg">
-          <span>Viền ảnh (pt)</span>
+          <span>Photo border (pt)</span>
           <input
             className="input"
             type="number"
@@ -120,7 +120,7 @@ export function AlbumConfig() {
           />
         </label>
         <label className="set-cfg">
-          <span>Màu viền</span>
+          <span>Border color</span>
           <input
             className="input"
             type="color"
@@ -131,8 +131,8 @@ export function AlbumConfig() {
         </label>
       </div>
       <div className="hint-sm">
-        Đổi ở đây áp dụng ngay cho album đang mở
-        {isCustomSize ? " và được nhớ cho album tuỳ chỉnh lần sau." : "."}
+        Changes here apply immediately to the open album
+        {isCustomSize ? " and are remembered for custom albums next time." : "."}
       </div>
     </div>
   );

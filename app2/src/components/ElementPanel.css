@@ -9,7 +9,7 @@
 .el-cell {
   aspect-ratio: 1;
   padding: 4px;
-  border: 1px solid var(--line, #2a2d34);
+  border: 1px solid var(--line, var(--border-strong));
   border-radius: 6px;
   background: #ffffff
     conic-gradient(#eceef1 25%, transparent 0 50%, #eceef1 0 75%, transparent 0) 0 0 / 14px 14px;
@@ -20,7 +20,7 @@
   transition: border-color 0.12s ease, transform 0.06s ease;
 }
 .el-cell:hover {
-  border-color: var(--accent, #4c8bf5);
+  border-color: var(--accent);
 }
 .el-cell:active {
   transform: scale(0.96);

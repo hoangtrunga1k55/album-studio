@@ -149,8 +149,8 @@ export function SpreadsFilmstrip() {
               onClick={() => setCurrent(idx)}
               title={
                 pinned
-                  ? "Bìa album — luôn ở đầu"
-                  : `${spreadLabel(spreads, idx)} — kéo để cuộn · giữ rồi kéo để đổi vị trí`
+                  ? "Album cover — always first"
+                  : `${spreadLabel(spreads, idx)} — drag to scroll · hold then drag to reorder`
               }
               onMouseDown={() => {
                 if (pinned) return; // the cover never reorders
@@ -188,11 +188,11 @@ export function SpreadsFilmstrip() {
                   );
                 })}
               </div>
-              <span className="fs2-no">{pinned ? "Bìa" : spreads[0]?.isCover ? idx : idx + 1}</span>
+              <span className="fs2-no">{pinned ? "Cover" : spreads[0]?.isCover ? idx : idx + 1}</span>
               {spreads.length > 1 && !pinned && (
                 <button
                   className="fs2-del"
-                  title="Xoá spread (Delete)"
+                  title="Delete spread (Delete)"
                   onMouseDown={(e) => e.stopPropagation()} // no pan/hold from the ✕
                   onClick={(e) => {
                     e.stopPropagation();
@@ -210,7 +210,7 @@ export function SpreadsFilmstrip() {
         <div
           className={"fs2-addcard" + (addOver ? " over" : "")}
           onClick={addSpread}
-          title="Thêm spread mới — thả ảnh vào đây để tạo spread kèm ảnh"
+          title="Add a new spread — drop photos here to create a spread with them"
           onDragOver={(e) => {
             if (!e.dataTransfer.types.includes(IMAGE_DND_KEY)) return;
             e.preventDefault();
@@ -229,8 +229,8 @@ export function SpreadsFilmstrip() {
           }}
         >
           <IconPlus width={16} height={16} />
-          <span>Thêm spread</span>
-          <small>hoặc thả ảnh vào đây</small>
+          <span>Add spread</span>
+          <small>or drop photos here</small>
         </div>
       </div>
     </div>

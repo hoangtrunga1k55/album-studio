@@ -114,7 +114,7 @@ export function PhotoNavigator({
         )}
       </div>
       <div className="pn-label">
-        {canPan ? "Kéo ảnh để chỉnh vị trí trong khung" : "Toàn bộ ảnh đang hiển thị"}
+        {canPan ? "Drag the photo to reposition it in the frame" : "The whole photo is visible"}
       </div>
     </div>
   );

@@ -25,7 +25,7 @@ export function FontPanel() {
       addFonts(r.loaded);
       setIndex(r.entries);
     } catch (err) {
-      alert("Không quét được font hệ thống: " + String(err));
+      alert("Couldn't scan system fonts: " + String(err));
     } finally {
       setLoading(false);
     }
@@ -61,24 +61,24 @@ export function FontPanel() {
           className="btn primary"
           onClick={rescan}
           disabled={loading}
-          title="Quét lại thư mục font của máy — cài thêm font pack rồi bấm để cập nhật"
+          title="Rescan the machine font folders — install a font pack then click to refresh"
         >
-          {loading ? "Đang quét…" : "⟳ Quét lại font máy"}
+          {loading ? "Scanning…" : "⟳ Rescan system fonts"}
         </button>
         <div className="folder-msg">
           {index.length > 0
-            ? `${families.length} font trên máy · dùng trực tiếp khi sửa chữ`
-            : "Chưa thấy font — cài font vào máy rồi bấm quét lại"}
+            ? `${families.length} fonts on this machine · used directly when editing text`
+            : "No fonts found — install fonts then rescan"}
         </div>
       </div>
 
       {/* fonts the templates/typos need but the machine doesn't have */}
       {missing.length > 0 && (
         <div className="font-missing">
-          <div className="fm-head">⚠ {missing.length} font mẫu chưa cài trên máy</div>
+          <div className="fm-head">⚠ {missing.length} template fonts not installed</div>
           <div className="fm-hint">
-            Cài các font này vào máy (Library/Fonts hoặc Windows Fonts) rồi bấm{" "}
-            <b>Quét lại font máy</b> — chữ trong mẫu sẽ hiển thị đúng.
+            Install these fonts (Library/Fonts or Windows Fonts) then click{" "}
+            <b>Rescan system fonts</b> — template text will render correctly.
           </div>
           <div className="fm-list">
             {missing.slice(0, 40).map((n) => (
@@ -92,15 +92,15 @@ export function FontPanel() {
       <div className="ip-tools">
         <div className="search-wrap">
           <IconSearch width={15} height={15} />
-          <input placeholder="Tìm font…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input placeholder="Search fonts…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
       </div>
       <div className="ip-filters">
         <button className={"ip-filter" + (filter === "all" ? " active" : "")} onClick={() => setFilter("all")}>
-          Tất cả
+          All
         </button>
         <button className={"ip-filter" + (filter === "vn" ? " active" : "")} onClick={() => setFilter("vn")}>
-          Có dấu (Việt)
+          Vietnamese
         </button>
         <span className="panel-count" style={{ marginLeft: "auto" }}>
           {filtered.length} font
@@ -112,7 +112,7 @@ export function FontPanel() {
           <div className="font-row" key={f.family}>
             <div className="font-head">
               <span className="font-name">{f.family}</span>
-              {!f.vn && <span className="font-tag no">Thiếu dấu</span>}
+              {!f.vn && <span className="font-tag no">No diacritics</span>}
             </div>
             {/* OS-installed → render preview by family name directly */}
             <div className="font-sample" style={{ fontFamily: `"${f.family}"` }}>
@@ -121,18 +121,18 @@ export function FontPanel() {
           </div>
         ))}
         {filtered.length > LIST_CAP && (
-          <div className="fp-more">… còn {filtered.length - LIST_CAP} font nữa — gõ để lọc bớt</div>
+          <div className="fp-more">… {filtered.length - LIST_CAP} more fonts — type to filter</div>
         )}
         {index.length > 0 && filtered.length === 0 && (
-          <div className="ip-empty">Không thấy font khớp “{q}”.</div>
+          <div className="ip-empty">No fonts match “{q}”.</div>
         )}
       </div>
 
       {index.length === 0 && !loading && (
         <div className="ip-empty">
-          Cài font vào máy (Font Book / Windows Fonts)
+          Install fonts on the machine (Font Book / Windows Fonts)
           <br />
-          rồi bấm <b>⟳ Quét lại font máy</b>.
+          then click <b>⟳ Rescan system fonts</b>.
         </div>
       )}
     </>

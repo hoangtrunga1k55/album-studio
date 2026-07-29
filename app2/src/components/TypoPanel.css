@@ -14,7 +14,7 @@
   cursor: grab;
   border: 1px solid var(--border);
   /* dark check so white typography is visible */
-  background: #2a2438;
+  background: var(--bg-canvas);
   display: grid;
   place-items: center;
   min-height: 84px;

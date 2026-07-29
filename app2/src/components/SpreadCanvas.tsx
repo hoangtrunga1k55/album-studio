@@ -712,7 +712,7 @@ function GuideLayer(props: {
       {/* SmartAlbums rulers: numbered cm scale, drag out to create a guide */}
       <div
         className="sa-ruler sa-ruler-h"
-        title="Kéo xuống để tạo guide ngang"
+        title="Drag down to create a horizontal guide"
         style={{
           height: R,
           left: R,
@@ -737,7 +737,7 @@ function GuideLayer(props: {
       </div>
       <div
         className="sa-ruler sa-ruler-v"
-        title="Kéo sang phải để tạo guide dọc"
+        title="Drag right to create a vertical guide"
         style={{
           width: R,
           top: R,
@@ -1426,7 +1426,7 @@ export function SpreadCanvas() {
   if (!tpl) {
     return (
       <div className="canvas-wrap" ref={wrapRef}>
-        <div className="canvas-hint">Chưa có layout — kéo ảnh từ khay dưới vào spread.</div>
+        <div className="canvas-hint">No layout yet — drag a photo from the tray onto the spread.</div>
       </div>
     );
   }
@@ -1687,24 +1687,24 @@ export function SpreadCanvas() {
           <div className="layout-tools">
             <button
               className={"lt-btn" + (tool === "select" ? " active" : "")}
-              title="Chọn / di chuyển (V)"
+              title="Select/move (V)"
               onClick={() => useAlbum.getState().setTool("select")}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M5 2l14 11-6.5 1L16 21l-3 1.4-3.4-7L5 19V2z"/></svg>
             </button>
             <button
               className={"lt-btn" + (tool === "drawSlot" ? " active" : "")}
-              title="Vẽ khung ảnh mới — kéo trên spread (Esc thoát)"
+              title="Draw new photo frame — drag on the spread (Esc to exit)"
               onClick={() => useAlbum.getState().setTool(tool === "drawSlot" ? "select" : "drawSlot")}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="5" width="16" height="14" rx="1"/><circle cx="9" cy="10" r="1.6" fill="currentColor" stroke="none"/><path d="M4 16l5-4 4 3 3-2 4 3"/></svg>
             </button>
             <button
               className="lt-btn"
-              title="Thêm chữ vào giữa trang"
+              title="Add text to the center of the page"
               onClick={() =>
                 useAlbum.getState().addText({
-                  content: "Nội dung mới",
+                  content: "New text",
                   font: "",
                   color: "#222222",
                   sizeFrac: 0.035,
@@ -1717,14 +1717,14 @@ export function SpreadCanvas() {
             </button>
             <button
               className={"lt-btn" + (tool === "hand" ? " active" : "")}
-              title="Bàn tay — kéo để di chuyển vùng nhìn (khi đã zoom)"
+              title="Hand — drag to pan the view (when zoomed)"
               onClick={() => useAlbum.getState().setTool(tool === "hand" ? "select" : "hand")}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M8.5 11.5V5.7a1.4 1.4 0 012.8 0v5m0-6.4a1.4 1.4 0 012.8 0v6.4m0-5a1.4 1.4 0 012.8 0v7.8c0 3.6-2.4 6-6 6-2.7 0-4.3-1.1-5.6-3.2L3.6 12.9c-.7-1-.3-2.1.6-2.5.8-.4 1.7-.1 2.3.7l2 2.6"/></svg>
             </button>
             <button
               className={"lt-btn" + (tool === "zoom" ? " active" : "")}
-              title="Kính lúp — click phóng to, Alt+click thu nhỏ, double-click về 100%"
+              title="Magnifier — click to zoom in, Alt+click to zoom out, double-click for 100%"
               onClick={() => useAlbum.getState().setTool(tool === "zoom" ? "select" : "zoom")}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/><path d="M8 10.5h5M10.5 8v5"/></svg>
@@ -1733,7 +1733,7 @@ export function SpreadCanvas() {
           <div className="layout-bar lb-left">
             <button
               className="lb-btn"
-              title="Về chế độ thường (Esc)"
+              title="Back to normal mode (Esc)"
               onClick={() => useAlbum.getState().clearSelection()}
             >
               ←
@@ -1747,17 +1747,17 @@ export function SpreadCanvas() {
               <span className="lb-pages">
                 <button
                   className={"lb-btn" + ((spread.pages ?? 2) === 1 ? " primary" : "")}
-                  title="Bìa trước — 1 trang"
+                  title="Front cover — 1 page"
                   onClick={() => useAlbum.getState().setCoverPages(1)}
                 >
-                  1 trang
+                  1 page
                 </button>
                 <button
                   className={"lb-btn" + ((spread.pages ?? 2) === 2 ? " primary" : "")}
-                  title="Bìa ôm — trải 2 trang (trước + sau)"
+                  title="Wrap cover — spans 2 pages (front + back)"
                   onClick={() => useAlbum.getState().setCoverPages(2)}
                 >
-                  2 trang
+                  2 pages
                 </button>
               </span>
             )}
@@ -1765,10 +1765,10 @@ export function SpreadCanvas() {
           <div className="layout-bar lb-right">
             <button
               className="lb-btn primary"
-              title="Lưu bố cục khung hiện tại vào Mẫu của tôi"
+              title="Save current frame layout to My templates"
               onClick={() => setSaveTpl({ name: "My Layout" })}
             >
-              ⭳ Lưu mẫu
+              ⭳ Save template
             </button>
           </div>
         </>
@@ -1777,7 +1777,7 @@ export function SpreadCanvas() {
         <div className="spread-chip">
           {spreadLabel(spreads, currentIndex)}
           <span className="spread-chip-sub">
-            /{spreads.length - (spreads[0]?.isCover ? 1 : 0)} · double-click = sửa layout
+            /{spreads.length - (spreads[0]?.isCover ? 1 : 0)} · double-click = edit layout
           </span>
         </div>
       )}
@@ -2427,13 +2427,13 @@ export function SpreadCanvas() {
                   }}
                   title={
                     canMove
-                      ? "Kéo để di chuyển cả nhóm · Shift-click để thêm/bớt phần tử"
-                      : "Chỉnh nhóm ở panel phải · muốn DI CHUYỂN thì vào chế độ sửa layout (click nền spread)"
+                      ? "Drag to move the whole group · Shift-click to add/remove elements"
+                      : "Edit the group in the right panel · to MOVE, enter layout edit mode (click the spread background)"
                   }
                   onMouseDown={canMove ? startDrag : undefined}
                 >
                   <span className="group-count">
-                    {multiSel.length} đã chọn{canMove ? " — kéo để di chuyển" : ""}
+                    {multiSel.length} selected{canMove ? " — drag to move" : ""}
                   </span>
                 </div>
               </>
@@ -2476,9 +2476,9 @@ export function SpreadCanvas() {
               left: rawPx(effSlots[alignAnchor]).x + 6,
               top: rawPx(effSlots[alignAnchor]).y + 6,
             }}
-            title="Khung mốc — các khung khác căn theo khung này (G để bỏ)"
+            title="Anchor frame — other frames align to this one (G to clear)"
           >
-            ⚓ Mốc
+            ⚓ Anchor
           </div>
         )}
 
@@ -2541,7 +2541,7 @@ export function SpreadCanvas() {
           </div>
         )}
         <div className="canvas-tip">
-          <b>Kéo ảnh</b> đổi chỗ · <b>double-click</b> chỉnh khung · <b>SPACE</b> đổi layout · chuột phải <b>menu</b> · <b>{mod("B")}</b> bleed/gáy
+          <b>Drag a photo</b> to swap · <b>double-click</b> to edit frame · <b>SPACE</b> to change layout · right-click <b>menu</b> · <b>{mod("B")}</b> bleed/gutter
         </div>
       </div>
 
@@ -2583,7 +2583,7 @@ export function SpreadCanvas() {
       )}
 
       {swapSource !== null && (
-        <div className="swap-hint">Đổi chỗ ảnh: bấm ô đích · Esc để huỷ</div>
+        <div className="swap-hint">Swap photo: click the target slot · Esc to cancel</div>
       )}
 
 
@@ -2594,7 +2594,7 @@ export function SpreadCanvas() {
             style={{ width: "min(360px, 92vw)", padding: 20 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: "0 0 12px" }}>Lưu layout thành mẫu</h3>
+            <h3 style={{ margin: "0 0 12px" }}>Save layout as template</h3>
             <input
               className="input"
               autoFocus
@@ -2604,11 +2604,11 @@ export function SpreadCanvas() {
               style={{ width: "100%", boxSizing: "border-box" }}
             />
             <div className="hint-sm" style={{ marginTop: 8 }}>
-              {effSlots.length} khung · lưu vào “Mẫu của tôi” — hiện trong danh sách layout và khi bấm SPACE.
+              {effSlots.length} frames · saved to My templates — appears in the layout list and when you press SPACE.
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-              <button className="btn" onClick={() => setSaveTpl(null)}>Huỷ</button>
-              <button className="btn primary" onClick={doSaveTemplate}>Lưu mẫu</button>
+              <button className="btn" onClick={() => setSaveTpl(null)}>Cancel</button>
+              <button className="btn primary" onClick={doSaveTemplate}>Save template</button>
             </div>
           </div>
         </div>
@@ -2637,29 +2637,29 @@ export function SpreadCanvas() {
       {menu?.kind === "slot" && (
         <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => { e.stopPropagation(); menuClosedAt.current = Date.now(); }}>
           <button onClick={() => { useAlbum.getState().setAsBackground(menu.slot); setMenu(null); }}>
-            Đặt làm nền (full-bleed)
+            Set as background (full-bleed)
           </button>
           <div className="ctx-sep" />
-          <button onClick={() => { useAlbum.getState().rotateSlot(menu.slot); setMenu(null); }}>Xoay 90°</button>
-          <button onClick={() => { useAlbum.getState().flipSlot(menu.slot, "h"); setMenu(null); }}>Lật ngang</button>
-          <button onClick={() => { useAlbum.getState().flipSlot(menu.slot, "v"); setMenu(null); }}>Lật dọc</button>
+          <button onClick={() => { useAlbum.getState().rotateSlot(menu.slot); setMenu(null); }}>Rotate 90°</button>
+          <button onClick={() => { useAlbum.getState().flipSlot(menu.slot, "h"); setMenu(null); }}>Flip horizontal</button>
+          <button onClick={() => { useAlbum.getState().flipSlot(menu.slot, "v"); setMenu(null); }}>Flip vertical</button>
           <div className="ctx-sep" />
           {/* Arrange (SmartAlbums): paint order for overlapping frames */}
           <button onClick={() => { useAlbum.getState().arrangeZ(`s${menu.slot}`, "front"); setMenu(null); }}>
-            ⬆ Lên trên cùng
+            ⬆ Bring to front
           </button>
           <button onClick={() => { useAlbum.getState().arrangeZ(`s${menu.slot}`, "forward"); setMenu(null); }}>
-            ↑ Lên một lớp
+            ↑ Bring forward
           </button>
           <button onClick={() => { useAlbum.getState().arrangeZ(`s${menu.slot}`, "backward"); setMenu(null); }}>
-            ↓ Xuống một lớp
+            ↓ Send backward
           </button>
           <button onClick={() => { useAlbum.getState().arrangeZ(`s${menu.slot}`, "back"); setMenu(null); }}>
-            ⬇ Xuống dưới cùng
+            ⬇ Send to back
           </button>
           <div className="ctx-sep" />
-          <button onClick={() => { setSlotFit(menu.slot, "cover"); setMenu(null); }}>Lấp đầy ô</button>
-          <button onClick={() => { setSlotFit(menu.slot, "contain"); setMenu(null); }}>Vừa khít</button>
+          <button onClick={() => { setSlotFit(menu.slot, "cover"); setMenu(null); }}>Fill slot</button>
+          <button onClick={() => { setSlotFit(menu.slot, "contain"); setMenu(null); }}>Fit</button>
           <button
             onClick={() => {
               setSlotTransform(menu.slot, DEFAULT_T);
@@ -2667,16 +2667,16 @@ export function SpreadCanvas() {
               setMenu(null);
             }}
           >
-            Đặt lại khung
+            Reset frame
           </button>
           <div className="ctx-sep" />
-          <button className="danger" onClick={() => { clearSlot(menu.slot); setMenu(null); }}>Gỡ ảnh</button>
+          <button className="danger" onClick={() => { clearSlot(menu.slot); setMenu(null); }}>Remove photo</button>
           {menu.slot >= tpl.slots.length && (
             <button
               className="danger"
               onClick={() => { useAlbum.getState().removeDrawnSlot(menu.slot); setMenu(null); }}
             >
-              Xoá khung này
+              Delete this frame
             </button>
           )}
         </div>
@@ -2687,15 +2687,15 @@ export function SpreadCanvas() {
           <button onClick={() => { useAlbum.getState().redesignSpread(); setMenu(null); }}>
             Redesign spread ({mod("⇧D")})
           </button>
-          <button onClick={() => { useAlbum.getState().changeSlotCount(1); setMenu(null); }}>+ Thêm 1 ô ảnh</button>
-          <button onClick={() => { useAlbum.getState().changeSlotCount(-1); setMenu(null); }}>− Bớt 1 ô ảnh</button>
+          <button onClick={() => { useAlbum.getState().changeSlotCount(1); setMenu(null); }}>+ Add 1 photo slot</button>
+          <button onClick={() => { useAlbum.getState().changeSlotCount(-1); setMenu(null); }}>− Remove 1 photo slot</button>
           {spread.bgImageId && (
             <>
               <button onClick={() => { useAlbum.getState().backgroundToSlot(); setMenu(null); }}>
-                ⤡ Thu ảnh nền về khung
+                ⤡ Shrink background photo to frame
               </button>
               <button onClick={() => { useAlbum.getState().removeBackground(); setMenu(null); }}>
-                Gỡ ảnh nền
+                Remove background photo
               </button>
             </>
           )}
@@ -2706,18 +2706,18 @@ export function SpreadCanvas() {
               setMenu(null);
             }}
           >
-            Lưu layout thành mẫu
+            Save layout as template
           </button>
           <div className="ctx-sep" />
           <button onClick={() => { useAlbum.getState().duplicateSpread(currentIndex); setMenu(null); }}>
-            Nhân đôi spread
+            Duplicate spread
           </button>
           <button onClick={() => { useAlbum.getState().addSpreadAfter(currentIndex); setMenu(null); }}>
-            Thêm spread mới sau
+            Add new spread after
           </button>
           <div className="ctx-sep" />
           <button className="danger" onClick={() => { useAlbum.getState().removeSpread(currentIndex); setMenu(null); }}>
-            Xoá spread
+            Delete spread
           </button>
         </div>
       )}
