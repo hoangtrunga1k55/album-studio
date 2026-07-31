@@ -10,6 +10,7 @@ import { loadSystemFonts } from "../engine/fontLibrary";
 import { TYPO_DND_KEY } from "../constants";
 import { FontPicker } from "./FontPicker";
 import { AlbumConfig } from "./AlbumConfig";
+import { BackgroundSection } from "./BackgroundSection";
 import { ElementPanel } from "./ElementPanel";
 import { LayersPanel } from "./LayersPanel";
 import { IconTrash } from "../icons";
@@ -955,6 +956,7 @@ export function PropertiesPanel() {
         <>
       <h3>Layout · {spreadLabel(spreads, currentIndex)}</h3>
       <AlbumConfig />
+      <BackgroundSection />
       {spread?.isCover && (
         <div className="prop-group">
           <div className="prop-label">Cover size</div>

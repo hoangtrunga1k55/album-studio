@@ -1,5 +1,6 @@
 import Konva from "konva";
-import { orderKeys, pagesOf, zKeysOf, type Spread } from "../store/album";
+import { orderKeys, pagesOf, resolveSpreadBg, zKeysOf, type Spread } from "../store/album";
+import { noiseTile, noiseOpacity } from "./noiseTexture";
 import type { Template } from "./templates";
 import type { ImageMeta } from "../ipc/import";
 import { getExportImage } from "../ipc/export";
@@ -94,7 +95,32 @@ export async function renderSpread(
     // Hi-res text-free plate → clean-background print path (render all text vector).
     const cleanBg = !!hiresBg || tpl.bgHasText === false;
     const bgSrc = hiresBg || tpl.bg;
-    root.add(new Konva.Rect({ x: 0, y: 0, width: W, height: H, fill: bgColor }));
+    // F6 — white page base, then the per-spread color background (+ A/B split
+    // + procedural noise). Painted first so an opaque template plate or a
+    // full-bleed photo below still covers it, exactly like the canvas.
+    root.add(new Konva.Rect({ x: 0, y: 0, width: W, height: H, fill: "#ffffff" }));
+    const bg = resolveSpreadBg(spread, bgColor);
+    const half = W / 2;
+    root.add(
+      new Konva.Rect({ x: 0, y: 0, width: bg.split ? half : W, height: H, fill: bg.color, opacity: bg.opacity })
+    );
+    if (bg.split) {
+      root.add(new Konva.Rect({ x: half, y: 0, width: W - half, height: H, fill: bg.colorB, opacity: bg.opacity }));
+    }
+    if (bg.noise > 0) {
+      root.add(
+        new Konva.Rect({
+          x: 0,
+          y: 0,
+          width: W,
+          height: H,
+          fillPatternImage: noiseTile(),
+          fillPatternRepeat: "repeat",
+          globalCompositeOperation: "overlay",
+          opacity: noiseOpacity(bg.noise),
+        })
+      );
+    }
     if (spread.bgImageId) {
       // Full-bleed background photo replaces the template plate (§6.5).
       const meta = images.find((m) => m.id === spread.bgImageId);

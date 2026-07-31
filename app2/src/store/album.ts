@@ -110,6 +110,21 @@ export interface PlacedElement {
   opacity?: number; // 0..1, default 1
 }
 
+/** F6 — per-spread background: solid/A-B color, opacity and procedural noise.
+ *  Absent = inherit the album-wide `bgColor` (solid, opaque, no grain). */
+export interface SpreadBg {
+  /** main fill (A). */
+  color: string;
+  /** right-half fill when `split` — null/undefined = same as A. */
+  colorB?: string | null;
+  /** A/B two-tone: left half = A, right half = B. */
+  split?: boolean;
+  /** color opacity over the white page, 0..1 (default 1). */
+  opacity?: number;
+  /** grain intensity, 0..1 (default 0). */
+  noise?: number;
+}
+
 /** One album spread: a chosen template + the images assigned to its slots (in order). */
 export interface Spread {
   id: string;
@@ -131,6 +146,8 @@ export interface Spread {
   padding?: number;
   /** full-bleed background photo covering the whole spread (§6.5). */
   bgImageId?: string | null;
+  /** per-spread color background + noise (F6); absent = album `bgColor`. */
+  bg?: SpreadBg;
   /** slotIndex → user-moved/resized frame (normalized), overrides the template. */
   slotRects?: Record<number, SlotRect>;
   /** Unified paint order (Arrange): photo slots (`s<i>`), template texts
@@ -206,6 +223,26 @@ function applyArrange(order: string[], key: string, op: ArrangeOp): string[] {
 /** Layers panel (F4): is this object's z-key hidden (not painted/exported)? */
 export function isLayerHidden(spread: Spread, key: string): boolean {
   return (spread.hidden ?? []).includes(key);
+}
+
+/** F6 — the effective background of a spread, filling in album defaults. */
+export interface ResolvedBg {
+  color: string;
+  colorB: string;
+  split: boolean;
+  opacity: number;
+  noise: number;
+}
+export function resolveSpreadBg(spread: Spread, albumBgColor: string): ResolvedBg {
+  const b = spread.bg;
+  const color = b?.color ?? albumBgColor;
+  return {
+    color,
+    colorB: b?.colorB ?? color,
+    split: !!b?.split,
+    opacity: b?.opacity ?? 1,
+    noise: b?.noise ?? 0,
+  };
 }
 
 /** Album-wide print/design settings from the New Album wizard (SmartAlbums-style). */
@@ -649,6 +686,11 @@ interface AlbumState {
   removeElement: (id: string) => void;
 
   setBgColor: (color: string) => void;
+  /** F6 — patch the current spread's background (color/split/opacity/noise).
+   *  Seeds from the album `bgColor` on first edit. */
+  setSpreadBg: (patch: Partial<SpreadBg>) => void;
+  /** F6 — drop the per-spread background override (back to album `bgColor`). */
+  resetSpreadBg: () => void;
 }
 
 export const useAlbum = create<AlbumState>((set) => ({
@@ -1824,6 +1866,27 @@ export const useAlbum = create<AlbumState>((set) => ({
     }),
 
   setBgColor: (bgColor) => set({ bgColor }),
+
+  setSpreadBg: (patch) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      // Seed a fresh override from the album default so the first edit is a
+      // no-op visually (solid album color, opaque, no grain).
+      const base: SpreadBg = cur.bg ?? { color: s.bgColor, opacity: 1, noise: 0 };
+      cur.bg = { ...base, ...patch };
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
+
+  resetSpreadBg: () =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      delete cur.bg;
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
 }));
 
 /** Convenience selector: the spread currently being edited. */

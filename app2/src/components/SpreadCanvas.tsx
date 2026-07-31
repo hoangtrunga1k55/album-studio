@@ -29,12 +29,14 @@ import {
   PT_TO_CM,
   spreadLabel,
   zKeysOf,
+  resolveSpreadBg,
   useAlbum,
   type SlotTransform,
   type TextEdit,
   type PlacedTypo,
   type PlacedElement,
 } from "../store/album";
+import { noiseTile, noiseOpacity } from "../engine/noiseTexture";
 import { useFonts } from "../store/fonts";
 import { sampleBgColor } from "../engine/sampleBg";
 import { fitFontSizeToWidth, isSingleLine } from "../engine/fitText";
@@ -1918,7 +1920,7 @@ export function SpreadCanvas() {
               y={0}
               width={stageW}
               height={stageH}
-              fill={bgColor}
+              fill="#ffffff"
               onMouseDown={(e) => {
                 // Drag from the background = marquee selection. Window-level
                 // listeners own the whole gesture; the mouseup is blocked at
@@ -1994,6 +1996,50 @@ export function SpreadCanvas() {
                 useAlbum.getState().selectSpread();
               }}
             />
+            {/* F6 — per-spread color background + procedural noise, painted over
+                the white page and under everything else (listening off so the
+                base Rect still owns marquee/select). */}
+            {(() => {
+              const bg = resolveSpreadBg(spread, bgColor);
+              const half = stageW / 2;
+              return (
+                <>
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={bg.split ? half : stageW}
+                    height={stageH}
+                    fill={bg.color}
+                    opacity={bg.opacity}
+                    listening={false}
+                  />
+                  {bg.split && (
+                    <Rect
+                      x={half}
+                      y={0}
+                      width={stageW - half}
+                      height={stageH}
+                      fill={bg.colorB}
+                      opacity={bg.opacity}
+                      listening={false}
+                    />
+                  )}
+                  {bg.noise > 0 && (
+                    <Rect
+                      x={0}
+                      y={0}
+                      width={stageW}
+                      height={stageH}
+                      fillPatternImage={noiseTile()}
+                      fillPatternRepeat="repeat"
+                      globalCompositeOperation="overlay"
+                      opacity={noiseOpacity(bg.noise)}
+                      listening={false}
+                    />
+                  )}
+                </>
+              );
+            })()}
             {spread.bgImageId ? (
               <SpreadBgPhoto
                 img={images.find((m) => m.id === spread.bgImageId)}
