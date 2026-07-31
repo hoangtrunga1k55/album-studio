@@ -11,17 +11,19 @@ import { TYPO_DND_KEY } from "../constants";
 import { FontPicker } from "./FontPicker";
 import { AlbumConfig } from "./AlbumConfig";
 import { ElementPanel } from "./ElementPanel";
+import { LayersPanel } from "./LayersPanel";
 import { IconTrash } from "../icons";
 
-type PanelTab = "layout" | "photo" | "typo" | "element";
+type PanelTab = "layout" | "photo" | "typo" | "element" | "layers";
 
-/** The tabs at the top of the right panel — Layout / Ảnh / Typo / Element. */
+/** The tabs at the top of the right panel — Layout / Photo / Typo / Element / Layers. */
 function PanelTabs({ active, onPick }: { active: PanelTab; onPick: (t: PanelTab) => void }) {
   const items: { id: PanelTab; label: string }[] = [
     { id: "layout", label: "Layout" },
     { id: "photo", label: "Photo" },
     { id: "typo", label: "Typo" },
     { id: "element", label: "Element" },
+    { id: "layers", label: "Layers" },
   ];
   return (
     <div className="pp-tabs">
@@ -492,22 +494,38 @@ export function PropertiesPanel() {
   // panel-level view when nothing on the canvas is selected
   const [bgTab, setBgTab] = useState<PanelTab>("layout");
   // which tab lights up follows the current selection; else the panel view
-  const activeTab: PanelTab = selectedElement
-    ? "element"
-    : selectedTypo
-      ? "typo"
-      : multiSel.length >= 2 || selectedSlot !== null
-        ? "photo"
-        : selectedText
-          ? "layout"
-          : bgTab;
+  // Layers is a sticky view: it stays put and just highlights the selection,
+  // so selecting a row (or a canvas object) doesn't yank you to its editor tab.
+  const activeTab: PanelTab = bgTab === "layers"
+    ? "layers"
+    : selectedElement
+      ? "element"
+      : selectedTypo
+        ? "typo"
+        : multiSel.length >= 2 || selectedSlot !== null
+          ? "photo"
+          : selectedText
+            ? "layout"
+            : bgTab;
   const pickTab = (t: PanelTab) => {
     if (t === activeTab) return;
     setBgTab(t);
-    // tabs are panel-level views — drop any canvas selection to reveal them
-    clearSelection();
+    // Non-layers tabs are panel-level views — drop any canvas selection to
+    // reveal them. Layers keeps the selection so the row stays highlighted.
+    if (t !== "layers") clearSelection();
   };
   const tabs = <PanelTabs active={activeTab} onPick={pickTab} />;
+
+  // Layers view wins over the per-object early returns below (it must show the
+  // whole list even while an object is selected).
+  if (bgTab === "layers") {
+    return (
+      <aside className="props">
+        {tabs}
+        <LayersPanel />
+      </aside>
+    );
+  }
 
   // Typo picker gallery — shown in the Typo tab (insert by click or drag).
   const typoGallery = (

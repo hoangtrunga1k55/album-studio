@@ -167,7 +167,9 @@ export async function renderSpread(
     ];
     // Unified paint order (Arrange): photos, template texts, added texts and
     // typos in ONE stack (first = bottom) — matches the canvas exactly.
+    const hiddenKeys = new Set(spread.hidden ?? []);
     for (const zk of orderKeys(spread.zOrder, zKeysOf(spread, allSlots.length, tpl.texts.length))) {
+      if (hiddenKeys.has(zk)) continue; // Layers panel eye-off: skip in export too
       if (zk[0] === "s") {
       const i = parseInt(zk.slice(1), 10);
       const id = spread.imageIds[i];

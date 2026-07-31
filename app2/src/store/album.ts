@@ -138,6 +138,9 @@ export interface Spread {
    *  first = bottom, last = top, so text/typo can sit UNDER photos too.
    *  Missing/partial → natural order (slots, tpl texts, added, typos). */
   zOrder?: string[];
+  /** Layers panel (F4): z-keys hidden from the canvas AND from export — the
+   *  object stays in the album, just not painted (Photoshop eye toggle). */
+  hidden?: string[];
   /** Album cover — pinned at position 0, edited like any spread. */
   isCover?: boolean;
   /** Cover size: 1 = front only (1 page), 2 = full wrap (2-page spread). */
@@ -198,6 +201,11 @@ function applyArrange(order: string[], key: string, op: ArrangeOp): string[] {
   else if (op === "forward") out.splice(Math.min(pos + 1, out.length), 0, key);
   else out.splice(Math.max(pos - 1, 0), 0, key);
   return out;
+}
+
+/** Layers panel (F4): is this object's z-key hidden (not painted/exported)? */
+export function isLayerHidden(spread: Spread, key: string): boolean {
+  return (spread.hidden ?? []).includes(key);
 }
 
 /** Album-wide print/design settings from the New Album wizard (SmartAlbums-style). */
@@ -505,6 +513,11 @@ interface AlbumState {
   /** Arrange (§6): move ANY element (`s<i>`/`t<i>`/`a<id>`/`y<id>`) in the
    *  unified paint order — text/typo can go under photos and vice versa. */
   arrangeZ: (key: string, op: ArrangeOp) => void;
+  /** Layers panel (F4): set the whole paint order at once (drag-to-reorder).
+   *  `keys` is bottom→top; unknown/missing keys are normalized away. */
+  setZOrder: (keys: string[]) => void;
+  /** Layers panel (F4): show/hide one object (Photoshop eye toggle). */
+  toggleLayerHidden: (key: string) => void;
   /** Cover size: 1 = front only, 2 = full wrap (only the cover spread). */
   setCoverPages: (pages: 1 | 2) => void;
   /** Align anchor (SmartAlbums): a slot marked as the reference frame —
@@ -744,7 +757,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       bgColor: p.bgColor,
       density: p.density,
       currentIndex: p.currentIndex,
-      spreads: p.spreads.map((sp) => ({ ...sp, typos: sp.typos ?? [], elements: sp.elements ?? [] })),
+      spreads: p.spreads.map((sp) => ({ ...sp, typos: sp.typos ?? [], elements: sp.elements ?? [], hidden: sp.hidden ?? [] })),
       images: [],
       selectedSlot: null,
       selectedText: null,
@@ -1495,6 +1508,33 @@ export const useAlbum = create<AlbumState>((set) => ({
       const all = zKeysOf(cur, tplSlots + extras, tpl?.texts.length ?? 0);
       if (!all.includes(key)) return s;
       cur.zOrder = applyArrange(orderKeys(cur.zOrder, all), key, op);
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
+
+  setZOrder: (keys) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const tpl = getTemplate(cur.templateId);
+      const tplSlots = tpl?.slotCount ?? 0;
+      const extras = Object.keys(cur.slotRects ?? {})
+        .map(Number)
+        .filter((k) => k >= tplSlots).length;
+      const all = zKeysOf(cur, tplSlots + extras, tpl?.texts.length ?? 0);
+      cur.zOrder = orderKeys(keys, all);
+      spreads[s.currentIndex] = cur;
+      return { spreads };
+    }),
+
+  toggleLayerHidden: (key) =>
+    set((s) => {
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const set0 = new Set(cur.hidden ?? []);
+      if (set0.has(key)) set0.delete(key);
+      else set0.add(key);
+      cur.hidden = [...set0];
       spreads[s.currentIndex] = cur;
       return { spreads };
     }),

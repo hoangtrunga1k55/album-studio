@@ -2029,6 +2029,8 @@ export function SpreadCanvas() {
             {/* unified paint order (Arrange): photos + texts + typos in ONE
                 stack — first = bottom, last = top */}
             {orderKeys(spread.zOrder, zKeysOf(spread, effSlots.length, tpl.texts.length)).map((zk) => {
+              // Layers panel (F4) eye-off: object hidden from the canvas.
+              if ((spread.hidden ?? []).includes(zk)) return null;
               // ---- photo slot `s<i>`
               if (zk[0] === "s") {
               const i = parseInt(zk.slice(1), 10);
@@ -2078,6 +2080,7 @@ export function SpreadCanvas() {
                           zKeysOf(spread, effSlots.length, tpl.texts.length)
                         )
                           .reverse() // trên cùng trước
+                          .filter((k) => !(spread.hidden ?? []).includes(k)) // bỏ lớp ẩn
                           .filter((k) => {
                             const r = keyRect(k);
                             return (
