@@ -131,8 +131,7 @@ export function AlbumConfig() {
         </label>
       </div>
       <div className="hint-sm">
-        Changes here apply immediately to the open album
-        {isCustomSize ? " and are remembered for custom albums next time." : "."}
+        Applies immediately{isCustomSize ? " · remembered for custom albums." : "."}
       </div>
     </div>
   );

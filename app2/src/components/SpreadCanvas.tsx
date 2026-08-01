@@ -1678,7 +1678,11 @@ export function SpreadCanvas() {
 
   return (
     <div
-      className={"canvas-wrap" + (spreadSelected && showRuler ? " ruler-on" : "")}
+      className={
+        "canvas-wrap" +
+        (spreadSelected ? " layout-mode" : "") +
+        (spreadSelected && showRuler ? " ruler-on" : "")
+      }
       ref={wrapRef}
       onClick={() => { setMenu(null); setZoomMenu(null); }}
     >
@@ -1740,8 +1744,18 @@ export function SpreadCanvas() {
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/><path d="M8 10.5h5M10.5 8v5"/></svg>
             </button>
+            <button
+              className={"lt-btn" + (showRuler ? " active" : "")}
+              title="Show/hide rulers (⌘⇧R)"
+              onClick={() => useAlbum.getState().toggleRuler()}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="8" width="18" height="8" rx="1"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4"/></svg>
+            </button>
           </div>
-          <div className="layout-bar lb-left">
+          <div
+            className="layout-bar lb-left"
+            style={{ top: Math.max(stageOff.y / 2, 6), transform: "translateY(-50%)" }}
+          >
             <button
               className="lb-btn"
               title="Back to normal mode (Esc)"
@@ -1773,7 +1787,10 @@ export function SpreadCanvas() {
               </span>
             )}
           </div>
-          <div className="layout-bar lb-right">
+          <div
+            className="layout-bar lb-right"
+            style={{ top: Math.max(stageOff.y / 2, 6), transform: "translateY(-50%)" }}
+          >
             <button
               className="lb-btn primary"
               title="Save current frame layout to My templates"
@@ -1785,7 +1802,10 @@ export function SpreadCanvas() {
         </>
       ) : (
         /* accent badge — pairs with the highlighted card in the filmstrip below */
-        <div className="spread-chip">
+        <div
+          className="spread-chip"
+          style={{ top: Math.max(stageOff.y / 2, 6), transform: "translateY(-50%)" }}
+        >
           {spreadLabel(spreads, currentIndex)}
           <span className="spread-chip-sub">
             /{spreads.length - (spreads[0]?.isCover ? 1 : 0)} · double-click = edit layout
@@ -1929,7 +1949,7 @@ export function SpreadCanvas() {
               y={0}
               width={stageW}
               height={stageH}
-              fill="#ffffff"
+              fill={bgColor}
               onMouseDown={(e) => {
                 // Drag from the background = marquee selection. Window-level
                 // listeners own the whole gesture; the mouseup is blocked at
@@ -2005,10 +2025,21 @@ export function SpreadCanvas() {
                 useAlbum.getState().selectSpread();
               }}
             />
-            {/* F6 — per-spread color background + procedural noise, painted over
-                the white page and under everything else (listening off so the
-                base Rect still owns marquee/select). */}
-            {(() => {
+            {spread.bgImageId ? (
+              <SpreadBgPhoto
+                img={images.find((m) => m.id === spread.bgImageId)}
+                w={stageW}
+                h={stageH}
+              />
+            ) : (
+              tpl.bg && <BgImage url={tpl.bg} w={stageW} h={stageH} />
+            )}
+
+            {/* F6 — per-spread color background + procedural noise. Painted OVER
+                the template plate (only when the user overrides the bg) so the
+                page actually takes the colour even on opaque plates; still under
+                photos / vector text / typo / elements. listening off. */}
+            {spread.bg && !spread.bgImageId && (() => {
               const bg = resolveSpreadBg(spread, bgColor);
               const half = stageW / 2;
               return (
@@ -2049,15 +2080,6 @@ export function SpreadCanvas() {
                 </>
               );
             })()}
-            {spread.bgImageId ? (
-              <SpreadBgPhoto
-                img={images.find((m) => m.id === spread.bgImageId)}
-                w={stageW}
-                h={stageH}
-              />
-            ) : (
-              tpl.bg && <BgImage url={tpl.bg} w={stageW} h={stageH} />
-            )}
 
             {/* covers for edited/selected template texts — UNDER the photos so
                 they only hide the raster text baked into the plate */}

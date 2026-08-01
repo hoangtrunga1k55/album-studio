@@ -184,6 +184,48 @@ export interface AutoBuildOptions {
   reuse?: TemplateReuse;
   /** ★ ratings — solo spreads prefer the best-rated photo nearby. */
   ratings?: Record<string, number>;
+  /** SmartAlbums smart grouping — never let a spread cross these boundaries. */
+  grouping?: SmartGrouping;
+}
+
+/** Smart grouping toggles (SmartAlbums). Any enabled boundary starts a fresh
+ *  block, and spreads are built inside each block only. */
+export interface SmartGrouping {
+  /** new block when consecutive shots are far apart in time. */
+  timeBlocks?: boolean;
+  /** keep black-&-white shots separate from colour ones. */
+  blackWhite?: boolean;
+  /** new block when the capture DAY changes. */
+  metadata?: boolean;
+}
+
+/** epoch ms of a "YYYY-MM-DD HH:MM:SS" capture time (0 if unparseable). */
+function captureMs(s: string): number {
+  const t = Date.parse(s.replace(" ", "T"));
+  return Number.isNaN(t) ? 0 : t;
+}
+
+/** Gap (ms) between consecutive shots that starts a new time block (20 min). */
+const TIME_BLOCK_GAP_MS = 20 * 60 * 1000;
+
+/** Should a new grouping block start between sorted photos `a` → `b`? */
+function isBlockBoundary(a: ImageMeta, b: ImageMeta, g: SmartGrouping): boolean {
+  if (g.metadata && a.capturedAt.slice(0, 10) !== b.capturedAt.slice(0, 10)) return true;
+  if (g.timeBlocks && Math.abs(captureMs(b.capturedAt) - captureMs(a.capturedAt)) > TIME_BLOCK_GAP_MS)
+    return true;
+  if (g.blackWhite && !!a.isBw !== !!b.isBw) return true;
+  return false;
+}
+
+/** Split a sorted photo list into grouping blocks. */
+function toBlocks(sorted: ImageMeta[], g: SmartGrouping): ImageMeta[][] {
+  if (sorted.length === 0) return [];
+  const blocks: ImageMeta[][] = [[sorted[0]]];
+  for (let i = 1; i < sorted.length; i++) {
+    if (isBlockBoundary(sorted[i - 1], sorted[i], g)) blocks.push([]);
+    blocks[blocks.length - 1].push(sorted[i]);
+  }
+  return blocks;
 }
 
 /** pickTemplate with a reuse penalty: "low" strongly prefers fresh layouts. */
@@ -260,6 +302,27 @@ export function planAutoBuild(
       ? (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })
       : (a, b) => a.capturedAt.localeCompare(b.capturedAt)
   );
+
+  // SmartAlbums smart grouping: partition into blocks first, then build spreads
+  // inside each block so a spread never mixes across a boundary.
+  const g = opts.grouping;
+  if (g && (g.timeBlocks || g.blackWhite || g.metadata)) {
+    const uses = new Map<string, number>();
+    const out: SpreadPlan[] = [];
+    for (const block of toBlocks(queue, g)) {
+      let q = [...block];
+      let guard = 0;
+      while (q.length > 0 && guard++ < 200) {
+        const n = nearestSlotCount(size, Math.min(hi, q.length));
+        if (n <= 0) break;
+        const group = q.slice(0, n);
+        q = q.slice(n);
+        const tpl = pickTemplateReuse(size, group.length, group, uses, penalty);
+        if (tpl) out.push({ templateId: tpl.id, imageIds: assign(tpl, group) });
+      }
+    }
+    return out;
+  }
 
   const sizes = groupSizes(queue.length, opts.spreads, lo, hi, opts.smart ?? false);
   const uses = new Map<string, number>();

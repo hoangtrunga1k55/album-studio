@@ -38,6 +38,26 @@ pub struct ImageMeta {
     pub captured_at: String,
     /// Base64 data URI (image/jpeg) of the thumbnail.
     pub thumb: String,
+    /// True when the photo is (near-)grayscale — used by Auto Design's
+    /// "Black & White" smart grouping.
+    pub is_bw: bool,
+}
+
+/// Cheap grayscale test: average HSV saturation of a 64px thumbnail is tiny.
+fn detect_bw(img: &DynamicImage) -> bool {
+    let small = img.thumbnail(64, 64).to_rgb8();
+    let mut sat_sum = 0f32;
+    let mut n = 0f32;
+    for px in small.pixels() {
+        let r = px[0] as f32;
+        let g = px[1] as f32;
+        let b = px[2] as f32;
+        let max = r.max(g).max(b);
+        let min = r.min(g).min(b);
+        sat_sum += if max <= 0.0 { 0.0 } else { (max - min) / max };
+        n += 1.0;
+    }
+    n > 0.0 && (sat_sum / n) < 0.06
 }
 
 #[derive(Serialize, Clone)]
@@ -214,6 +234,7 @@ fn process_one(fp: &str) -> Result<ImageMeta, String> {
     let captured_at = exif_time.unwrap_or_else(|| file_mtime(path));
 
     let thumb = encode_jpeg_data_uri(&img, THUMB_MAX, THUMB_QUALITY)?;
+    let is_bw = detect_bw(&img);
 
     Ok(ImageMeta {
         id: hash_path(fp),
@@ -227,6 +248,7 @@ fn process_one(fp: &str) -> Result<ImageMeta, String> {
         ratio: width as f32 / height.max(1) as f32,
         captured_at,
         thumb,
+        is_bw,
     })
 }
 

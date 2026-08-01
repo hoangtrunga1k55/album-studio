@@ -94,6 +94,10 @@ export function AutoDesignDialog({ onClose }: { onClose: () => void }) {
   const [lo, setLo] = useState(1);
   const [hi, setHi] = useState(5);
   const [reuse, setReuse] = useState<TemplateReuse>("medium");
+  // SmartAlbums smart grouping toggles — on by default
+  const [gTime, setGTime] = useState(true);
+  const [gBW, setGBW] = useState(true);
+  const [gMeta, setGMeta] = useState(true);
 
   const usable = images.filter((i) => !photoMeta[i.id]?.rejected);
   const starred = usable.filter((i) => (photoMeta[i.id]?.rating ?? 0) > 0);
@@ -138,7 +142,17 @@ export function AutoDesignDialog({ onClose }: { onClose: () => void }) {
 
   function run() {
     if (mode === "fill") fillTemplateSlots({ source, order });
-    else autoDesign({ source, order, spreads: S, range: [effLo, effHi], smart, reuse, layoutSource });
+    else
+      autoDesign({
+        source,
+        order,
+        spreads: S,
+        range: [effLo, effHi],
+        smart,
+        reuse,
+        layoutSource,
+        grouping: { timeBlocks: gTime, blackWhite: gBW, metadata: gMeta },
+      });
     onClose();
   }
 
@@ -150,7 +164,7 @@ export function AutoDesignDialog({ onClose }: { onClose: () => void }) {
           <button className="btn icon" title="Close" onClick={onClose}><IconClose /></button>
         </div>
 
-        <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="modal-body">
           {/* mode: generate fresh layouts vs pour photos into existing ones */}
           {contentSpreads > 0 && (
             <div>
@@ -293,6 +307,24 @@ export function AutoDesignDialog({ onClose }: { onClose: () => void }) {
               </select>
             </div>
           </div>
+
+          {mode === "build" && (
+            <div className="prop-group" style={{ marginTop: 4 }}>
+              <div className="prop-label">Smart grouping</div>
+              <label className="ad-check">
+                <input type="checkbox" checked={gTime} onChange={(e) => setGTime(e.target.checked)} />
+                <span>Blocks of time <small>— split on long time gaps</small></span>
+              </label>
+              <label className="ad-check">
+                <input type="checkbox" checked={gBW} onChange={(e) => setGBW(e.target.checked)} />
+                <span>Black &amp; White <small>— keep B&amp;W apart from colour</small></span>
+              </label>
+              <label className="ad-check">
+                <input type="checkbox" checked={gMeta} onChange={(e) => setGMeta(e.target.checked)} />
+                <span>Metadata <small>— new block each capture day</small></span>
+              </label>
+            </div>
+          )}
 
           <div>
             <div className="prop-label">Photos to use</div>

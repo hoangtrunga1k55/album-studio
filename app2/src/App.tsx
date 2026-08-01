@@ -187,7 +187,8 @@ function App() {
   // Tauri doesn't wire Cmd/Ctrl+R to reload like a browser — bind it ourselves.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && (e.key === "r" || e.key === "R")) {
+      // plain Cmd/Ctrl+R reloads; Cmd/Ctrl+Shift+R is left for the ruler toggle
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === "r" || e.key === "R")) {
         e.preventDefault();
         window.location.reload();
       }
@@ -302,7 +303,7 @@ function App() {
       } else if (k === "b") {
         e.preventDefault();
         useAlbum.getState().toggleBleed();
-      } else if (k === "r") {
+      } else if (k === "r" && e.shiftKey) {
         e.preventDefault();
         useAlbum.getState().toggleRuler();
       } else if (k === "n") {

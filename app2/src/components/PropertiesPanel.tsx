@@ -916,39 +916,48 @@ export function PropertiesPanel() {
             <span style={{ color: "var(--text-faint)" }}>mm</span>
           </label>
         </div>
-        <div className="hint-sm" style={{ marginTop: 8 }}>
-          <b>⌘B</b> (Ctrl+B) to toggle. Red = lab may trim this edge · Green = safe area to keep faces/text inside. Display only, not printed.
+        <div className="hint-sm" style={{ marginTop: 6 }}>
+          <b>⌘B</b> toggles · Red = trim edge · Green = safe zone. Screen only.
         </div>
       </div>
       <div className="prop-group">
-        <div className="prop-label">Photo gap ({Math.round((spread?.margin ?? 0) * 1000) / 10}%)</div>
-        <input
-          type="range"
-          min={0}
-          max={0.05}
-          step={0.002}
-          value={spread?.margin ?? 0}
-          onChange={(e) => setMargin(parseFloat(e.target.value))}
-          style={{ width: "100%" }}
-        />
-      </div>
-      <div className="prop-group">
-        <div className="prop-label">Spread edge padding ({Math.round((spread?.padding ?? 0) * 1000) / 10}%)</div>
-        <input
-          type="range"
-          min={0}
-          max={0.08}
-          step={0.002}
-          value={spread?.padding ?? 0}
-          onChange={(e) => useAlbum.getState().setPadding(parseFloat(e.target.value))}
-          style={{ width: "100%" }}
-        />
+        <div className="prop-label">Spacing</div>
+        <div className="prop-row" style={{ marginBottom: 8 }}>
+          <span style={{ width: 62, fontSize: 11, color: "var(--text-dim)" }}>Photo gap</span>
+          <input
+            type="range"
+            min={0}
+            max={0.05}
+            step={0.002}
+            value={spread?.margin ?? 0}
+            onChange={(e) => setMargin(parseFloat(e.target.value))}
+            style={{ flex: 1 }}
+          />
+          <span style={{ width: 30, textAlign: "right", fontSize: 11 }}>
+            {Math.round((spread?.margin ?? 0) * 1000) / 10}
+          </span>
+        </div>
+        <div className="prop-row" style={{ marginBottom: 8 }}>
+          <span style={{ width: 62, fontSize: 11, color: "var(--text-dim)" }}>Edge pad</span>
+          <input
+            type="range"
+            min={0}
+            max={0.08}
+            step={0.002}
+            value={spread?.padding ?? 0}
+            onChange={(e) => useAlbum.getState().setPadding(parseFloat(e.target.value))}
+            style={{ flex: 1 }}
+          />
+          <span style={{ width: 30, textAlign: "right", fontSize: 11 }}>
+            {Math.round((spread?.padding ?? 0) * 1000) / 10}
+          </span>
+        </div>
         <button
           className="btn"
-          style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+          style={{ width: "100%", justifyContent: "center" }}
           onClick={() => useAlbum.getState().applySpacingAll()}
         >
-          Apply spacing to the whole album
+          Apply to whole album
         </button>
       </div>
       {spread?.bgImageId && (
@@ -973,9 +982,7 @@ export function PropertiesPanel() {
       )}
 
       <div className="prop-empty">
-        In layout mode, photos only drag to swap between frames.
-        <br />
-        Click directly on a photo to edit it.
+        Photos drag to swap frames · click a photo to edit it.
       </div>
         </>
       )}

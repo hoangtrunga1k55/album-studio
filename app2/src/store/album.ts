@@ -14,7 +14,7 @@ import {
 } from "../engine/templates";
 import { getTypo } from "../engine/typos";
 import { getElement } from "../engine/elements";
-import { planAutoDesign, type Density, planAutoBuild, type TemplateReuse } from "../engine/autoLayout";
+import { planAutoDesign, type Density, planAutoBuild, type TemplateReuse, type SmartGrouping } from "../engine/autoLayout";
 
 /** Pan/zoom of an image inside its slot. zoom>=1; pan in [-1,1] (fraction of overflow). */
 export interface SlotTransform {
@@ -651,6 +651,8 @@ interface AlbumState {
     reuse?: TemplateReuse;
     /** which layout pool to draw from (all / basic / custom / tizino). */
     layoutSource?: LayoutSourceFilter;
+    /** SmartAlbums smart grouping (time blocks / B&W / metadata). */
+    grouping?: SmartGrouping;
   }) => void;
   /** F5 fill mode: keep every spread's layout/text/typo/element as-is and pour
    *  the photos into the existing slots in order (no new layouts generated). */
@@ -1620,6 +1622,7 @@ export const useAlbum = create<AlbumState>((set) => ({
             range: o.range ?? [1, 8],
             smart: o.smart,
             reuse: o.reuse,
+            grouping: o.grouping,
             ratings,
           })
         : planAutoDesign(s.size, photos, {

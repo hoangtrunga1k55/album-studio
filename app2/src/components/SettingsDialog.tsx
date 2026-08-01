@@ -89,7 +89,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 18 }}>
+        <div className="modal-body" style={{ gap: 18 }}>
           {/* ---- layout library ---- */}
           <div>
             <div className="prop-label">1 · Layout pack (Tizino)</div>

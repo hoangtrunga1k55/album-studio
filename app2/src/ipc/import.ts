@@ -12,6 +12,8 @@ export interface ImageMeta {
   capturedAt: string;
   /** Base64 data URI (image/jpeg) thumbnail. */
   thumb: string;
+  /** near-grayscale photo (Auto Design "Black & White" grouping). */
+  isBw: boolean;
 }
 
 /** Streamed events from `import_folder`, mirrors the Rust `ImportEvent`. */

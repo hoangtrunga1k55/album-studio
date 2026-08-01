@@ -95,32 +95,8 @@ export async function renderSpread(
     // Hi-res text-free plate → clean-background print path (render all text vector).
     const cleanBg = !!hiresBg || tpl.bgHasText === false;
     const bgSrc = hiresBg || tpl.bg;
-    // F6 — white page base, then the per-spread color background (+ A/B split
-    // + procedural noise). Painted first so an opaque template plate or a
-    // full-bleed photo below still covers it, exactly like the canvas.
-    root.add(new Konva.Rect({ x: 0, y: 0, width: W, height: H, fill: "#ffffff" }));
-    const bg = resolveSpreadBg(spread, bgColor);
-    const half = W / 2;
-    root.add(
-      new Konva.Rect({ x: 0, y: 0, width: bg.split ? half : W, height: H, fill: bg.color, opacity: bg.opacity })
-    );
-    if (bg.split) {
-      root.add(new Konva.Rect({ x: half, y: 0, width: W - half, height: H, fill: bg.colorB, opacity: bg.opacity }));
-    }
-    if (bg.noise > 0) {
-      root.add(
-        new Konva.Rect({
-          x: 0,
-          y: 0,
-          width: W,
-          height: H,
-          fillPatternImage: noiseTile(),
-          fillPatternRepeat: "repeat",
-          globalCompositeOperation: "overlay",
-          opacity: noiseOpacity(bg.noise),
-        })
-      );
-    }
+    // Album page base colour (under a transparent plate).
+    root.add(new Konva.Rect({ x: 0, y: 0, width: W, height: H, fill: bgColor }));
     if (spread.bgImageId) {
       // Full-bleed background photo replaces the template plate (§6.5).
       const meta = images.find((m) => m.id === spread.bgImageId);
@@ -143,6 +119,34 @@ export async function renderSpread(
         root.add(new Konva.Image({ image: bg, x: 0, y: 0, width: W, height: H }));
       } catch {
         /* ignore missing bg */
+      }
+    }
+
+    // F6 — per-spread colour background + noise OVER the plate (matches canvas):
+    // only when the user overrides the bg, so the page takes the colour even on
+    // an opaque plate. Under photos / text (added below).
+    if (spread.bg && !spread.bgImageId) {
+      const bg = resolveSpreadBg(spread, bgColor);
+      const half = W / 2;
+      root.add(
+        new Konva.Rect({ x: 0, y: 0, width: bg.split ? half : W, height: H, fill: bg.color, opacity: bg.opacity })
+      );
+      if (bg.split) {
+        root.add(new Konva.Rect({ x: half, y: 0, width: W - half, height: H, fill: bg.colorB, opacity: bg.opacity }));
+      }
+      if (bg.noise > 0) {
+        root.add(
+          new Konva.Rect({
+            x: 0,
+            y: 0,
+            width: W,
+            height: H,
+            fillPatternImage: noiseTile(),
+            fillPatternRepeat: "repeat",
+            globalCompositeOperation: "overlay",
+            opacity: noiseOpacity(bg.noise),
+          })
+        );
       }
     }
 

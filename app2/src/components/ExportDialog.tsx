@@ -176,7 +176,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
           <button className="btn icon" title="Close" onClick={onClose} disabled={running}><IconClose /></button>
         </div>
 
-        <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="modal-body">
           <div>
             <div className="prop-label">Print lab (§12.5 — always confirm with the lab before large print runs)</div>
             <select
