@@ -44,6 +44,35 @@ export async function importFiles(
   await invoke("import_files", { paths, onEvent: channel });
 }
 
+/** Read a dropped File as base64 (no data-uri prefix). */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const s = String(r.result);
+      const comma = s.indexOf(",");
+      resolve(comma >= 0 ? s.slice(comma + 1) : s);
+    };
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
+/** Stage OS-dropped image Files into app data, then import them like picked
+ *  files (stable paths → survive project reload). Non-image files are ignored. */
+export async function importDroppedFiles(
+  files: File[],
+  onEvent: (event: ImportEvent) => void
+): Promise<void> {
+  const images = files.filter((f) => f.type.startsWith("image/"));
+  if (images.length === 0) return;
+  const payload = await Promise.all(
+    images.map(async (f) => ({ name: f.name, data: await fileToBase64(f) }))
+  );
+  const paths = await invoke<string[]>("stage_dropped", { files: payload });
+  if (paths.length) await importFiles(paths, onEvent);
+}
+
 const displayCache = new Map<string, Promise<string>>();
 /** Resolved data URLs — lets a mounting component pick the image up
  *  SYNCHRONOUSLY (no async frame) when it was already decoded. */

@@ -12,9 +12,7 @@ import {
   type Template,
   type TemplateSource,
 } from "../engine/templates";
-import { ensureFonts } from "../engine/fontLibrary";
 import { fileUrl, readLayoutBgPath, readLayoutJson, type LayoutItem } from "../ipc/library";
-import { useFonts } from "../store/fonts";
 import { useAlbum } from "../store/album";
 import { categoriesOf, useLibrary } from "../store/library";
 
@@ -208,10 +206,6 @@ export function LayoutDock({ onClose }: { onClose: () => void }) {
           catSize(item.category) ?? "*"
         )
       );
-      // this layout's fonts only become "needed" now — load them from the machine
-      const fs = useFonts.getState();
-      const names = tpl.texts.map((t) => t.font ?? "").filter(Boolean);
-      void ensureFonts(names, fs.index).then((loaded) => loaded.length && fs.addFonts(loaded));
       return tpl;
     } catch {
       return undefined;

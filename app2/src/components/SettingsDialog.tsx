@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { loadSystemFonts, missingFontNames } from "../engine/fontLibrary";
 import { importLayoutLibrary, importTypoLibrary, syncPackFromRelease } from "../flows/typoImport";
 import {
   savedLayoutLibrary,
@@ -7,7 +6,6 @@ import {
   savedTypoLibrary,
   savedTypoUrl,
 } from "../ipc/library";
-import { useFonts } from "../store/fonts";
 import { categoriesOf, useLibrary } from "../store/library";
 import { saveAlbumTemplate } from "../flows/albumTemplate";
 import { useAlbum } from "../store/album";
@@ -16,14 +14,11 @@ import { IconClose } from "../icons";
 /** One-stop setup: the three libraries the app needs (fonts from the machine,
  *  layout pack, typo pack). Reachable from the ⚙ button in the topbar. */
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
-  const fontIndex = useFonts((s) => s.index);
-  const setFontIndex = useFonts((s) => s.setIndex);
-  const addFonts = useFonts((s) => s.addFonts);
   const layouts = useLibrary((s) => s.layouts);
   const typos = useLibrary((s) => s.typos);
   const spreadCount = useAlbum((s) => s.spreads.length);
   const [savedTpl, setSavedTpl] = useState(false);
-  const [busy, setBusy] = useState<"font" | "layout" | "typo" | "sync-layout" | "sync-typo" | null>(null);
+  const [busy, setBusy] = useState<"layout" | "typo" | "sync-layout" | "sync-typo" | null>(null);
   const [msg, setMsg] = useState("");
   // online packs (GitHub Release) — the app only downloads what changed
   const [layoutUrl, setLayoutUrl] = useState(savedLayoutUrl() ?? "");
@@ -55,24 +50,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const missing = missingFontNames(fontIndex);
   const layoutCats = categoriesOf(layouts);
   const typoCats = categoriesOf(typos);
-
-  async function rescanFonts() {
-    setBusy("font");
-    setMsg("");
-    try {
-      const r = await loadSystemFonts();
-      addFonts(r.loaded);
-      setFontIndex(r.entries);
-      setMsg(`Machine fonts: ${r.entries.length} fonts · loaded ${r.loaded.length} for templates`);
-    } catch (e) {
-      setMsg("Font scan error: " + String(e));
-    } finally {
-      setBusy(null);
-    }
-  }
 
   async function pickLayouts() {
     setBusy("layout");
@@ -111,34 +90,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 18 }}>
-          {/* ---- fonts ---- */}
-          <div>
-            <div className="prop-label">1 · Fonts (from your computer)</div>
-            <div className="set-row">
-              <span className="set-stat">
-                {fontIndex.length > 0 ? `${fontIndex.length} fonts on machine` : "No fonts found"}
-              </span>
-              <button className="btn" onClick={rescanFonts} disabled={busy !== null}>
-                {busy === "font" ? "Scanning…" : "⟳ Rescan"}
-              </button>
-            </div>
-            {missing.length > 0 ? (
-              <div className="set-warn">
-                ⚠ {missing.length} template fonts not installed: {missing.slice(0, 6).join(", ")}
-                {missing.length > 6 ? "…" : ""}
-                <div className="hint-sm">
-                  Install these fonts (Mac: Font Book · Windows: select file → right-click →
-                  Install) then click Rescan.
-                </div>
-              </div>
-            ) : (
-              <div className="hint-sm">All fonts available for the templates in use.</div>
-            )}
-          </div>
-
           {/* ---- layout library ---- */}
           <div>
-            <div className="prop-label">2 · Layout pack (Tizino)</div>
+            <div className="prop-label">1 · Layout pack (Tizino)</div>
             <div className="set-row">
               <span className="set-stat">
                 {layouts.length > 0
@@ -172,7 +126,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
           {/* ---- typo library ---- */}
           <div>
-            <div className="prop-label">3 · Typo pack</div>
+            <div className="prop-label">2 · Typo pack</div>
             <div className="set-row">
               <span className="set-stat">
                 {typos.length > 0
@@ -205,7 +159,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
           {/* ---- album template (F5) ---- */}
           <div>
-            <div className="prop-label">4 · Album template (saves the whole set, no photos)</div>
+            <div className="prop-label">3 · Album template (saves the whole set, no photos)</div>
             <div className="set-row">
               <span className="set-stat">
                 {spreadCount > 0 ? `${spreadCount} spreads — save the layout to reuse for other clients` : "No album yet"}

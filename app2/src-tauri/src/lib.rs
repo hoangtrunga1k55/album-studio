@@ -65,6 +65,7 @@ pub fn run() {
 
             import::import_folder,
             import::import_files,
+            import::stage_dropped,
             import::get_display_image,
             import::get_export_image,
             fonts::load_fonts,

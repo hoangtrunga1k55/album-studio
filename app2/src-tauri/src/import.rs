@@ -77,6 +77,54 @@ pub async fn import_files(paths: Vec<String>, on_event: Channel<ImportEvent>) ->
     Ok(())
 }
 
+/// One image dropped from the OS (Finder/Explorer). The webview can't see the
+/// original path (dragDropEnabled is off so in-app HTML5 DnD keeps working), so
+/// bytes come base64-encoded and we stage them to a stable app-data file.
+#[derive(serde::Deserialize)]
+pub struct DroppedFile {
+    pub name: String,
+    /// base64 of the raw file bytes (no data-uri prefix).
+    pub data: String,
+}
+
+/// Persist OS-dropped image bytes into an app-managed folder and return their
+/// paths, so the normal `import_files` pipeline (and project reload) can use
+/// them like any picked file. Content-hashed names dedupe repeated drops.
+#[tauri::command]
+pub fn stage_dropped(app: tauri::AppHandle, files: Vec<DroppedFile>) -> Result<Vec<String>, String> {
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("dropped-imports");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    let mut out = Vec::with_capacity(files.len());
+    for f in files {
+        let bytes = general_purpose::STANDARD
+            .decode(f.data.trim())
+            .map_err(|e| e.to_string())?;
+        let p = Path::new(&f.name);
+        let stem: String = p
+            .file_stem()
+            .map(|s| s.to_string_lossy().chars().filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_').collect())
+            .unwrap_or_else(|| "img".into());
+        let ext = p
+            .extension()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "jpg".into());
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        bytes.hash(&mut h);
+        let dest = dir.join(format!("{}-{:x}.{}", stem, h.finish(), ext));
+        if !dest.exists() {
+            std::fs::write(&dest, &bytes).map_err(|e| e.to_string())?;
+        }
+        out.push(dest.to_string_lossy().into_owned());
+    }
+    Ok(out)
+}
+
 /// Process a list of image files in parallel, streaming each result.
 fn process_files(files: Vec<String>, on_event: Channel<ImportEvent>) {
     let _ = on_event.send(ImportEvent::Started { total: files.len() });

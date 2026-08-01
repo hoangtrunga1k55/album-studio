@@ -12,7 +12,9 @@ import {
   syncPack,
 } from "../ipc/library";
 import { typoFromItem } from "../engine/typos";
-import { loadSystemFonts } from "../engine/fontLibrary";
+import { elementFromItem } from "../engine/elements";
+import { savedElementFolder, scanElementFolder } from "../ipc/elements";
+import { useElements } from "../store/elements";
 import { useLibrary } from "../store/library";
 import { readLayoutJson } from "../ipc/library";
 import {
@@ -22,17 +24,19 @@ import {
   templateFromJson,
 } from "../engine/templates";
 import { useTypos } from "../store/typos";
-import { useFonts } from "../store/fonts";
 
 /** Index the typo pack (categories = sub-folders) — previews stay on disk. */
 export async function loadTypoLibrary(root: string): Promise<number> {
   const items = await scanTypoLibrary(root);
   useLibrary.getState().setTypos(items);
   useTypos.getState().setTypos(items.map(typoFromItem));
-  // typo fonts now count as "needed" — re-scan the machine to load them
-  const r = await loadSystemFonts();
-  useFonts.getState().addFonts(r.loaded);
-  useFonts.getState().setIndex(r.entries);
+  return items.length;
+}
+
+/** Index an element/sticker folder (sub-folders = categories). */
+export async function loadElementLibrary(root: string): Promise<number> {
+  const items = await scanElementFolder(root);
+  useElements.getState().setElements(items.map(elementFromItem));
   return items.length;
 }
 
@@ -90,6 +94,8 @@ export async function restoreLibraries(): Promise<void> {
   if (layout) await loadLayoutLibrary(layout).catch(() => 0);
   const typo = savedTypoLibrary();
   if (typo) await loadTypoLibrary(typo).catch(() => 0);
+  const el = savedElementFolder();
+  if (el) await loadElementLibrary(el).catch(() => 0);
 }
 /* ---- online packs (GitHub Release) ---- */
 

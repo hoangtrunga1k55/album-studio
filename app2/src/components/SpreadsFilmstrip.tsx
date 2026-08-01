@@ -18,8 +18,12 @@ export function SpreadsFilmstrip() {
   const currentIndex = useAlbum((s) => s.currentIndex);
   const setCurrent = useAlbum((s) => s.setCurrent);
   const addSpread = useAlbum((s) => s.addSpread);
+  const addSpreadAfter = useAlbum((s) => s.addSpreadAfter);
+  const duplicateSpread = useAlbum((s) => s.duplicateSpread);
   const removeSpread = useAlbum((s) => s.removeSpread);
   const moveSpread = useAlbum((s) => s.moveSpread);
+  /** right-click menu on a spread card. */
+  const [menu, setMenu] = useState<{ x: number; y: number; idx: number } | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   // pan gesture: >6px of movement scrolls and swallows the ensuing click.
   const dragScroll = useRef<{ x: number; left: number; moved: boolean } | null>(null);
@@ -147,10 +151,16 @@ export function SpreadsFilmstrip() {
                 (dropAfter ? " drop-after" : "")
               }
               onClick={() => setCurrent(idx)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrent(idx);
+                setMenu({ x: e.clientX, y: e.clientY, idx });
+              }}
               title={
                 pinned
                   ? "Album cover — always first"
-                  : `${spreadLabel(spreads, idx)} — drag to scroll · hold then drag to reorder`
+                  : `${spreadLabel(spreads, idx)} — right-click for options · drag to scroll · hold then drag to reorder`
               }
               onMouseDown={() => {
                 if (pinned) return; // the cover never reorders
@@ -233,6 +243,54 @@ export function SpreadsFilmstrip() {
           <small>or drop photos here</small>
         </div>
       </div>
+
+      {menu && (
+        <>
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 59 }}
+            onClick={() => setMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenu(null);
+            }}
+          />
+          <div
+            className="ctx-menu"
+            style={{ left: menu.x, top: menu.y, transform: "translateY(-100%)" }}
+          >
+            <button
+              onClick={() => {
+                duplicateSpread(menu.idx);
+                setMenu(null);
+              }}
+            >
+              Duplicate spread
+            </button>
+            <button
+              onClick={() => {
+                addSpreadAfter(menu.idx);
+                setMenu(null);
+              }}
+            >
+              Add spread after
+            </button>
+            {spreads.length > 1 && !(menu.idx === 0 && spreads[0]?.isCover) && (
+              <>
+                <div className="ctx-sep" />
+                <button
+                  className="danger"
+                  onClick={() => {
+                    removeSpread(menu.idx);
+                    setMenu(null);
+                  }}
+                >
+                  Delete spread
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

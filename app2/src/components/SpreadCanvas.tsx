@@ -1685,8 +1685,17 @@ export function SpreadCanvas() {
       {spreadSelected ? (
         /* layout mode: compact corner controls — back left, save right */
         <>
-          {/* SmartAlbums vertical tool rail: select · frame · text · hand · zoom */}
-          <div className="layout-tools">
+          {/* SmartAlbums vertical tool rail: select · frame · text · hand · zoom.
+              Centered in the black gutter LEFT of the spread (stageOff.x = the
+              spread's left offset); clamped so it never dips under the page. */}
+          <div
+            className="layout-tools"
+            style={{
+              left: Math.max(stageOff.x / 2, 22),
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+            }}
+          >
             <button
               className={"lt-btn" + (tool === "select" ? " active" : "")}
               title="Select/move (V)"

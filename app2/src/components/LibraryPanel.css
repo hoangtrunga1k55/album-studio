@@ -1,0 +1,154 @@
+.kho {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* resource kind (ALBUM / TYPO / ELEMENT) */
+.kho-kinds {
+  display: flex;
+  gap: 2px;
+  /* leave room top-right for the collapse chevron (.left-min) */
+  padding: 8px 36px 6px 8px;
+  flex: none;
+}
+.kho-kind {
+  flex: 1;
+  padding: 6px 2px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: 0.12s ease;
+}
+.kho-kind:hover {
+  color: var(--text);
+}
+.kho-kind.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-hi);
+}
+
+/* element folder loader row */
+.kho-load {
+  padding: 0 8px 8px;
+  flex: none;
+}
+.kho-load .btn {
+  width: 100%;
+}
+
+/* category chips */
+.kho-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 8px 8px;
+  flex: none;
+  max-height: 88px;
+  overflow-y: auto;
+}
+.kho-cat {
+  padding: 3px 7px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: 0.12s ease;
+}
+.kho-cat:hover {
+  color: var(--text);
+}
+.kho-cat.active {
+  border-color: var(--accent);
+  color: var(--accent-hi);
+}
+
+/* thumbnail grid */
+.kho-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  padding: 0 8px 10px;
+  /* own the leftover height and scroll inside it, so cells never pile up /
+     get clipped by the panel */
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  align-items: start;
+}
+.kho-cell {
+  position: relative;
+  padding: 0;
+  border: 1px solid var(--border-input, #3d3d3d);
+  background: var(--bg-input, #252525);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  overflow: hidden;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s ease;
+}
+.kho-cell:hover {
+  border-color: var(--accent);
+}
+.kho-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* album spreads: a FIXED-PIXEL-HEIGHT box (no aspect-ratio — WKWebView can
+   fail to reserve aspect height, which let cells collapse and overlap). The
+   image is absolute so its natural size can never grow the cell → every cell
+   is exactly 100px tall, columns stay aligned, nothing overlaps. `contain`
+   shows the whole spread uncropped. */
+.kho-cell.album {
+  aspect-ratio: auto;
+  height: 100px;
+  display: block;
+}
+.kho-cell.album img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* transparent stickers read better on a checker backdrop */
+.kho-cell.checker {
+  background-image:
+    linear-gradient(45deg, #333 25%, transparent 25%),
+    linear-gradient(-45deg, #333 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #333 75%),
+    linear-gradient(-45deg, transparent 75%, #333 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+}
+.kho-cell.checker img {
+  object-fit: contain;
+}
+.kho-ph {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.kho-empty {
+  padding: 16px 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}

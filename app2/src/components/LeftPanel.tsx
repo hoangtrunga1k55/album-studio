@@ -1,20 +1,13 @@
-import { useState } from "react";
-import { FontPanel } from "./FontPanel";
+import { LibraryPanel } from "./LibraryPanel";
 import "./ImagePanel.css";
 
-/** Left dock: the font library. Photos live in the bottom tray, typos and
- *  elements in the right panel — the dock stays collapsed until needed. */
+/** Left dock: the resource browser ("kho": ALBUM / TYPO / ELEMENT). Open/close,
+ *  width and the collapse chevron are owned by App — same behavior as the right
+ *  editor panel. */
 export function LeftPanel() {
-  const [open, setOpen] = useState(false);
-
   return (
-    <aside className={"left-panel" + (open ? "" : " collapsed")}>
-      <div className="panel-tabs">
-        <button className={"tab" + (open ? " active" : "")} onClick={() => setOpen(!open)}>
-          Font
-        </button>
-      </div>
-      {open && <FontPanel />}
+    <aside className="left-panel">
+      <LibraryPanel />
     </aside>
   );
 }

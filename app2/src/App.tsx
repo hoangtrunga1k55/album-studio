@@ -44,7 +44,6 @@ import { SpreadCanvas } from "./components/SpreadCanvas";
 import { SpreadsFilmstrip } from "./components/SpreadsFilmstrip";
 import { PropertiesPanel } from "./components/PropertiesPanel";
 import { PhotoTray } from "./components/PhotoTray";
-import { NextSpreadZone, PrevSpreadZone } from "./components/WorkZones";
 import { TooltipLayer } from "./components/TooltipLayer";
 import { LayoutDock } from "./components/LayoutStrip";
 import { ExportDialog } from "./components/ExportDialog";
@@ -52,11 +51,10 @@ import { AutoDesignDialog } from "./components/AutoDesignDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { FlipShow } from "./components/FlipShow";
 import { getTemplate } from "./engine/templates";
-import { loadSystemFonts } from "./engine/fontLibrary";
 import { restoreLibraries } from "./flows/typoImport";
 import { openProject, saveAsCopy, saveNow, startAutosave } from "./flows/projectIO";
+import { importDroppedFiles } from "./ipc/import";
 import { useAlbum } from "./store/album";
-import { useFonts } from "./store/fonts";
 import { syncRecentMenu, useProject } from "./store/project";
 import { clearHistory, initHistory, redo, undo } from "./store/history";
 import { IconExport, IconFlip, IconLayout, IconSettings, IconSparkle } from "./icons";
@@ -74,20 +72,29 @@ function App() {
   const currentIndex = useAlbum((s) => s.currentIndex);
   const images = useAlbum((s) => s.images);
   const resetAlbum = useAlbum((s) => s.resetAlbum);
-  const addFonts = useFonts((s) => s.addFonts);
-  const setFontIndex = useFonts((s) => s.setIndex);
   const spreadSelected = useAlbum((s) => s.spreadSelected);
+  const selectedSlot = useAlbum((s) => s.selectedSlot);
+  const selectedText = useAlbum((s) => s.selectedText);
+  const selectedTypo = useAlbum((s) => s.selectedTypo);
+  const selectedElement = useAlbum((s) => s.selectedElement);
+  const multiSel = useAlbum((s) => s.multiSel);
   const layoutDock = useAlbum((s) => s.layoutDockOpen);
   const importing = useAlbum((s) => s.importing);
   const setLayoutDock = useAlbum((s) => s.setLayoutDock);
+  const addImages = useAlbum((s) => s.addImages);
   const [showExport, setShowExport] = useState(false);
   const [showDesign, setShowDesign] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showFlip, setShowFlip] = useState(false);
+  const [dropping, setDropping] = useState(false);
 
   // Resizable panels (drag bars) — remembered across sessions.
   const [trayH, setTrayH] = useState(() => loadPx("albumstudio2.ui.trayH", 190));
   const [propsW, setPropsW] = useState(() => loadPx("albumstudio2.ui.propsW", 240));
+  const [leftW, setLeftW] = useState(() => loadPx("albumstudio2.ui.leftW", 300));
+  const [leftOpen, setLeftOpen] = useState(
+    () => localStorage.getItem("albumstudio2.ui.leftOpen") === "1"
+  );
   const [trayMin, setTrayMin] = useState(
     () => localStorage.getItem("albumstudio2.ui.trayMin") === "1"
   );
@@ -96,25 +103,98 @@ function App() {
   );
   useEffect(() => localStorage.setItem("albumstudio2.ui.trayH", String(trayH)), [trayH]);
   useEffect(() => localStorage.setItem("albumstudio2.ui.propsW", String(propsW)), [propsW]);
+  useEffect(() => localStorage.setItem("albumstudio2.ui.leftW", String(leftW)), [leftW]);
+  useEffect(() => localStorage.setItem("albumstudio2.ui.leftOpen", leftOpen ? "1" : "0"), [leftOpen]);
   useEffect(() => localStorage.setItem("albumstudio2.ui.trayMin", trayMin ? "1" : "0"), [trayMin]);
   useEffect(() => localStorage.setItem("albumstudio2.ui.propsMin", propsMin ? "1" : "0"), [propsMin]);
 
-  // Fonts come entirely from the machine now. Load the typo pack first so its
-  // font names count as "needed", then index the OS font folders and load
-  // everything templates + typos require.
+  // Editor collapsed + the user selects something on the canvas (photo, layout,
+  // text, typo, element, group) → pop the editor open. PropertiesPanel already
+  // points itself at the matching tab. Only a NEW selection reopens it, so the
+  // user can still close it while a selection stays active.
   useEffect(() => {
-    (async () => {
-      // imported packs (layout + typo) — metadata only, thumbnails stay on disk
-      await restoreLibraries().catch(() => {});
-      try {
-        const sys = await loadSystemFonts();
-        addFonts(sys.loaded);
-        setFontIndex(sys.entries);
-      } catch {
-        /* ignore */
+    const hasSel =
+      selectedSlot !== null ||
+      !!selectedText ||
+      selectedTypo !== null ||
+      selectedElement !== null ||
+      spreadSelected ||
+      multiSel.length > 0;
+    if (hasSel) setPropsMin(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlot, selectedText, selectedTypo, selectedElement, spreadSelected, multiSel]);
+
+  // Restore imported packs (layout + typo) — metadata only, thumbnails stay on
+  // disk. OS-font scanning was removed: template/typo/added text now render with
+  // the webview's default font family.
+  useEffect(() => {
+    void restoreLibraries().catch(() => {});
+  }, []);
+
+  // Drag images from Finder/Explorer straight into the window to add them. OS
+  // file drops carry a "Files" type — internal HTML5 drags (panel→slot, tray
+  // reorder) never do, so those are left untouched (dragDropEnabled stays off).
+  useEffect(() => {
+    const hasFiles = (dt: DataTransfer | null) =>
+      !!dt && Array.from(dt.types || []).includes("Files");
+    const onOver = (e: DragEvent) => {
+      if (!hasFiles(e.dataTransfer)) return;
+      e.preventDefault();
+      setDropping(true);
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e.dataTransfer)) return;
+      e.preventDefault();
+      setDropping(false);
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      void importDroppedFiles(files, (ev) => {
+        if (ev.kind === "image") {
+          const { kind, ...meta } = ev;
+          void kind;
+          addImages([meta]);
+        }
+      }).catch((err) => alert("Import dropped images error: " + String(err)));
+    };
+    const onLeave = (e: DragEvent) => {
+      if (e.relatedTarget === null) setDropping(false);
+    };
+    window.addEventListener("dragover", onOver);
+    window.addEventListener("drop", onDrop);
+    window.addEventListener("dragleave", onLeave);
+    return () => {
+      window.removeEventListener("dragover", onOver);
+      window.removeEventListener("drop", onDrop);
+      window.removeEventListener("dragleave", onLeave);
+    };
+  }, [addImages]);
+
+  // Kill the webview's native right-click menu (Open Image / Download / Inspect
+  // …) everywhere — our own context menus handle right-click. Text fields keep
+  // theirs so copy/paste still works.
+  useEffect(() => {
+    const onCtx = (e: MouseEvent) => {
+      // Dev: keep the native menu (Reload / Inspect Element). Shift+right-click
+      // is an escape hatch to the native menu in any build.
+      if (import.meta.env.DEV || e.shiftKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+    };
+    window.addEventListener("contextmenu", onCtx);
+    return () => window.removeEventListener("contextmenu", onCtx);
+  }, []);
+
+  // Tauri doesn't wire Cmd/Ctrl+R to reload like a browser — bind it ourselves.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "r" || e.key === "R")) {
+        e.preventDefault();
+        window.location.reload();
       }
-    })();
-  }, [addFonts, setFontIndex]);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Autosave for the lifetime of the app.
   useEffect(() => startAutosave(), []);
@@ -362,14 +442,30 @@ function App() {
       <div className="main">
         <div className="left-stack">
           <div className="body">
-            <LeftPanel />
+            {leftOpen ? (
+              <div className="left-host" style={{ width: leftW }}>
+                <ResizeHandle
+                  className="rz rz-v-left"
+                  onMove={(dx) => setLeftW((w) => clampN(w + dx, 220, 520))}
+                />
+                <button
+                  className="left-min"
+                  onClick={() => setLeftOpen(false)}
+                  title="Collapse library"
+                >
+                  ‹
+                </button>
+                <LeftPanel />
+              </div>
+            ) : (
+              <button className="left-restore" onClick={() => setLeftOpen(true)} title="Open library">
+                Library ›
+              </button>
+            )}
             <div className="center">
               {layoutDock && <LayoutDock onClose={() => setLayoutDock(false)} />}
-              {/* layout mode = focused spread editor: side zones + filmstrip hide */}
               <div className="workzone">
-                {!spreadSelected && <PrevSpreadZone />}
                 <SpreadCanvas />
-                {!spreadSelected && <NextSpreadZone />}
               </div>
               {!spreadSelected && <SpreadsFilmstrip />}
             </div>
@@ -420,6 +516,11 @@ function App() {
       {showDesign && <AutoDesignDialog onClose={() => setShowDesign(false)} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
       {showFlip && <FlipShow onClose={() => setShowFlip(false)} />}
+      {dropping && (
+        <div className="drop-overlay">
+          <div className="drop-overlay-box">＋ Drop photos here to add</div>
+        </div>
+      )}
     </div>
   );
 }

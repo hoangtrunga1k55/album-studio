@@ -1,17 +1,11 @@
 import { useState } from "react";
 import { getTemplate, spreadCmFor } from "../engine/templates";
-import { ensureTypoDeco, getTypo } from "../engine/typos";
+import { getTypo } from "../engine/typos";
 import { PhotoNavigator } from "./PhotoNavigator";
 import { spreadLabel, useAlbum, type ArrangeOp } from "../store/album";
-import { useFonts } from "../store/fonts";
-import { useTypos } from "../store/typos";
-import { fontAliases } from "../ipc/fonts";
-import { loadSystemFonts } from "../engine/fontLibrary";
-import { TYPO_DND_KEY } from "../constants";
 import { FontPicker } from "./FontPicker";
 import { AlbumConfig } from "./AlbumConfig";
 import { BackgroundSection } from "./BackgroundSection";
-import { ElementPanel } from "./ElementPanel";
 import { LayersPanel } from "./LayersPanel";
 import { IconTrash } from "../icons";
 
@@ -22,8 +16,6 @@ function PanelTabs({ active, onPick }: { active: PanelTab; onPick: (t: PanelTab)
   const items: { id: PanelTab; label: string }[] = [
     { id: "layout", label: "Layout" },
     { id: "photo", label: "Photo" },
-    { id: "typo", label: "Typo" },
-    { id: "element", label: "Element" },
     { id: "layers", label: "Layers" },
   ];
   return (
@@ -462,32 +454,9 @@ export function PropertiesPanel() {
   const resetTplText = useAlbum((s) => s.resetTplText);
   const updateAddedText = useAlbum((s) => s.updateAddedText);
   const removeAddedText = useAlbum((s) => s.removeAddedText);
-  const addTypoToSpread = useAlbum((s) => s.addTypo);
-  const typos = useTypos((s) => s.typos);
-  const fonts = useFonts((s) => s.fonts);
-  const addFonts = useFonts((s) => s.addFonts);
-  const [typoCat, setTypoCat] = useState<string>("all");
-  const typoCats = [...new Set(typos.map((t) => t.category ?? "khac"))].sort();
-  const shownTypos = typoCat === "all" ? typos : typos.filter((t) => (t.category ?? "khac") === typoCat);
 
   const spread = spreads[currentIndex];
   const tpl = getTemplate(spread?.templateId ?? null);
-
-  const loadedSet = new Set(fonts.flatMap((f) => fontAliases(f)));
-
-  // Fonts come from the machine now — re-scan after the user installs the
-  // missing ones (no more manual per-file loading).
-  const [fontBusy, setFontBusy] = useState(false);
-  async function rescanFonts() {
-    setFontBusy(true);
-    try {
-      const r = await loadSystemFonts();
-      addFonts(r.loaded);
-    } finally {
-      setFontBusy(false);
-    }
-  }
-
 
   // ---------- 3-tab shell (Layout / Ảnh / Typo) ----------
   const multiSel = useAlbum((s) => s.multiSel);
@@ -527,57 +496,6 @@ export function PropertiesPanel() {
       </aside>
     );
   }
-
-  // Typo picker gallery — shown in the Typo tab (insert by click or drag).
-  const typoGallery = (
-    <div className="prop-group">
-      <div className="prop-label">Decorative typo</div>
-      {typos.length > 0 ? (
-        <>
-          <div className="typo-tabs">
-            <button
-              className={"typo-tab" + (typoCat === "all" ? " active" : "")}
-              onClick={() => setTypoCat("all")}
-            >
-              All ({typos.length})
-            </button>
-            {typoCats.map((c) => (
-              <button
-                key={c}
-                className={"typo-tab" + (typoCat === c ? " active" : "")}
-                onClick={() => setTypoCat(c)}
-                title={`Typo group: ${c}`}
-              >
-                {c} ({typos.filter((t) => (t.category ?? "khac") === c).length})
-              </button>
-            ))}
-          </div>
-          <div className="pp-typos">
-            {shownTypos.map((t) => (
-              <figure
-                key={t.id}
-                className="pp-typo"
-                title={`${t.category ?? ""} · click to insert (or drag)`}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData(TYPO_DND_KEY, t.id);
-                  e.dataTransfer.effectAllowed = "copy";
-                }}
-                onClick={() => {
-                  void ensureTypoDeco(t.id);
-                  addTypoToSpread(t.id, 0.34, 0.4);
-                }}
-              >
-                <img src={t.preview} alt="" draggable={false} loading="lazy" />
-              </figure>
-            ))}
-          </div>
-        </>
-      ) : (
-        <div className="hint-sm">No typo pack — load it in ⚙ Settings.</div>
-      )}
-    </div>
-  );
 
   // ---------- GROUP selected (Shift-click nhiều phần tử) ----------
   if (multiSel.length >= 2) {
@@ -787,14 +705,6 @@ export function PropertiesPanel() {
           <div className="prop-group">
             <div className="prop-label">Font</div>
             <FontPicker value={font} onPick={(v) => editTplText(i, { font: v })} />
-            {font && !loadedSet.has(font) && (
-              <div className="font-warn-sm">
-                Font “{font}” isn't installed → substituting. Install it then{" "}
-                <button onClick={rescanFonts} disabled={fontBusy}>
-                  {fontBusy ? "scanning…" : "rescan"}
-                </button>
-              </div>
-            )}
           </div>
           <div className="prop-group">
             <div className="prop-label">Font size ×{sizeScale.toFixed(2)}</div>
@@ -944,11 +854,7 @@ export function PropertiesPanel() {
   // ---------- LAYOUT selected (click the spread background) ----------
   return (
     <aside className="props">{tabs}
-      {activeTab === "element" ? (
-        <ElementPanel />
-      ) : activeTab === "typo" ? (
-        typoGallery
-      ) : activeTab === "photo" ? (
+      {activeTab === "photo" ? (
         <div className="prop-empty">
           Select a photo on the canvas to edit (border, radius, rotate, swap…).
         </div>

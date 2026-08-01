@@ -17,6 +17,8 @@
 
   /* ---- accent (Capture One orange) ---- */
   --accent: #d89042;
+  --accent-track: #b0b0b0; /* Capture One slider thumb (light gray) */
+  --slider-track: #1e1e1e; /* thin slider rail */
   --accent-hi: #e2a25c;
   --accent-soft: rgba(216, 144, 66, 0.16);
   --accent-glow: rgba(216, 144, 66, 0.4);
@@ -270,21 +272,60 @@ button.btn.icon {
   min-width: 0;
   overflow: hidden;
 }
-.body > .left-panel {
-  width: 300px;
+/* left dock host — draggable width like the right editor panel */
+.left-host {
+  position: relative;
   flex: none;
+  display: flex;
+  min-height: 0;
 }
-/* photos live in the bottom tray — the dock collapses to a slim rail */
-.body > .left-panel.collapsed {
-  width: 46px;
+.left-host > .left-panel {
+  width: 100%;
 }
-.left-panel.collapsed .panel-tabs {
-  flex-direction: column;
+/* collapse chevron (mirror the right panel's .props-min), top-right */
+.left-min {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 36;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #2e2e2e;
+  color: #bbb;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
 }
-.left-panel.collapsed .tab {
+.left-min:hover {
+  background: #3a3a3a;
+  border-color: #666;
+  color: #fff;
+}
+/* collapsed state: a slim vertical restore button (mirror .props-restore) */
+.left-restore {
+  flex: none;
+  width: 26px;
+  min-width: 0;
+  border: none;
+  border-right: 2px solid var(--accent);
+  background: #2e2e2e;
+  color: #eee;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
   writing-mode: vertical-rl;
-  padding: 14px 6px;
-  flex: none;
+  padding: 12px 0;
+  letter-spacing: 0.04em;
+}
+.left-restore:hover {
+  color: #fff;
+  background: #3a3a3a;
 }
 .body > .center {
   flex: 1;
@@ -299,6 +340,27 @@ button.btn.icon {
 .props-host > .props {
   flex: 1;
   min-width: 0;
+}
+
+/* OS file-drop overlay (drag photos from Finder/Explorer into the window) */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.drop-overlay-box {
+  padding: 22px 34px;
+  border: 2px dashed var(--accent);
+  border-radius: 12px;
+  background: var(--bg-1);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
 }
 
 /* drag bars between panels */
@@ -319,6 +381,14 @@ button.btn.icon {
 }
 .rz-v {
   left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: col-resize;
+}
+/* left dock: drag bar on its RIGHT edge (widen by dragging right) */
+.rz-v-left {
+  right: -3px;
   top: 0;
   bottom: 0;
   width: 7px;
@@ -1087,66 +1157,6 @@ button.danger:hover {
   /* zoomed view (⌘+ / kính lúp): the stage grows past the wrap → scroll */
   overflow: auto;
 }
-.side-zone {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 26px 16px;
-  background: var(--bg-canvas);
-  cursor: pointer;
-  transition: background 0.12s ease;
-}
-.side-zone.left {
-  width: 218px;
-  border-right: 1px solid #c4c4c4;
-}
-.side-zone.right {
-  width: 158px;
-  border-left: 1px solid #c4c4c4;
-}
-.side-zone.over,
-.side-zone:hover {
-  background: #d2d2d2;
-}
-.side-zone.over {
-  box-shadow: inset 0 0 0 2px var(--accent);
-}
-.sz-label {
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: #7d7d7d;
-  text-align: center;
-}
-/* the big dashed "drop images here to create a cover" box */
-.side-zone.left .sz-cover-hint {
-  align-self: stretch;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px dashed #a8a8a8;
-  border-radius: 6px;
-  padding: 12px;
-}
-/* right zone empty state: same dashed drop-box language as the cover zone */
-.side-zone.right .sz-add {
-  align-self: stretch;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 2px dashed #a8a8a8;
-  border-radius: 6px;
-  padding: 12px;
-}
-.side-zone.right:hover .sz-add,
-.side-zone.over .sz-add {
-  border-color: var(--accent);
-  color: var(--accent);
-}
 .sz-cover {
   position: relative;
   display: flex;
@@ -1463,6 +1473,41 @@ button.danger:hover {
   gap: 6px;
   font-size: 11.5px;
 }
+/* ── Capture One-style thin sliders (global) ──────────────────────────────
+   2px rail + small light-gray square thumb; label left · value right is done
+   by each row's layout. Applies to every <input type="range"> in the app. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px; /* comfortable hit area around the 2px rail */
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--slider-track, #1e1e1e);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  margin-top: -4px; /* centre the 10px thumb on the 2px rail */
+  border-radius: 2px;
+  background: var(--accent-track, #b0b0b0);
+  border: none;
+  box-shadow: none;
+}
+input[type="range"]:hover::-webkit-slider-thumb {
+  background: #cecece;
+}
+input[type="range"]:active::-webkit-slider-thumb {
+  background: var(--accent);
+}
+input[type="range"]:disabled {
+  opacity: 0.4;
+}
+
 .sa-row input[type="range"] {
   width: 100%;
   min-width: 0;
@@ -1753,6 +1798,11 @@ button.danger:hover {
   appearance: none;
   pointer-events: none;
 }
+/* dual-range draws its own bar — keep the global thin rail off its two inputs */
+.dual-range input[type="range"]::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 20px;
+}
 .dual-range input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -1808,14 +1858,15 @@ button.danger:hover {
 
 /* SmartAlbums layout-mode tool rail (left edge of the canvas) */
 .layout-tools {
-  /* horizontal, top-center — clear of the left ruler AND the back/save bars */
+  /* vertical rail, left-center — off the spread so it never covers the page
+     (clears the left ruler at ~18px) */
   position: absolute;
-  top: 26px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 50%;
+  left: 24px;
+  transform: translateY(-50%);
   z-index: 32;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   gap: 2px;
   padding: 4px;
   background: #2a2a2a;
