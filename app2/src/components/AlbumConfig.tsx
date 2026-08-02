@@ -126,7 +126,7 @@ export function AlbumConfig() {
             type="color"
             value={settings.borderColor}
             onChange={(e) => patchSettings({ borderColor: e.target.value })}
-            style={{ height: 32, padding: 2 }}
+            style={{ height: 34, padding: 2 }}
           />
         </label>
       </div>

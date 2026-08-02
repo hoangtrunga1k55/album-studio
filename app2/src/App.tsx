@@ -54,7 +54,9 @@ import { getTemplate } from "./engine/templates";
 import { restoreLibraries } from "./flows/typoImport";
 import { openProject, saveAsCopy, saveNow, startAutosave } from "./flows/projectIO";
 import { importDroppedFiles } from "./ipc/import";
+import { loadSystemFonts } from "./engine/fontLibrary";
 import { useAlbum } from "./store/album";
+import { useFonts } from "./store/fonts";
 import { syncRecentMenu, useProject } from "./store/project";
 import { clearHistory, initHistory, redo, undo } from "./store/history";
 import { IconExport, IconFlip, IconLayout, IconSettings, IconSparkle } from "./icons";
@@ -82,6 +84,8 @@ function App() {
   const importing = useAlbum((s) => s.importing);
   const setLayoutDock = useAlbum((s) => s.setLayoutDock);
   const addImages = useAlbum((s) => s.addImages);
+  const addFonts = useFonts((s) => s.addFonts);
+  const setFontIndex = useFonts((s) => s.setIndex);
   const [showExport, setShowExport] = useState(false);
   const [showDesign, setShowDesign] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -124,12 +128,20 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSlot, selectedText, selectedTypo, selectedElement, spreadSelected, multiSel]);
 
-  // Restore imported packs (layout + typo) — metadata only, thumbnails stay on
-  // disk. OS-font scanning was removed: template/typo/added text now render with
-  // the webview's default font family.
+  // Restore imported packs, then auto-index the machine's fonts so the picker
+  // lists them and template/typo text renders in its real font.
   useEffect(() => {
-    void restoreLibraries().catch(() => {});
-  }, []);
+    (async () => {
+      await restoreLibraries().catch(() => {});
+      try {
+        const sys = await loadSystemFonts();
+        addFonts(sys.loaded);
+        setFontIndex(sys.entries);
+      } catch {
+        /* ignore — fonts just fall back to the default */
+      }
+    })();
+  }, [addFonts, setFontIndex]);
 
   // Drag images from Finder/Explorer straight into the window to add them. OS
   // file drops carry a "Files" type — internal HTML5 drags (panel→slot, tray
@@ -300,6 +312,22 @@ function App() {
         e.preventDefault();
         if (e.shiftKey) useAlbum.getState().redesignSpread();
         else if (!useAlbum.getState().importing) setShowDesign(true);
+      } else if (k === "c" || k === "v") {
+        // copy/paste a slot in layout mode — but leave native copy/paste alone
+        // inside text fields
+        const el = document.activeElement as HTMLElement | null;
+        const editing =
+          el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+        const st = useAlbum.getState();
+        if (editing || !st.spreadSelected) return;
+        if (k === "c") {
+          if (st.selectedSlot == null) return;
+          e.preventDefault();
+          st.copySlot();
+        } else {
+          e.preventDefault();
+          st.pasteSlot();
+        }
       } else if (k === "b") {
         e.preventDefault();
         useAlbum.getState().toggleBleed();

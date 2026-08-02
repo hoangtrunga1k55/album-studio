@@ -2,7 +2,7 @@ import { useState } from "react";
 import { getTemplate, spreadCmFor } from "../engine/templates";
 import { getTypo } from "../engine/typos";
 import { PhotoNavigator } from "./PhotoNavigator";
-import { spreadLabel, useAlbum, type ArrangeOp } from "../store/album";
+import { spreadLabel, useAlbum } from "../store/album";
 import { FontPicker } from "./FontPicker";
 import { AlbumConfig } from "./AlbumConfig";
 import { BackgroundSection } from "./BackgroundSection";
@@ -33,31 +33,23 @@ function PanelTabs({ active, onPick }: { active: PanelTab; onPick: (t: PanelTab)
   );
 }
 
-/** Arrange (SmartAlbums): Bring to Front / Forward / Backward / Send to Back. */
-function ArrangeButtons({ label, onOp }: { label?: string; onOp: (op: ArrangeOp) => void }) {
+/** Align-to-page (6-way) for the currently selected object — works for photos,
+ *  text, typo and elements (alignGroup reads the single selection). */
+function AlignToPageRow() {
+  const alignGroup = useAlbum((s) => s.alignGroup);
   return (
     <div className="prop-group">
-      <div className="prop-label">{label ?? "Arrange (when overlapping)"}</div>
+      <div className="prop-label">Align to page</div>
       <div className="prop-row">
-        <button className="btn" title="Bring to front" onClick={() => onOp("front")}>⬆</button>
-        <button className="btn" title="Bring forward" onClick={() => onOp("forward")}>↑</button>
-        <button className="btn" title="Send backward" onClick={() => onOp("backward")}>↓</button>
-        <button className="btn" title="Send to back" onClick={() => onOp("back")}>⬇</button>
+        <button className="btn" title="Left edge of page" onClick={() => alignGroup("left")}>⇤</button>
+        <button className="btn" title="Horizontal center of page" onClick={() => alignGroup("hcenter")}>↔</button>
+        <button className="btn" title="Right edge of page" onClick={() => alignGroup("right")}>⇥</button>
+        <button className="btn" title="Top edge of page" onClick={() => alignGroup("top")}>⤒</button>
+        <button className="btn" title="Vertical center of page" onClick={() => alignGroup("vmiddle")}>↕</button>
+        <button className="btn" title="Bottom edge of page" onClick={() => alignGroup("bottom")}>⤓</button>
       </div>
     </div>
   );
-}
-
-/** Arrange row for photo frames (`s<i>` in the unified z-order). */
-function ArrangeRow({ slot }: { slot: number }) {
-  const arrange = useAlbum((s) => s.arrangeZ);
-  return <ArrangeButtons label="Arrange (overlapping photos/text/typo)" onOp={(op) => arrange(`s${slot}`, op)} />;
-}
-
-/** Arrange row for texts and typos (same unified z-order as photos). */
-function ArrangeDecorRow({ decorKey }: { decorKey: string }) {
-  const arrange = useAlbum((s) => s.arrangeZ);
-  return <ArrangeButtons label="Arrange (overlapping photos/text/typo)" onOp={(op) => arrange(decorKey, op)} />;
 }
 
 /** SmartAlbums align tools: to the page, and to the anchor frame (G). */
@@ -179,11 +171,9 @@ function AlignRows({ slot }: { slot: number }) {
 function PhotoEditSections({
   slot,
   header = false,
-  withArrange = false,
 }: {
   slot: number;
   header?: boolean;
-  withArrange?: boolean;
 }) {
   const spreads = useAlbum((s) => s.spreads);
   const currentIndex = useAlbum((s) => s.currentIndex);
@@ -399,8 +389,6 @@ function PhotoEditSections({
               </button>
             </div>
           </div>
-
-          {withArrange && <ArrangeRow slot={slot} />}
 
           <div className="prop-label" style={{ marginTop: 14 }}>Photo info</div>
           <div className="sa-info">
@@ -634,7 +622,7 @@ export function PropertiesPanel() {
             </div>
             <div className="hint-sm">“Original” = keep each text's color · pick a color = flood one color.</div>
           </div>
-          <ArrangeDecorRow decorKey={`y${pt.id}`} />
+          <AlignToPageRow />
           <button className="danger" onClick={() => removeTypo(pt.id)}>
             <IconTrash width={15} height={15} /> Delete typo
           </button>
@@ -675,7 +663,7 @@ export function PropertiesPanel() {
               style={{ width: "100%" }}
             />
           </div>
-          <ArrangeDecorRow decorKey={`e${pe.id}`} />
+          <AlignToPageRow />
           <button className="danger" onClick={() => removeElement(pe.id)}>
             <IconTrash width={15} height={15} /> Delete element
           </button>
@@ -716,7 +704,6 @@ export function PropertiesPanel() {
             <input type="color" className="swatch" value={color}
               onChange={(e) => editTplText(i, { color: e.target.value })} />
           </div>
-          <ArrangeDecorRow decorKey={`t${i}`} />
           {Object.keys(ed).length > 0 && (
             <button
               className="btn"
@@ -726,6 +713,7 @@ export function PropertiesPanel() {
               ↺ Restore original text
             </button>
           )}
+          <AlignToPageRow />
           <button className="danger" onClick={() => deleteTplText(i)}>
             <IconTrash width={15} height={15} /> Delete this text
           </button>
@@ -757,7 +745,7 @@ export function PropertiesPanel() {
             <input type="color" className="swatch" value={a.color}
               onChange={(e) => updateAddedText(a.id, { color: e.target.value })} />
           </div>
-          <ArrangeDecorRow decorKey={`a${a.id}`} />
+          <AlignToPageRow />
           <button className="danger" onClick={() => removeAddedText(a.id)}>
             <IconTrash width={15} height={15} /> Delete this text
           </button>
@@ -778,7 +766,7 @@ export function PropertiesPanel() {
     if (!spreadSelected && img) {
       return (
         <aside className="props">{tabs}
-          <PhotoEditSections slot={selectedSlot} header withArrange />
+          <PhotoEditSections slot={selectedSlot} header />
         </aside>
       );
     }
@@ -842,7 +830,6 @@ export function PropertiesPanel() {
             </div>
           </div>
         )}
-        <ArrangeRow slot={selectedSlot} />
         <AlignRows slot={selectedSlot} />
         {/* the photo in this frame is editable right here too */}
         {img && <PhotoEditSections slot={selectedSlot} />}

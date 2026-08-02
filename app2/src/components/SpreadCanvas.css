@@ -71,3 +71,20 @@
   background: var(--border);
   margin: 4px 2px;
 }
+.ctx-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 3px 10px 2px;
+  letter-spacing: 0.02em;
+}
+.ctx-align {
+  display: flex;
+  gap: 2px;
+  padding: 0 5px 2px;
+}
+.ctx-align button {
+  flex: 1;
+  text-align: center !important;
+  padding: 6px 0 !important;
+  font-size: 14px;
+}

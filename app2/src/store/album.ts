@@ -306,6 +306,9 @@ export function saveCustomDefaults(settings: AlbumSettings): void {
 let counter = 0;
 const newId = (p: string) => `${p}_${++counter}`;
 
+/** Clipboard for slot copy/paste (Ctrl+C / Ctrl+V in layout mode). */
+let slotClipboard: { rect: SlotRect; imageId: string; transform?: SlotTransform } | null = null;
+
 let lastToggle = { key: "", t: 0 };
 
 
@@ -598,6 +601,10 @@ interface AlbumState {
   setLayoutDock: (open: boolean) => void;
   /** Append a hand-drawn photo frame beyond the template's slots (§7.2). */
   addDrawnSlot: (rect: SlotRect) => void;
+  /** Copy the selected slot (frame + its photo + transform) to a clipboard. */
+  copySlot: () => void;
+  /** Paste the copied slot as a new frame on the current spread (offset). */
+  pasteSlot: () => void;
   /** Remove a hand-drawn frame (index >= template slot count). */
   removeDrawnSlot: (slotIndex: number) => void;
   /** Delete a frame from THIS spread: a hand-drawn extra is compacted away
@@ -1342,6 +1349,50 @@ export const useAlbum = create<AlbumState>((set) => ({
       return { spreads, selectedSlot: idx, tool: "select" };
     }),
 
+  copySlot: () => {
+    const s = useAlbum.getState();
+    const i = s.selectedSlot;
+    if (i == null) return;
+    const cur = s.spreads[s.currentIndex];
+    if (!cur) return;
+    const tpl = getTemplate(cur.templateId);
+    const rect =
+      tpl && i < tpl.slots.length
+        ? { ...tpl.slots[i], ...(cur.slotRects?.[i] ?? {}) }
+        : cur.slotRects?.[i];
+    if (!rect) return;
+    slotClipboard = { rect: { ...rect }, imageId: cur.imageIds[i] ?? "", transform: cur.transforms[i] };
+  },
+
+  pasteSlot: () =>
+    set((s) => {
+      if (!slotClipboard) return s;
+      const spreads = [...s.spreads];
+      const cur = { ...spreads[s.currentIndex] };
+      const tpl = getTemplate(cur.templateId);
+      const base = tpl?.slotCount ?? 0;
+      const extras = Object.keys(cur.slotRects ?? {})
+        .map(Number)
+        .filter((k) => k >= base);
+      const idx = base + extras.length;
+      const r = slotClipboard.rect;
+      const off = 0.03;
+      const rect: SlotRect = {
+        ...r,
+        x: Math.max(0, Math.min(r.x + off, 1 - r.w)),
+        y: Math.max(0, Math.min(r.y + off, 1 - r.h)),
+      };
+      cur.slotRects = { ...cur.slotRects, [idx]: rect };
+      const imageIds = [...cur.imageIds];
+      imageIds[idx] = slotClipboard.imageId;
+      cur.imageIds = imageIds;
+      if (slotClipboard.transform) {
+        cur.transforms = { ...cur.transforms, [idx]: slotClipboard.transform };
+      }
+      spreads[s.currentIndex] = cur;
+      return { spreads, selectedSlot: idx, tool: "select" };
+    }),
+
   removeDrawnSlot: (slotIndex) =>
     set((s) => {
       const spreads = [...s.spreads];
@@ -1764,7 +1815,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       selectedTypo: null,
       selectedElement: null,
       swapSource: null,
-      spreadSelected: false,
+      spreadSelected: true, // editing text = layout-edit mode (drag/align like a photo)
       multiSel: [],
     }),
 
@@ -1775,7 +1826,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       selectedText: null,
       selectedElement: null,
       swapSource: null,
-      spreadSelected: false,
+      spreadSelected: true, // editing a typo = layout-edit mode
       multiSel: [],
     }),
 
@@ -1814,7 +1865,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       selectedText: null,
       selectedTypo: null,
       swapSource: null,
-      spreadSelected: false,
+      spreadSelected: true, // editing an element = layout-edit mode
       multiSel: [],
     }),
 

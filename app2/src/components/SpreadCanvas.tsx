@@ -160,12 +160,19 @@ function EditableText(props: {
   onMoved: (xPx: number, yPx: number) => void;
   /** Full geometry after a handle drag (stretch and/or rotation). */
   onTransformed: (t: NodeTransform) => void;
+  /** smart-guide snapping while dragging (shared with photos). */
+  onSnap?: (r: Px) => { x: number; y: number; v: SnapGuide[]; h: SnapGuide[] };
+  onGuides?: (g: { v: SnapGuide[]; h: SnapGuide[] } | null) => void;
+  onMeasure?: (r: Px | null) => void;
+  /** interactive only in layout-edit mode (preview = display-only). */
+  editable?: boolean;
 }) {
   const {
     x, y, w, fs, lines, content, font, color, scaleX, scaleY, rotDeg,
-    selected, onSelect, onMoved, onTransformed,
+    selected, onSelect, onMoved, onTransformed, onSnap, onGuides, onMeasure, editable = true,
   } = props;
-  void lines;
+  const boxW = Math.max(w, fs) * scaleX;
+  const boxH = fs * Math.max(1, lines) * 1.12 * scaleY;
   const width = Math.max(w, fs);
   const textRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -193,10 +200,24 @@ function EditableText(props: {
         fill={color}
         align="center"
         lineHeight={1.12}
-        draggable
+        draggable={editable}
+        listening={editable}
         onClick={onSelect}
         onTap={onSelect}
-        onDragEnd={(e) => onMoved(e.target.x(), e.target.y())}
+        onDragMove={(e) => {
+          if (!onSnap || Math.abs(rotDeg) > 0.5) return;
+          const n = e.target;
+          const s = onSnap({ x: n.x(), y: n.y(), w: boxW, h: boxH });
+          n.x(s.x);
+          n.y(s.y);
+          onGuides?.(s.v.length || s.h.length ? { v: s.v, h: s.h } : null);
+          onMeasure?.({ x: s.x, y: s.y, w: boxW, h: boxH });
+        }}
+        onDragEnd={(e) => {
+          onGuides?.(null);
+          onMeasure?.(null);
+          onMoved(e.target.x(), e.target.y());
+        }}
         onTransformEnd={() => {
           const node = textRef.current;
           if (!node) return;
@@ -298,10 +319,15 @@ function TplText(props: {
   onSelect: () => void;
   onMoved: (xPx: number, yPx: number) => void;
   onTransformed: (t: NodeTransform) => void;
+  onSnap?: (r: Px) => { x: number; y: number; v: SnapGuide[]; h: SnapGuide[] };
+  onGuides?: (g: { v: SnapGuide[]; h: SnapGuide[] } | null) => void;
+  onMeasure?: (r: Px | null) => void;
+  editable?: boolean;
 }) {
   const {
     px, ed, content, font, color, fs, lines, scaleX, scaleY, rotDeg,
     selected, alwaysVector = false, onEnter, onSelect, onMoved, onTransformed,
+    onSnap, onGuides, onMeasure, editable = true,
   } = props;
   const editing = ed !== undefined;
   // Vector overlay when the text is edited/selected — or always, when the
@@ -309,9 +335,21 @@ function TplText(props: {
   const showOverlay = editing || selected || alwaysVector;
 
   if (!showOverlay) {
-    // invisible hotspot over the rasterized original; click SELECTS it (which
-    // then reveals the editable overlay above).
-    return <Rect x={px.x} y={px.y} width={px.w} height={px.h} fill="#000" opacity={0} onClick={onEnter} onTap={onEnter} />;
+    // invisible hotspot over the rasterized original; click SELECTS it. Off in
+    // browse mode so the click falls through and enters layout-edit first.
+    return (
+      <Rect
+        x={px.x}
+        y={px.y}
+        width={px.w}
+        height={px.h}
+        fill="#000"
+        opacity={0}
+        listening={editable}
+        onClick={onEnter}
+        onTap={onEnter}
+      />
+    );
   }
 
   return (
@@ -333,6 +371,10 @@ function TplText(props: {
           onSelect={onSelect}
           onMoved={onMoved}
           onTransformed={onTransformed}
+          onSnap={onSnap}
+          onGuides={onGuides}
+          onMeasure={onMeasure}
+          editable={editable}
         />
       )}
     </>
@@ -350,8 +392,12 @@ function TypoNode(props: {
   onMoved: (nx: number, ny: number) => void;
   onResize: (w: number) => void;
   onTransformed: (t: NodeTransform) => void;
+  onSnap?: (r: Px) => { x: number; y: number; v: SnapGuide[]; h: SnapGuide[] };
+  onGuides?: (g: { v: SnapGuide[]; h: SnapGuide[] } | null) => void;
+  onMeasure?: (r: Px | null) => void;
+  editable?: boolean;
 }) {
-  const { typo, pt, stageW, stageH, selected, onSelect, onMoved, onResize, onTransformed } = props;
+  const { typo, pt, stageW, stageH, selected, onSelect, onMoved, onResize, onTransformed, onSnap, onGuides, onMeasure, editable = true } = props;
   const [deco] = useImage(typo.deco ?? "");
   const W = pt.w * stageW;
   const H = W / (typo.ratioWH || 1);
@@ -374,10 +420,25 @@ function TypoNode(props: {
         scaleX={pt.scaleX ?? 1}
         scaleY={pt.scaleY ?? 1}
         rotation={pt.rotDeg ?? 0}
-        draggable
+        draggable={editable}
+        listening={editable}
         onClick={onSelect}
         onTap={onSelect}
-        onDragEnd={(e) => onMoved(e.target.x() / stageW, e.target.y() / stageH)}
+        onDragMove={(e) => {
+          if (!onSnap || Math.abs(pt.rotDeg ?? 0) > 0.5) return;
+          const n = e.target;
+          const rw = W * (pt.scaleX ?? 1), rh = H * (pt.scaleY ?? 1);
+          const s = onSnap({ x: n.x(), y: n.y(), w: rw, h: rh });
+          n.x(s.x);
+          n.y(s.y);
+          onGuides?.(s.v.length || s.h.length ? { v: s.v, h: s.h } : null);
+          onMeasure?.({ x: s.x, y: s.y, w: rw, h: rh });
+        }}
+        onDragEnd={(e) => {
+          onGuides?.(null);
+          onMeasure?.(null);
+          onMoved(e.target.x() / stageW, e.target.y() / stageH);
+        }}
         onWheel={(e) => {
           if (e.evt.ctrlKey || e.evt.metaKey) return; // pinch/⌘-wheel = view zoom
           e.evt.preventDefault();
@@ -463,8 +524,12 @@ function ElementNode(props: {
   onMoved: (nx: number, ny: number) => void;
   onResize: (w: number) => void;
   onTransformed: (t: NodeTransform) => void;
+  onSnap?: (r: Px) => { x: number; y: number; v: SnapGuide[]; h: SnapGuide[] };
+  onGuides?: (g: { v: SnapGuide[]; h: SnapGuide[] } | null) => void;
+  onMeasure?: (r: Px | null) => void;
+  editable?: boolean;
 }) {
-  const { element, pe, stageW, stageH, selected, onSelect, onMoved, onResize, onTransformed } = props;
+  const { element, pe, stageW, stageH, selected, onSelect, onMoved, onResize, onTransformed, onSnap, onGuides, onMeasure, editable = true } = props;
   const [img] = useImage(element.src ?? "");
   const W = pe.w * stageW;
   const H = W / (element.ratioWH || 1);
@@ -488,10 +553,25 @@ function ElementNode(props: {
         scaleY={pe.scaleY ?? 1}
         rotation={pe.rotDeg ?? 0}
         opacity={pe.opacity ?? 1}
-        draggable
+        draggable={editable}
+        listening={editable}
         onClick={onSelect}
         onTap={onSelect}
-        onDragEnd={(e) => onMoved(e.target.x() / stageW, e.target.y() / stageH)}
+        onDragMove={(e) => {
+          if (!onSnap || Math.abs(pe.rotDeg ?? 0) > 0.5) return;
+          const n = e.target;
+          const rw = W * (pe.scaleX ?? 1), rh = H * (pe.scaleY ?? 1);
+          const s = onSnap({ x: n.x(), y: n.y(), w: rw, h: rh });
+          n.x(s.x);
+          n.y(s.y);
+          onGuides?.(s.v.length || s.h.length ? { v: s.v, h: s.h } : null);
+          onMeasure?.({ x: s.x, y: s.y, w: rw, h: rh });
+        }}
+        onDragEnd={(e) => {
+          onGuides?.(null);
+          onMeasure?.(null);
+          onMoved(e.target.x() / stageW, e.target.y() / stageH);
+        }}
         onWheel={(e) => {
           if (e.evt.ctrlKey || e.evt.metaKey) return; // pinch/⌘-wheel = view zoom
           e.evt.preventDefault();
@@ -550,8 +630,18 @@ function SlotFrame(props: {
    *  A guide with `g` set means "đúng khoảng cách gap" → drawn yellow. */
   onLiveSnap?: (r: Px) => { x: number; y: number; v: SnapGuide[]; h: SnapGuide[] };
   onGuides?: (g: { v: SnapGuide[]; h: SnapGuide[] } | null) => void;
+  /** Canva-style live distance badges: the frame's current rect while dragging. */
+  onMeasure?: (r: Px | null) => void;
+  /** Live move: commit the snapped position every drag frame so the PHOTO
+   *  follows the frame (not just the outline). */
+  onLiveMove?: (r: Px) => void;
+  /** Drop after a MOVE — commit the already-snapped position WITHOUT re-snapping
+   *  (avoids a small jump because move-snap ≠ the resize snapRect). */
+  onMoveEnd?: (r: Px & { rotDeg: number }) => void;
+  /** grow the selection border/handles outward (px) — wraps the photo's border. */
+  pad?: number;
 }) {
-  const { px, rotDeg, onChange, onWheelZoom, onDblClick, onContext, onLiveSnap, onGuides } = props;
+  const { px, rotDeg, onChange, onWheelZoom, onDblClick, onContext, onLiveSnap, onGuides, onMeasure, onLiveMove, onMoveEnd, pad } = props;
   const ref = useRef<Konva.Rect>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
@@ -584,10 +674,15 @@ function SlotFrame(props: {
           n.x(s.x + px.w / 2);
           n.y(s.y + px.h / 2);
           onGuides?.(s.v.length || s.h.length ? { v: s.v, h: s.h } : null);
+          onMeasure?.({ x: s.x, y: s.y, w: px.w, h: px.h });
+          onLiveMove?.({ x: s.x, y: s.y, w: px.w, h: px.h });
         }}
         onDragEnd={(e) => {
           onGuides?.(null);
-          onChange({ x: e.target.x() - px.w / 2, y: e.target.y() - px.h / 2, w: px.w, h: px.h, rotDeg });
+          onMeasure?.(null);
+          const moved = { x: e.target.x() - px.w / 2, y: e.target.y() - px.h / 2, w: px.w, h: px.h, rotDeg };
+          if (onMoveEnd) onMoveEnd(moved);
+          else onChange(moved);
         }}
         onTransformEnd={() => {
           const n = ref.current;
@@ -615,6 +710,7 @@ function SlotFrame(props: {
         ref={trRef}
         rotateEnabled={false}
         keepRatio={false}
+        padding={pad ?? 0}
         enabledAnchors={[
           "top-left",
           "top-right",
@@ -1087,19 +1183,27 @@ function Slot(props: {
       )}
       {/* SmartAlbums-style chrome: ONE thin border when selected, a faint
           outline only on EMPTY frames (a photo's own edge is enough). */}
-      {(dropTarget || crop || selected || !img) && (
-        <Rect
-          x={px.x}
-          y={px.y}
-          width={px.w}
-          height={px.h}
-          stroke={dropTarget ? "#10b981" : crop ? "#f59e0b" : selected ? "#6e76ff" : "rgba(60,40,90,0.18)"}
-          strokeWidth={dropTarget ? 3 : crop ? 2 : selected ? 2 : 1}
-          dash={crop ? [7, 5] : undefined}
-          listening={false}
-          perfectDrawEnabled={false}
-        />
-      )}
+      {(dropTarget || crop || selected || !img) && (() => {
+        // The photo border is stroke-centred on the frame edge; its inner half
+        // sits ON the image, so the visible image starts effBorderPx/2 inside
+        // the frame. INSET the selection outline by that so the blue line hugs
+        // the image itself (no white-border gap between image and outline).
+        const pad = selected && img && effBorderPx > 0 ? -(effBorderPx / 2) : 0;
+        return (
+          <Rect
+            x={px.x - pad}
+            y={px.y - pad}
+            width={px.w + pad * 2}
+            height={px.h + pad * 2}
+            cornerRadius={radiusPx}
+            stroke={dropTarget ? "#10b981" : crop ? "#f59e0b" : selected ? "#6e76ff" : "rgba(60,40,90,0.18)"}
+            strokeWidth={dropTarget ? 3 : crop ? 2 : selected ? 2 : 1}
+            dash={crop ? [7, 5] : undefined}
+            listening={false}
+            perfectDrawEnabled={false}
+          />
+        );
+      })()}
       {/* §10.3 low-resolution warning: photo would print below DPI_LOW */}
       {dpi < DPI_LOW && (
         <Group x={px.x + 13} y={px.y + 13} listening={false}>
@@ -1201,6 +1305,9 @@ export function SpreadCanvas() {
 
   // Smart guides lighting up while a frame is being dragged (SmartAlbums).
   const [liveGuides, setLiveGuides] = useState<{ v: SnapGuide[]; h: SnapGuide[] } | null>(null);
+  // Canva-style live distance labels — the dragged object's rect + z-key.
+  const [dragRect, setDragRect] = useState<Px | null>(null);
+  const [dragKey, setDragKey] = useState<string | null>(null);
   const alignAnchor = useAlbum((s) => s.alignAnchor);
   // Layout mode (click the spread background): ruler + frame editing live
   // here; photo-swap dragging belongs to the normal mode outside.
@@ -1562,19 +1669,62 @@ export function SpreadCanvas() {
    *  targets sitting exactly `gapPt` outside each neighbour's edge, so two
    *  frames snap to the configured spacing (lit up yellow). */
   const snapGapPx = pxPerCm ? settings.gapPt * PT_TO_CM * pxPerCm : 0;
-  const snapTargets = (excludeIdx: number | null) => {
+  // The photo border is stroke-centred on the frame, so the selection outline
+  // (and the visible image edge) sit borderHalf INSIDE the frame. Snap/guide to
+  // that inset edge so the yellow align line lands exactly on the blue border.
+  const borderHalf = pxPerCm ? (settings.borderPt * PT_TO_CM * pxPerCm) / 2 : 0;
+  // Visible rect of any object for snapping: photo frames inset by the border
+  // half (so guides hit the blue outline); text/typo/element use their own box.
+  const visRectOf = (k: string): Px | null => {
+    const raw = keyRect(k);
+    if (!raw) return null;
+    const inset = k[0] === "s" ? borderHalf : 0;
+    return { x: raw.x + inset, y: raw.y + inset, w: raw.w - inset * 2, h: raw.h - inset * 2 };
+  };
+  const snapTargets = (excludeKey: string | null) => {
     const xs: SnapGuide[] = [0, stageW / 4, stageW / 2, (3 * stageW) / 4, stageW, ...guides.v.map((g) => g * stageW)].map((p) => ({ p }));
     const ys: SnapGuide[] = [0, stageH / 4, stageH / 2, (3 * stageH) / 4, stageH, ...guides.h.map((g) => g * stageH)].map((p) => ({ p }));
-    effSlots.forEach((s, i) => {
-      if (i === excludeIdx) return;
-      const r = rawPx(s);
-      xs.push({ p: r.x }, { p: r.x + r.w / 2 }, { p: r.x + r.w });
-      ys.push({ p: r.y }, { p: r.y + r.h / 2 }, { p: r.y + r.h });
-      if (snapGapPx > 0) {
-        xs.push({ p: r.x - snapGapPx, g: true }, { p: r.x + r.w + snapGapPx, g: true });
-        ys.push({ p: r.y - snapGapPx, g: true }, { p: r.y + r.h + snapGapPx, g: true });
+
+    // Every OTHER object (photo / text / typo / element) → its visible rect.
+    const rects: Px[] = [];
+    for (const k of zKeysOf(spread, effSlots.length, tpl.texts.length)) {
+      if (k === excludeKey || (spread.hidden ?? []).includes(k)) continue;
+      if (k[0] === "s" && (spread.deletedSlots ?? []).includes(parseInt(k.slice(1), 10))) continue;
+      const r = visRectOf(k);
+      if (r) rects.push(r);
+    }
+
+    const vGaps = new Set<number>();
+    const hGaps = new Set<number>();
+    if (snapGapPx > 0) {
+      vGaps.add(Math.round(snapGapPx));
+      hGaps.add(Math.round(snapGapPx));
+    }
+    // same-page only (don't reproduce a gap that spans the gutter)
+    const twoPageT = pagesEff === 2;
+    const gutterT = stageW / 2;
+    const pageOfT = (r: Px) => (!twoPageT ? 0 : r.x + r.w / 2 < gutterT ? 0 : 1);
+    for (const a of rects)
+      for (const b of rects) {
+        if (a === b || pageOfT(a) !== pageOfT(b)) continue;
+        if (a.x < b.x + b.w && a.x + a.w > b.x) {
+          const g = b.y - (a.y + a.h);
+          if (g > 2) vGaps.add(Math.round(g));
+        }
+        if (a.y < b.y + b.h && a.y + a.h > b.y) {
+          const g = b.x - (a.x + a.w);
+          if (g > 2) hGaps.add(Math.round(g));
+        }
       }
-    });
+
+    for (const r of rects) {
+      const xL = r.x, xR = r.x + r.w;
+      const yT = r.y, yB = r.y + r.h;
+      xs.push({ p: xL }, { p: r.x + r.w / 2 }, { p: xR });
+      ys.push({ p: yT }, { p: r.y + r.h / 2 }, { p: yB });
+      for (const g of hGaps) xs.push({ p: xL - g, g: true }, { p: xR + g, g: true });
+      for (const g of vGaps) ys.push({ p: yT - g, g: true }, { p: yB + g, g: true });
+    }
     return { xs, ys };
   };
 
@@ -1583,9 +1733,9 @@ export function SpreadCanvas() {
    *  to hit, per leader feedback) and win ties; centers never gap-snap. */
   const liveSnapRect = (
     r: Px,
-    excludeIdx: number | null
+    excludeKey: string | null
   ): { x: number; y: number; v: SnapGuide[]; h: SnapGuide[] } => {
-    const { xs, ys } = snapTargets(excludeIdx);
+    const { xs, ys } = snapTargets(excludeKey);
     const pick = (edges: number[], targets: SnapGuide[]): { d: number; t: SnapGuide } | null => {
       let best: { d: number; t: SnapGuide } | null = null;
       edges.forEach((edge, ei) => {
@@ -1599,8 +1749,10 @@ export function SpreadCanvas() {
       });
       return best;
     };
-    const bx = pick([r.x, r.x + r.w / 2, r.x + r.w], xs);
-    const by = pick([r.y, r.y + r.h / 2, r.y + r.h], ys);
+    // photos match on their inset (border) edge; text/typo/element on their box
+    const ins = excludeKey?.[0] === "s" ? borderHalf : 0;
+    const bx = pick([r.x + ins, r.x + r.w / 2, r.x + r.w - ins], xs);
+    const by = pick([r.y + ins, r.y + r.h / 2, r.y + r.h - ins], ys);
     return {
       x: r.x + (bx?.d ?? 0),
       y: r.y + (by?.d ?? 0),
@@ -1609,10 +1761,62 @@ export function SpreadCanvas() {
     };
   };
 
+  // Canva-style live distance labels: while dragging a frame, show the WHOLE
+  // chain of gaps (in cm) between every consecutive frame in its column and its
+  // row — so equal spacings (0,3 · 0,3 · 0,3) are obvious and easy to match.
+  const distBadges: { left: number; top: number; text: string }[] = (() => {
+    if (!dragRect || !pxPerCm || !dragKey) return [];
+    const cm = (p: number) => (p / pxPerCm).toFixed(1).replace(".", ",");
+    // dragged object's VISIBLE rect (photos inset by their border)
+    const ins = dragKey[0] === "s" ? borderHalf : 0;
+    const dr: Px = {
+      x: dragRect.x + ins,
+      y: dragRect.y + ins,
+      w: dragRect.w - ins * 2,
+      h: dragRect.h - ins * 2,
+    };
+    // Measure only WITHIN the same page (gutter x=½ splits a 2-page spread).
+    const twoPage = pagesEff === 2;
+    const gutter = stageW / 2;
+    const pageOf = (r: Px) => (!twoPage ? 0 : r.x + r.w / 2 < gutter ? 0 : 1);
+    const drPage = pageOf(dr);
+    const others: Px[] = [];
+    for (const k of zKeysOf(spread, effSlots.length, tpl.texts.length)) {
+      if (k === dragKey || (spread.hidden ?? []).includes(k)) continue;
+      if (k[0] === "s" && (spread.deletedSlots ?? []).includes(parseInt(k.slice(1), 10))) continue;
+      const r = visRectOf(k);
+      if (r && pageOf(r) === drPage) others.push(r);
+    }
+    const xOverlap = (r: Px) => r.x < dr.x + dr.w && r.x + r.w > dr.x;
+    const yOverlap = (r: Px) => r.y < dr.y + dr.h && r.y + r.h > dr.y;
+    const mid = (a: number, b: number) => (a + b) / 2;
+    const out: { left: number; top: number; text: string }[] = [];
+
+    // vertical chain — the dragged object's COLUMN (objects sharing x-overlap)
+    const col = [dr, ...others.filter(xOverlap)].sort((a, b) => a.y - b.y);
+    for (let i = 0; i < col.length - 1; i++) {
+      const a = col[i], b = col[i + 1];
+      const g = b.y - (a.y + a.h);
+      if (g <= 2) continue;
+      const ox0 = Math.max(a.x, b.x), ox1 = Math.min(a.x + a.w, b.x + b.w);
+      out.push({ left: mid(ox0, ox1), top: mid(a.y + a.h, b.y), text: cm(g) });
+    }
+    // horizontal chain — the dragged object's ROW (objects sharing y-overlap)
+    const row = [dr, ...others.filter(yOverlap)].sort((a, b) => a.x - b.x);
+    for (let i = 0; i < row.length - 1; i++) {
+      const a = row[i], b = row[i + 1];
+      const g = b.x - (a.x + a.w);
+      if (g <= 2) continue;
+      const oy0 = Math.max(a.y, b.y), oy1 = Math.min(a.y + a.h, b.y + b.h);
+      out.push({ left: mid(a.x + a.w, b.x), top: mid(oy0, oy1), text: cm(g) });
+    }
+    return out;
+  })();
+
   /** §7.2 snap: pull frame edges onto guides / spread edges / center (±7px). */
   const snapRect = (r: Px): Px => {
     const t = 7;
-    const { xs: xsT, ys: ysT } = snapTargets(selectedSlot);
+    const { xs: xsT, ys: ysT } = snapTargets(selectedSlot != null ? `s${selectedSlot}` : null);
     const xs = xsT.map((c) => c.p);
     const ys = ysT.map((c) => c.p);
     const near = (v: number, cands: number[]) => {
@@ -1958,6 +2162,8 @@ export function SpreadCanvas() {
               height={stageH}
               fill={bgColor}
               onMouseDown={(e) => {
+                // Marquee (group-select) only in layout-edit mode; preview blocks it.
+                if (!spreadSelected) return;
                 // Drag from the background = marquee selection. Window-level
                 // listeners own the whole gesture; the mouseup is blocked at
                 // CAPTURE so Konva never synthesizes a click that would
@@ -2141,6 +2347,8 @@ export function SpreadCanvas() {
                   frameRot={spread.slotRects?.[i]?.rotDeg ?? 0}
                   transform={spread.transforms[i] ?? DEFAULT_T}
                   onSelect={(pt, alt) => {
+                    // grouping only in layout-edit mode (preview blocks it)
+                    if (shiftRef.current && !useAlbum.getState().spreadSelected) return;
                     if (shiftRef.current) {
                       // ⌘/Shift-click thường: toggle phần tử trên cùng (ổn định).
                       // GIỮ THÊM ⌥(Alt): khoan xuống lớp bị che (Photoshop).
@@ -2215,6 +2423,7 @@ export function SpreadCanvas() {
               return (
                 <TplText
                   key={`t${i}`}
+                  editable={spreadSelected}
                   px={{ x: (tx.x + dx) * stageW, y: (tx.y + dy) * stageH, w: tx.w * stageW, h: tx.h * stageH }}
                   ed={ed}
                   content={content}
@@ -2238,6 +2447,9 @@ export function SpreadCanvas() {
                       : selectText({ kind: "tpl", index: i })
                   }
                   onMoved={(xp, yp) => editTplText(i, { dx: xp / stageW - tx.x, dy: yp / stageH - tx.y })}
+                  onSnap={(r) => liveSnapRect(r, `t${i}`)}
+                  onGuides={setLiveGuides}
+                  onMeasure={(r) => { setDragRect(r); setDragKey(r ? `t${i}` : null); }}
                   onTransformed={(t) =>
                     editTplText(i, {
                       scaleX: t.scaleX,
@@ -2261,6 +2473,7 @@ export function SpreadCanvas() {
               return (
                 <EditableText
                   key={a.id}
+                  editable={spreadSelected}
                   x={a.x * stageW}
                   y={a.y * stageH}
                   w={stageW * 0.5}
@@ -2278,6 +2491,9 @@ export function SpreadCanvas() {
                       ? useAlbum.getState().toggleMultiSel(`a${a.id}`)
                       : selectText({ kind: "added", id: a.id })
                   }
+                  onSnap={(r) => liveSnapRect(r, `a${a.id}`)}
+                  onGuides={setLiveGuides}
+                  onMeasure={(r) => { setDragRect(r); setDragKey(r ? `a${a.id}` : null); }}
                   onMoved={(xp, yp) => updateAddedText(a.id, { x: xp / stageW, y: yp / stageH })}
                   onTransformed={(t) =>
                     updateAddedText(a.id, {
@@ -2301,7 +2517,8 @@ export function SpreadCanvas() {
                 return (
                   <ElementNode
                     key={pe.id}
-                    element={el}
+                    editable={spreadSelected}
+                      element={el}
                     pe={pe}
                     stageW={stageW}
                     stageH={stageH}
@@ -2311,6 +2528,9 @@ export function SpreadCanvas() {
                         ? useAlbum.getState().toggleMultiSel(`e${pe.id}`)
                         : selectElement(pe.id)
                     }
+                    onSnap={(r) => liveSnapRect(r, `e${pe.id}`)}
+                    onGuides={setLiveGuides}
+                    onMeasure={(r) => { setDragRect(r); setDragKey(r ? `e${pe.id}` : null); }}
                     onMoved={(nx, ny) => updateElement(pe.id, { x: nx, y: ny })}
                     onResize={(w) => updateElement(pe.id, { w })}
                     onTransformed={(t) =>
@@ -2334,6 +2554,7 @@ export function SpreadCanvas() {
               return (
                 <TypoNode
                   key={pt.id}
+                  editable={spreadSelected}
                   typo={typo}
                   pt={pt}
                   stageW={stageW}
@@ -2344,6 +2565,9 @@ export function SpreadCanvas() {
                       ? useAlbum.getState().toggleMultiSel(`y${pt.id}`)
                       : selectTypo(pt.id)
                   }
+                  onSnap={(r) => liveSnapRect(r, `y${pt.id}`)}
+                  onGuides={setLiveGuides}
+                  onMeasure={(r) => { setDragRect(r); setDragKey(r ? `y${pt.id}` : null); }}
                   onMoved={(nx, ny) => updateTypo(pt.id, { x: nx, y: ny })}
                   onResize={(w) => updateTypo(pt.id, { w })}
                   onTransformed={(t) =>
@@ -2364,8 +2588,32 @@ export function SpreadCanvas() {
               <SlotFrame
                 px={rawPx(effSlots[selectedSlot])}
                 rotDeg={spread.slotRects?.[selectedSlot]?.rotDeg ?? 0}
-                onLiveSnap={(r) => liveSnapRect(r, selectedSlot)}
+                onLiveSnap={(r) => liveSnapRect(r, `s${selectedSlot}`)}
                 onGuides={setLiveGuides}
+                onMeasure={(r) => {
+                  setDragRect(r);
+                  setDragKey(r ? `s${selectedSlot}` : null);
+                }}
+                onLiveMove={(r) => {
+                  useAlbum.getState().setSlotRect(selectedSlot, {
+                    x: (r.x - padIn) / innerW,
+                    y: (r.y - padIn) / innerH,
+                    w: r.w / innerW,
+                    h: r.h / innerH,
+                    rotDeg: spread.slotRects?.[selectedSlot]?.rotDeg ?? 0,
+                  });
+                }}
+                onMoveEnd={(r) => {
+                  // commit the already-snapped position as-is (no resize re-snap)
+                  useAlbum.getState().setSlotRect(selectedSlot, {
+                    x: (r.x - padIn) / innerW,
+                    y: (r.y - padIn) / innerH,
+                    w: r.w / innerW,
+                    h: r.h / innerH,
+                    rotDeg: r.rotDeg,
+                  });
+                }}
+                pad={pxPerCm ? -(settings.borderPt * PT_TO_CM * pxPerCm) / 2 : 0}
                 onChange={(raw) => {
                   const straight = Math.abs(((raw.rotDeg % 360) + 360) % 360) < 0.5;
                   const r = straight ? snapRect(raw) : raw;
@@ -2555,6 +2803,18 @@ export function SpreadCanvas() {
                 boxShadow: gd.g ? "0 0 6px #f5b301" : "0 0 4px var(--accent)",
               }}
             />
+          ))}
+
+        {/* Canva-style distance labels while dragging a frame */}
+        {dragRect &&
+          distBadges.map((b, i) => (
+            <div
+              key={`db${i}`}
+              className="dist-badge"
+              style={{ left: b.left, top: b.top }}
+            >
+              {b.text}
+            </div>
           ))}
 
         {/* align anchor (G): the reference frame others align to */}
