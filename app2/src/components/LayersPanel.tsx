@@ -131,6 +131,16 @@ function selectLayer(key: string) {
   else if (key[0] === "e") st.selectElement(key.slice(1));
 }
 
+/** Route a delete to the matching remove action (photo empties the frame). */
+function deleteLayer(key: string) {
+  const st = useAlbum.getState();
+  if (key[0] === "s") st.removeSlot(parseInt(key.slice(1), 10));
+  else if (key[0] === "t") st.deleteTplText(parseInt(key.slice(1), 10));
+  else if (key[0] === "a") st.removeAddedText(key.slice(1));
+  else if (key[0] === "y") st.removeTypo(key.slice(1));
+  else if (key[0] === "e") st.removeElement(key.slice(1));
+}
+
 export function LayersPanel() {
   const spreads = useAlbum((s) => s.spreads);
   const currentIndex = useAlbum((s) => s.currentIndex);
@@ -163,9 +173,11 @@ export function LayersPanel() {
     setDragKey(null);
   };
 
+  const selectedKey = layers.find((l) => l.selected)?.key ?? null;
+
   return (
     <div className="layers">
-      <div className="prop-label layers-head">Layers · {layers.length}</div>
+      <div className="layers-title">Layers</div>
       {layers.length === 0 ? (
         <div className="prop-empty">Nothing on this spread yet.</div>
       ) : (
@@ -187,14 +199,14 @@ export function LayersPanel() {
               title={l.label}
             >
               <button
-                className="layer-eye"
+                className={"layer-eye" + (l.hidden ? " off" : "")}
                 title={l.hidden ? "Show layer" : "Hide layer"}
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleLayerHidden(l.key);
                 }}
               >
-                {l.hidden ? "🚫" : "👁"}
+                <span className="eye-icon" />
               </button>
               <span className={"layer-thumb type-" + l.type}>
                 {l.thumb ? (
@@ -208,7 +220,19 @@ export function LayersPanel() {
           ))}
         </ul>
       )}
-      <div className="hint-sm">Drag to reorder · 👁 to hide · click to select.</div>
+
+      {/* PSD-style action bar */}
+      <div className="layers-bar">
+        <span className="layers-count">{layers.length} layer{layers.length === 1 ? "" : "s"}</span>
+        <button
+          className="lbar-btn danger"
+          title="Delete selected layer"
+          disabled={!selectedKey}
+          onClick={() => selectedKey && deleteLayer(selectedKey)}
+        >
+          🗑
+        </button>
+      </div>
     </div>
   );
 }
