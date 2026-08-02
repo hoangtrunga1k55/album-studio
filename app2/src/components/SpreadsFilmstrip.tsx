@@ -39,11 +39,17 @@ export function SpreadsFilmstrip() {
   /** photos hovering over the "add spread" card. */
   const [addOver, setAddOver] = useState(false);
 
-  // Keep the active card in view when stepping with </> or clicking.
+  // Keep the active spread centered in the strip (SmartAlbums-style). Compute
+  // the exact delta and scroll the track — deterministic, so </> stepping,
+  // clicks and wheel all land the active card dead-centre.
   useEffect(() => {
-    trackRef.current
-      ?.querySelector(".fs2-card.active")
-      ?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    const track = trackRef.current;
+    const card = track?.querySelector<HTMLElement>(".fs2-card.active");
+    if (!track || !card) return;
+    const tr = track.getBoundingClientRect();
+    const cr = card.getBoundingClientRect();
+    const delta = cr.left + cr.width / 2 - (tr.left + tr.width / 2);
+    if (Math.abs(delta) > 1) track.scrollBy({ left: delta, behavior: "smooth" });
   }, [currentIndex]);
 
   useEffect(() => () => window.clearTimeout(armTimer.current), []);

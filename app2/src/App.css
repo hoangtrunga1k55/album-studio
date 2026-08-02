@@ -419,7 +419,10 @@ button.btn.icon {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 16px;
+  /* half-viewport "runway" both sides so ANY card (incl. first/last) can scroll
+     to the exact centre — the active spread always sits mid-screen, the rest
+     slide around it */
+  padding: 0 calc(50% - 80px);
   overflow-x: auto;
 }
 .fs2-card {

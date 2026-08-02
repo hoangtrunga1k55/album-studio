@@ -114,8 +114,8 @@
 /* album spreads: a FIXED-PIXEL-HEIGHT box (no aspect-ratio — WKWebView can
    fail to reserve aspect height, which let cells collapse and overlap). The
    image is absolute so its natural size can never grow the cell → every cell
-   is exactly 100px tall, columns stay aligned, nothing overlaps. `contain`
-   shows the whole spread uncropped. */
+   is the same height (covers = 1 page and layouts = 2 pages stay aligned).
+   `contain` shows the whole thumbnail uncropped. */
 .kho-cell.album {
   aspect-ratio: auto;
   height: 100px;

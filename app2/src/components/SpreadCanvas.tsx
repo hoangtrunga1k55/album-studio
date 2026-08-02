@@ -1394,12 +1394,19 @@ export function SpreadCanvas() {
           if (st.selectedText.kind === "tpl") st.deleteTplText(st.selectedText.index);
           else st.removeAddedText(st.selectedText.id);
         } else if (st.selectedSlot !== null) {
-          // layout mode + hand-drawn extra frame → Delete removes the frame
           const curSp = st.spreads[st.currentIndex];
           const tplNow = getTemplate(curSp?.templateId ?? null);
           const tplSlots = tplNow?.slots.length ?? 0;
-          if (st.spreadSelected && st.selectedSlot >= tplSlots) st.removeDrawnSlot(st.selectedSlot);
-          else st.clearSlot(st.selectedSlot);
+          const hasImg = !!curSp?.imageIds[st.selectedSlot];
+          if (st.spreadSelected && st.selectedSlot >= tplSlots) {
+            st.removeDrawnSlot(st.selectedSlot); // drawn extra → remove the frame
+          } else if (hasImg) {
+            st.clearSlot(st.selectedSlot); // slot with a photo → just empty it
+          } else if (st.spreadSelected) {
+            st.removeSlot(st.selectedSlot); // empty frame in layout mode → remove it
+          } else {
+            st.clearSlot(st.selectedSlot);
+          }
         }
         // nothing on the canvas selected (and no tray photos — the tray owns
         // Delete then) → remove the CURRENT spread
@@ -2113,6 +2120,8 @@ export function SpreadCanvas() {
               const i = parseInt(zk.slice(1), 10);
               const slot = effSlots[i];
               if (!slot) return null;
+              if ((spread.deletedSlots ?? []).includes(i)) return null; // frame removed
+
               const imgId = spread.imageIds[i];
               const img = imgId ? images.find((im) => im.id === imgId) : undefined;
               return (

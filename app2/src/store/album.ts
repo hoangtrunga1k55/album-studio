@@ -150,6 +150,9 @@ export interface Spread {
   bg?: SpreadBg;
   /** slotIndex → user-moved/resized frame (normalized), overrides the template. */
   slotRects?: Record<number, SlotRect>;
+  /** template slot indices deleted from THIS spread (frame removed, not just
+   *  emptied) — not rendered/exported. Drawn extras use `removeDrawnSlot`. */
+  deletedSlots?: number[];
   /** Unified paint order (Arrange): photo slots (`s<i>`), template texts
    *  (`t<i>`), added texts (`a<id>`) and typos (`y<id>`) all in ONE list —
    *  first = bottom, last = top, so text/typo can sit UNDER photos too.
@@ -597,6 +600,9 @@ interface AlbumState {
   addDrawnSlot: (rect: SlotRect) => void;
   /** Remove a hand-drawn frame (index >= template slot count). */
   removeDrawnSlot: (slotIndex: number) => void;
+  /** Delete a frame from THIS spread: a hand-drawn extra is compacted away
+   *  (removeDrawnSlot), a template slot is marked deleted (deletedSlots). */
+  removeSlot: (slotIndex: number) => void;
   /** Set gap between photos for the current spread. */
   setMargin: (margin: number) => void;
   /** Set photo→edge padding for the current spread (§6.6). */
@@ -801,7 +807,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       bgColor: p.bgColor,
       density: p.density,
       currentIndex: p.currentIndex,
-      spreads: p.spreads.map((sp) => ({ ...sp, typos: sp.typos ?? [], elements: sp.elements ?? [], hidden: sp.hidden ?? [] })),
+      spreads: p.spreads.map((sp) => ({ ...sp, typos: sp.typos ?? [], elements: sp.elements ?? [], hidden: sp.hidden ?? [], deletedSlots: sp.deletedSlots ?? [] })),
       images: [],
       selectedSlot: null,
       selectedText: null,
@@ -1371,6 +1377,35 @@ export const useAlbum = create<AlbumState>((set) => ({
       cur.transforms = transforms;
       cur.zOrder = undefined; // slot indices shifted — drop the custom paint order
       spreads[s.currentIndex] = cur;
+      return { spreads, selectedSlot: null };
+    }),
+
+  removeSlot: (slotIndex) =>
+    set((s) => {
+      const cur = s.spreads[s.currentIndex];
+      const tpl = getTemplate(cur?.templateId ?? null);
+      const base = tpl?.slotCount ?? 0;
+      // Hand-drawn extra frame → reuse the compacting removal.
+      if (slotIndex >= base) {
+        // defer to removeDrawnSlot's logic by calling it inline
+        return s; // handled by caller via removeDrawnSlot
+      }
+      // Template slot → mark deleted for this spread + clear its content.
+      const spreads = [...s.spreads];
+      const next = { ...cur };
+      const deleted = new Set(next.deletedSlots ?? []);
+      deleted.add(slotIndex);
+      next.deletedSlots = [...deleted];
+      const imageIds = [...next.imageIds];
+      imageIds[slotIndex] = "";
+      next.imageIds = imageIds;
+      const transforms = { ...next.transforms };
+      delete transforms[slotIndex];
+      next.transforms = transforms;
+      const slotRects = { ...(next.slotRects ?? {}) };
+      delete slotRects[slotIndex];
+      next.slotRects = slotRects;
+      spreads[s.currentIndex] = next;
       return { spreads, selectedSlot: null };
     }),
 
