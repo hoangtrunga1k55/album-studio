@@ -74,6 +74,19 @@ button {
 }
 
 /* ============================== app shell ============================== */
+/* outer shell: (Windows) custom menu bar on top + the app filling the rest */
+.app-shell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-0);
+}
+.app-shell-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
 .app {
   height: 100vh;
   display: grid;
@@ -82,6 +95,12 @@ button {
   background: var(--bg-0);
   color: var(--text);
   overflow: hidden;
+}
+/* inside the shell the app fills the leftover height (menu bar took its slice) */
+.app-shell > .app {
+  height: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 /* workspace row: left stack (canvas + tray) beside the full-height props column */

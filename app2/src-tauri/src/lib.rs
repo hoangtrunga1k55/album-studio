@@ -14,9 +14,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init());
 
-    // macOS: native app/menu bar (⌘ accelerators + clipboard items). Windows
-    // uses RegisterHotKey below + the in-app top bar, so the native menu strip
-    // (which renders light and clashes with the dark UI) is skipped there.
+    // macOS: native app/menu bar (⌘ accelerators + clipboard). Windows uses a
+    // custom dark HTML menu (CustomMenuBar) instead of the light Win32 strip.
     let builder = builder.on_menu_event(|app, event| {
         use tauri::Emitter;
         let id = event.id().as_ref();

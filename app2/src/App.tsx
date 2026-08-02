@@ -45,6 +45,7 @@ import { SpreadsFilmstrip } from "./components/SpreadsFilmstrip";
 import { PropertiesPanel } from "./components/PropertiesPanel";
 import { PhotoTray } from "./components/PhotoTray";
 import { TooltipLayer } from "./components/TooltipLayer";
+import { CustomMenuBar } from "./components/CustomMenuBar";
 import { LayoutDock } from "./components/LayoutStrip";
 import { ExportDialog } from "./components/ExportDialog";
 import { AutoDesignDialog } from "./components/AutoDesignDialog";
@@ -60,7 +61,7 @@ import { useFonts } from "./store/fonts";
 import { syncRecentMenu, useProject } from "./store/project";
 import { clearHistory, initHistory, redo, undo } from "./store/history";
 import { IconExport, IconFlip, IconLayout, IconSettings, IconSparkle } from "./icons";
-import { mod } from "./engine/platform";
+import { mod, IS_MAC } from "./engine/platform";
 import "./App.css";
 
 function App() {
@@ -267,6 +268,16 @@ function App() {
   const menuActionRef = useRef(menuAction);
   menuActionRef.current = menuAction;
 
+  // Zoom actions — shared by the native/hotkey "zoom-cmd" events and the custom
+  // (Windows) HTML menu.
+  function doZoom(id: string) {
+    const st = useAlbum.getState();
+    if (id === "zoom_in") st.setViewZoom(Math.min(4, st.viewZoom * 1.25));
+    else if (id === "zoom_out") st.setViewZoom(Math.max(1, st.viewZoom / 1.25));
+    else if (id === "zoom_fit") st.setViewZoom(1);
+    else if (id === "zoom_100") window.dispatchEvent(new Event("albumstudio:zoom100"));
+  }
+
   // Native menu (Tệp/Xem trên macOS & Windows) → menu-cmd events.
   useEffect(() => {
     syncRecentMenu(); // đổ danh sách "Mở gần đây" vào menu ngay khi app mở
@@ -366,13 +377,7 @@ function App() {
   // Zoom shortcuts arrive as NATIVE events (lib.rs): macOS qua menu accelerator,
   // Windows qua RegisterHotKey khi cửa sổ focus — bộ gõ không chặn được.
   useEffect(() => {
-    const un = listen<string>("zoom-cmd", (e) => {
-      const st = useAlbum.getState();
-      if (e.payload === "zoom_in") st.setViewZoom(Math.min(4, st.viewZoom * 1.25));
-      else if (e.payload === "zoom_out") st.setViewZoom(Math.max(1, st.viewZoom / 1.25));
-      else if (e.payload === "zoom_fit") st.setViewZoom(1);
-      else if (e.payload === "zoom_100") window.dispatchEvent(new Event("albumstudio:zoom100"));
-    });
+    const un = listen<string>("zoom-cmd", (e) => doZoom(e.payload));
     return () => {
       void un.then((f) => f());
     };
@@ -386,10 +391,13 @@ function App() {
 
   if (!projectPath || !size)
     return (
-      <>
-        <Welcome />
-        <TooltipLayer />
-      </>
+      <div className="app-shell">
+        {!IS_MAC && <CustomMenuBar onFile={menuAction} onZoom={doZoom} />}
+        <div className="app-shell-body">
+          <Welcome />
+          <TooltipLayer />
+        </div>
+      </div>
     );
 
   const spread = spreads[currentIndex];
@@ -398,7 +406,9 @@ function App() {
     saveState === "saved" ? "Saved" : saveState === "error" ? "Save error!" : "Saving…";
 
   return (
-    <div className="app">
+    <div className="app-shell">
+      {!IS_MAC && <CustomMenuBar onFile={menuAction} onZoom={doZoom} />}
+      <div className="app">
       <TooltipLayer />
       <header className="topbar">
         <div className="topleft">
@@ -550,6 +560,7 @@ function App() {
           <div className="drop-overlay-box">＋ Drop photos here to add</div>
         </div>
       )}
+      </div>
     </div>
   );
 }

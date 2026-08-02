@@ -110,17 +110,15 @@ pub fn build_menu<R: Runtime>(
 }
 
 /// Frontend pushes its recents (localStorage) → rebuild the whole menu.
-/// macOS only — Windows has no native menu bar (kept the dark UI clean).
 #[tauri::command]
 pub fn update_recent_menu(app: AppHandle, recents: Vec<(String, String)>) -> Result<(), String> {
+    // macOS only — Windows uses the custom HTML menu, no native menu to update.
     #[cfg(target_os = "macos")]
     {
         let menu = build_menu(&app, &recents).map_err(|e| e.to_string())?;
         app.set_menu(menu).map_err(|e| e.to_string())?;
     }
     #[cfg(not(target_os = "macos"))]
-    {
-        let _ = (&app, &recents);
-    }
+    let _ = (&app, &recents);
     Ok(())
 }
