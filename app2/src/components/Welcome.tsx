@@ -55,13 +55,13 @@ export function Welcome() {
         <div className="welcome-card">
           <div className="welcome-brand">
             <div className="welcome-mark">A</div>
-            <h1>Album Studio</h1>
-            <p className="welcome-sub">Professional wedding album design</p>
+            <h1>Chưa tạo album</h1>
+            <p className="welcome-sub">Vui lòng tạo album để bắt đầu.</p>
           </div>
 
           <div className="welcome-actions">
             <button className="w-btn primary" onClick={() => setWizard(true)} disabled={busy}>
-              + New album
+              ＋ Tạo album mới
             </button>
             <button className="w-btn" onClick={() => handleFromTemplate()} disabled={busy}>
               New from template…
@@ -124,7 +124,7 @@ const round1 = (v: number) => Math.round(v * 10) / 10;
 /** SmartAlbums-style "New Album" — ONE modal, two steps:
  *  1. Khổ album (custom → unit/DPI/output dimensions/safe zone/trim) + số spread
  *  2. Trang trí: background color, border & gap quanh ảnh, bộ layout. */
-function NewAlbumWizard({ onClose }: { onClose: () => void }) {
+export function NewAlbumWizard({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
   const [size, setSize] = useState<AlbumSize>("25x35");

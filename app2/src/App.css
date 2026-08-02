@@ -361,6 +361,111 @@ button.btn.icon {
   min-width: 0;
 }
 
+/* empty state in the canvas when no album is open yet */
+.empty-canvas {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-canvas);
+}
+.empty-box {
+  text-align: center;
+  padding: 30px 32px 22px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xl);
+  background: var(--bg-1);
+  box-shadow: var(--sh-pop);
+  width: 420px;
+  max-width: 90%;
+}
+.empty-mark {
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 14px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+.empty-box h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+.empty-box p {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.empty-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.empty-recents {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+.empty-recents-title {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.empty-recent {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "name size" "path path";
+  gap: 1px 8px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: var(--bg-2);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: 0.12s ease;
+}
+.empty-recent:hover {
+  border-color: var(--accent);
+  background: var(--bg-3);
+}
+.er-name {
+  grid-area: name;
+  font-size: 12.5px;
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.er-size {
+  grid-area: size;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.er-path {
+  grid-area: path;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* OS file-drop overlay (drag photos from Finder/Explorer into the window) */
 .drop-overlay {
   position: fixed;

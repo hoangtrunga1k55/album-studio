@@ -38,7 +38,8 @@ function ResizeHandle({
     />
   );
 }
-import { Welcome } from "./components/Welcome";
+import { NewAlbumWizard } from "./components/Welcome";
+import { newFromAlbumTemplate } from "./flows/albumTemplate";
 import { LeftPanel } from "./components/LeftPanel";
 import { SpreadCanvas } from "./components/SpreadCanvas";
 import { SpreadsFilmstrip } from "./components/SpreadsFilmstrip";
@@ -46,6 +47,7 @@ import { PropertiesPanel } from "./components/PropertiesPanel";
 import { PhotoTray } from "./components/PhotoTray";
 import { TooltipLayer } from "./components/TooltipLayer";
 import { CustomMenuBar } from "./components/CustomMenuBar";
+import { ResourceHub, hubShowsOnStartup } from "./components/ResourceHub";
 import { LayoutDock } from "./components/LayoutStrip";
 import { ExportDialog } from "./components/ExportDialog";
 import { AutoDesignDialog } from "./components/AutoDesignDialog";
@@ -58,16 +60,14 @@ import { importDroppedFiles } from "./ipc/import";
 import { loadSystemFonts } from "./engine/fontLibrary";
 import { useAlbum } from "./store/album";
 import { useFonts } from "./store/fonts";
-import { syncRecentMenu, useProject } from "./store/project";
-import { clearHistory, initHistory, redo, undo } from "./store/history";
+import { syncRecentMenu, useProject, loadRecents } from "./store/project";
+import { initHistory, redo, undo } from "./store/history";
 import { IconExport, IconFlip, IconLayout, IconSettings, IconSparkle } from "./icons";
 import { mod, IS_MAC } from "./engine/platform";
 import "./App.css";
 
 function App() {
   const projectPath = useProject((s) => s.path);
-  const projectName = useProject((s) => s.name);
-  const saveState = useProject((s) => s.saveState);
   const closeProject = useProject((s) => s.closeProject);
 
   const size = useAlbum((s) => s.size);
@@ -92,13 +92,21 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showFlip, setShowFlip] = useState(false);
   const [dropping, setDropping] = useState(false);
+  // Resource Hub (promo) — opens on launch unless the user unchecked it.
+  const [showHub, setShowHub] = useState(() => hubShowsOnStartup());
+  // New-album wizard modal (opened from the top bar / empty canvas / ⌘N).
+  const [showWizard, setShowWizard] = useState(() => {
+    const req = useProject.getState().wizardRequested;
+    if (req) useProject.getState().requestWizard(false);
+    return req;
+  });
 
   // Resizable panels (drag bars) — remembered across sessions.
   const [trayH, setTrayH] = useState(() => loadPx("albumstudio2.ui.trayH", 190));
   const [propsW, setPropsW] = useState(() => loadPx("albumstudio2.ui.propsW", 240));
   const [leftW, setLeftW] = useState(() => loadPx("albumstudio2.ui.leftW", 300));
   const [leftOpen, setLeftOpen] = useState(
-    () => localStorage.getItem("albumstudio2.ui.leftOpen") === "1"
+    () => localStorage.getItem("albumstudio2.ui.leftOpen") !== "0" // resources open by default
   );
   const [trayMin, setTrayMin] = useState(
     () => localStorage.getItem("albumstudio2.ui.trayMin") === "1"
@@ -245,13 +253,8 @@ function App() {
     } else if (id === "file_save_as") {
       void saveAsCopy().catch((err) => alert("Save copy error: " + String(err)));
     } else if (id === "file_new") {
-      void (async () => {
-        await saveNow();
-        useProject.getState().requestWizard(true);
-        useProject.getState().closeProject();
-        useAlbum.getState().resetAlbum();
-        clearHistory();
-      })();
+      void saveNow();
+      setShowWizard(true);
     } else if (id === "file_open") {
       void (async () => {
         await saveNow();
@@ -389,21 +392,9 @@ function App() {
     resetAlbum();
   }
 
-  if (!projectPath || !size)
-    return (
-      <div className="app-shell">
-        {!IS_MAC && <CustomMenuBar onFile={menuAction} onZoom={doZoom} />}
-        <div className="app-shell-body">
-          <Welcome />
-          <TooltipLayer />
-        </div>
-      </div>
-    );
-
+  const hasAlbum = !!(projectPath && size);
   const spread = spreads[currentIndex];
   const tpl = getTemplate(spread?.templateId ?? null);
-  const saveLabel =
-    saveState === "saved" ? "Saved" : saveState === "error" ? "Save error!" : "Saving…";
 
   return (
     <div className="app-shell">
@@ -416,13 +407,13 @@ function App() {
             <div className="brand-mark" onClick={backToWelcome} title="Back to home">
               A
             </div>
-            <div className="brand-text">
-              <div className="name">{projectName}</div>
-              <div className="sub">
-                {size} · {spreads.length} spread ·{" "}
-                <span className={saveState === "error" ? "save-err" : ""}>{saveLabel}</span>
-              </div>
-            </div>
+            <button
+              className="btn"
+              onClick={() => menuAction("file_new")}
+              title={`New / Import album (${mod("N")})`}
+            >
+              ＋ New album
+            </button>
           </div>
         </div>
 
@@ -461,7 +452,7 @@ function App() {
             <IconFlip />
             3D Show
           </button>
-          <button className="btn primary" onClick={() => setShowExport(true)}>
+          <button className="btn primary" onClick={() => setShowExport(true)} disabled={!hasAlbum}>
             <IconExport />
             Export album
           </button>
@@ -502,15 +493,57 @@ function App() {
               </button>
             )}
             <div className="center">
-              {layoutDock && <LayoutDock onClose={() => setLayoutDock(false)} />}
+              {hasAlbum && layoutDock && <LayoutDock onClose={() => setLayoutDock(false)} />}
               <div className="workzone">
-                <SpreadCanvas />
+                {hasAlbum ? (
+                  <SpreadCanvas />
+                ) : (
+                  <div className="empty-canvas">
+                    <div className="empty-box">
+                      <div className="empty-mark">A</div>
+                      <h3>Chưa tạo album</h3>
+                      <p>Vui lòng tạo album để bắt đầu thiết kế.</p>
+                      <div className="empty-actions">
+                        <button className="btn primary" onClick={() => setShowWizard(true)}>
+                          ＋ Tạo album mới
+                        </button>
+                        <button className="btn" onClick={() => void openProject().catch(() => {})}>
+                          Mở album…
+                        </button>
+                        <button className="btn" onClick={() => void newFromAlbumTemplate().catch(() => {})}>
+                          Từ mẫu…
+                        </button>
+                      </div>
+                      {(() => {
+                        const recents = loadRecents();
+                        if (!recents.length) return null;
+                        return (
+                          <div className="empty-recents">
+                            <div className="empty-recents-title">Gần đây</div>
+                            {recents.slice(0, 6).map((r) => (
+                              <button
+                                key={r.path}
+                                className="empty-recent"
+                                title={r.path}
+                                onClick={() => void openProject(r.path).catch(() => {})}
+                              >
+                                <span className="er-name">{r.name}</span>
+                                <span className="er-size">{r.size}</span>
+                                <span className="er-path">{r.path}</span>
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
               </div>
-              {!spreadSelected && <SpreadsFilmstrip />}
+              {hasAlbum && !spreadSelected && <SpreadsFilmstrip />}
             </div>
           </div>
           {/* the photo tray yields its space while the layout dock is open */}
-          {!layoutDock &&
+          {hasAlbum && !layoutDock &&
             (trayMin ? (
               <button className="tray-restore" onClick={() => setTrayMin(false)} title="Open photo tray">
                 ▴ Photos ({images.length})
@@ -555,6 +588,8 @@ function App() {
       {showDesign && <AutoDesignDialog onClose={() => setShowDesign(false)} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
       {showFlip && <FlipShow onClose={() => setShowFlip(false)} />}
+      {showWizard && <NewAlbumWizard onClose={() => setShowWizard(false)} />}
+      {showHub && <ResourceHub onClose={() => setShowHub(false)} />}
       {dropping && (
         <div className="drop-overlay">
           <div className="drop-overlay-box">＋ Drop photos here to add</div>
