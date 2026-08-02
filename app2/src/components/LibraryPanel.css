@@ -4,6 +4,11 @@
   min-height: 0;
   flex: 1;
   overflow: hidden;
+  /* branded texture: dark scrim over bg-assets so content stays legible.
+     scrim kept light enough that the image reads through the grid gaps */
+  background:
+    linear-gradient(180deg, rgba(18, 18, 20, 0.58), rgba(18, 18, 20, 0.68)),
+    url(/bg-assets.jpeg) center / cover no-repeat;
 }
 
 /* resource kind (ALBUM / TYPO / ELEMENT) */
@@ -45,22 +50,20 @@
   width: 100%;
 }
 
-/* category chips */
+/* category tabs (no "All") */
 .kho-cats {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   padding: 0 8px 8px;
   flex: none;
-  max-height: 88px;
-  overflow-y: auto;
 }
 .kho-cat {
-  padding: 3px 7px;
+  padding: 4px 9px;
   border: 1px solid var(--border-strong);
   background: transparent;
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: 10.5px;
   border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
@@ -71,7 +74,16 @@
 }
 .kho-cat.active {
   border-color: var(--accent);
+  background: var(--accent-soft);
   color: var(--accent-hi);
+}
+
+/* scroll region for the selected category's grid */
+.kho-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 8px 10px;
 }
 
 /* thumbnail grid */
@@ -79,13 +91,6 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 6px;
-  padding: 0 8px 10px;
-  /* own the leftover height and scroll inside it, so cells never pile up /
-     get clipped by the panel */
-  flex: 1 1 0;
-  min-height: 0;
-  overflow-y: auto;
-  align-content: start;
   align-items: start;
 }
 .kho-cell {
@@ -111,22 +116,21 @@
   object-fit: cover;
   display: block;
 }
-/* album spreads: a FIXED-PIXEL-HEIGHT box (no aspect-ratio — WKWebView can
-   fail to reserve aspect height, which let cells collapse and overlap). The
-   image is absolute so its natural size can never grow the cell → every cell
-   is the same height (covers = 1 page and layouts = 2 pages stay aligned).
-   `contain` shows the whole thumbnail uncropped. */
+/* album spreads: shown FULL at their natural aspect (grouped by category, so a
+   section's items share the same ratio → rows stay aligned). Covers (1 page)
+   render tall/portrait, layouts (2 pages) render wide. */
 .kho-cell.album {
   aspect-ratio: auto;
-  height: 100px;
+  height: auto;
   display: block;
+  background: transparent;
 }
 .kho-cell.album img {
-  position: absolute;
-  inset: 0;
+  position: static;
   width: 100%;
-  height: 100%;
-  object-fit: contain;
+  height: auto;
+  display: block;
+  object-fit: fill;
 }
 /* transparent stickers read better on a checker backdrop */
 .kho-cell.checker {

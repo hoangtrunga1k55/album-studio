@@ -21,17 +21,16 @@
   text-align: center;
 }
 .welcome-mark {
-  width: 58px;
-  height: 58px;
+  width: 88px;
+  height: 88px;
   margin: 0 auto 14px;
-  border-radius: 15px;
   display: grid;
   place-items: center;
-  font-size: 26px;
-  font-weight: 800;
-  color: #fff;
-  background: linear-gradient(135deg, var(--accent), var(--accent-hi));
-  box-shadow: 0 10px 34px var(--accent-glow);
+}
+.welcome-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .welcome-brand h1 {
   margin: 0;

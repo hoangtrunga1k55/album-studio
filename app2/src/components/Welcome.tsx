@@ -54,7 +54,7 @@ export function Welcome() {
       {!wizard && (
         <div className="welcome-card">
           <div className="welcome-brand">
-            <div className="welcome-mark">A</div>
+            <div className="welcome-mark"><img src="/logo.png" alt="TIZINE" draggable={false} /></div>
             <h1>Chưa tạo album</h1>
             <p className="welcome-sub">Vui lòng tạo album để bắt đầu.</p>
           </div>

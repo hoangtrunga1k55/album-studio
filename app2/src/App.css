@@ -140,16 +140,20 @@ button {
   gap: 10px;
 }
 .brand-mark {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border-radius: 9px;
-  background: var(--accent);
+  background: #17181a;
   display: grid;
   place-items: center;
-  color: #fff;
-  font-weight: 800;
-  font-size: 15px;
-  box-shadow: 0 4px 14px var(--accent-glow);
+  cursor: pointer;
+  overflow: hidden;
+}
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 3px;
 }
 .brand-text {
   line-height: 1.15;
@@ -377,22 +381,21 @@ button.btn.icon {
   border-radius: var(--r-xl);
   background: var(--bg-1);
   box-shadow: var(--sh-pop);
-  width: 420px;
-  max-width: 90%;
+  width: 480px;
+  max-width: 92%;
 }
 .empty-mark {
-  width: 46px;
-  height: 46px;
+  width: 72px;
+  height: 72px;
   margin: 0 auto 14px;
-  border-radius: 12px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 22px;
-  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px var(--accent-glow);
+}
+.empty-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .empty-box h3 {
   margin: 0 0 6px;
@@ -404,6 +407,9 @@ button.btn.icon {
   margin: 0 0 18px;
   font-size: 12.5px;
   color: var(--text-dim);
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }
 .empty-actions {
   display: flex;

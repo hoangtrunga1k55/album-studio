@@ -31,7 +31,7 @@ const distinctCats = (items: { category?: string }[]) =>
 
 export function LibraryPanel() {
   const [kind, setKind] = useState<Kind>("album");
-  const [cat, setCat] = useState("all");
+  const [cat, setCat] = useState<string>("");
 
   const layouts = useLibrary((s) => s.layouts);
   const typos = useTypos((s) => s.typos);
@@ -41,10 +41,7 @@ export function LibraryPanel() {
   const addElement = useAlbum((s) => s.addElement);
   const [elBusy, setElBusy] = useState(false);
 
-  const pickKind = (k: Kind) => {
-    setKind(k);
-    setCat("all");
-  };
+  const pickKind = (k: Kind) => setKind(k);
 
   /** Element library has no Settings entry — load its folder from here. */
   async function loadElements() {
@@ -61,27 +58,77 @@ export function LibraryPanel() {
     }
   }
 
-  // categories for the active kind
+  async function pickLayout(item: LayoutItem) {
+    const t = await ensureLibraryTemplate(item);
+    if (t) applyTemplate(t.id);
+  }
+
+  // Group the active kind's items by category → one section each (items in a
+  // category share an aspect, so thumbnails show FULL, aligned, no letterbox).
+  const catOf = (c?: string) => c || "khac";
   const cats =
     kind === "album"
       ? distinctCats(layouts)
       : kind === "typo"
         ? distinctCats(typos)
         : distinctCats(elements);
+  const isEmpty =
+    kind === "album" ? layouts.length === 0 : kind === "typo" ? typos.length === 0 : elements.length === 0;
+  // selected category tab (fall back to the first available)
+  const activeCat = cats.includes(cat) ? cat : cats[0] ?? "";
 
-  const inCat = (c?: string) => cat === "all" || (c || "khac") === cat;
-
-  async function pickLayout(item: LayoutItem) {
-    const t = await ensureLibraryTemplate(item);
-    if (t) applyTemplate(t.id);
-  }
-
-  const shownLayouts = layouts.filter((l) => inCat(l.category));
-  const shownTypos = typos.filter((t) => inCat(t.category));
-  const shownElements = elements.filter((e) => inCat(e.category));
-
-  const count =
-    kind === "album" ? shownLayouts.length : kind === "typo" ? shownTypos.length : shownElements.length;
+  const renderCell = (c: string) => {
+    if (kind === "album") {
+      return layouts
+        .filter((l) => catOf(l.category) === c)
+        .map((l) => (
+          <button
+            key={l.id}
+            className="kho-cell album"
+            title={`${l.name} · ${l.slotCount} slots`}
+            onClick={() => void pickLayout(l)}
+          >
+            {l.thumbPath ? (
+              <img src={fileUrl(l.thumbPath)} alt={l.name} draggable={false} />
+            ) : (
+              <span className="kho-ph">{l.slotCount}</span>
+            )}
+          </button>
+        ));
+    }
+    if (kind === "typo") {
+      return typos
+        .filter((t) => catOf(t.category) === c)
+        .map((t) => (
+          <button
+            key={t.id}
+            className="kho-cell"
+            title={t.category ?? ""}
+            onClick={() => {
+              void ensureTypoDeco(t.id);
+              addTypo(t.id, 0.34, 0.4);
+            }}
+          >
+            <img src={t.preview} alt="" loading="lazy" draggable={false} />
+          </button>
+        ));
+    }
+    return elements
+      .filter((e) => catOf(e.category) === c)
+      .map((e) => (
+        <button
+          key={e.id}
+          className="kho-cell checker"
+          title={e.name}
+          onClick={() => {
+            void ensureElementImage(e.id);
+            addElement(e.id, 0.4, 0.4);
+          }}
+        >
+          <img src={fileUrl(e.path)} alt="" loading="lazy" draggable={false} />
+        </button>
+      ));
+  };
 
   return (
     <div className="kho">
@@ -98,23 +145,6 @@ export function LibraryPanel() {
         ))}
       </div>
 
-      {/* category filter */}
-      <div className="kho-cats">
-        <button className={"kho-cat" + (cat === "all" ? " active" : "")} onClick={() => setCat("all")}>
-          All
-        </button>
-        {cats.map((c) => (
-          <button
-            key={c}
-            className={"kho-cat" + (cat === c ? " active" : "")}
-            onClick={() => setCat(c)}
-            title={c}
-          >
-            {c}
-          </button>
-        ))}
-      </div>
-
       {/* element library loads its own folder (no Settings entry) */}
       {kind === "element" && (
         <div className="kho-load">
@@ -124,61 +154,31 @@ export function LibraryPanel() {
         </div>
       )}
 
-      {/* grid */}
-      {count === 0 ? (
+      {isEmpty ? (
         <div className="kho-empty">
           {kind === "element"
             ? "No elements yet. Load a PNG/SVG folder (ribbons, seals, florals…) above."
             : "No " + kind + " assets yet. Import a pack folder in ⚙ Settings."}
         </div>
       ) : (
-        <div className="kho-grid">
-          {kind === "album" &&
-            shownLayouts.map((l) => (
+        <>
+          {/* category tabs (no "All") */}
+          <div className="kho-cats">
+            {cats.map((c) => (
               <button
-                key={l.id}
-                className="kho-cell album"
-                title={`${l.name} · ${l.slotCount} slots`}
-                onClick={() => void pickLayout(l)}
+                key={c}
+                className={"kho-cat" + (c === activeCat ? " active" : "")}
+                onClick={() => setCat(c)}
+                title={c}
               >
-                {l.thumbPath ? (
-                  <img src={fileUrl(l.thumbPath)} alt={l.name} loading="lazy" draggable={false} />
-                ) : (
-                  <span className="kho-ph">{l.slotCount}</span>
-                )}
+                {c.replace(/[-_]+/g, " ").toUpperCase()}
               </button>
             ))}
-
-          {kind === "typo" &&
-            shownTypos.map((t) => (
-              <button
-                key={t.id}
-                className="kho-cell"
-                title={t.category ?? ""}
-                onClick={() => {
-                  void ensureTypoDeco(t.id);
-                  addTypo(t.id, 0.34, 0.4);
-                }}
-              >
-                <img src={t.preview} alt="" loading="lazy" draggable={false} />
-              </button>
-            ))}
-
-          {kind === "element" &&
-            shownElements.map((e) => (
-              <button
-                key={e.id}
-                className="kho-cell checker"
-                title={e.name}
-                onClick={() => {
-                  void ensureElementImage(e.id);
-                  addElement(e.id, 0.4, 0.4);
-                }}
-              >
-                <img src={fileUrl(e.path)} alt="" loading="lazy" draggable={false} />
-              </button>
-            ))}
-        </div>
+          </div>
+          <div className="kho-scroll">
+            <div className={"kho-grid" + (kind === "album" ? " album" : "")}>{renderCell(activeCat)}</div>
+          </div>
+        </>
       )}
     </div>
   );

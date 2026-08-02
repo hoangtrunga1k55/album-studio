@@ -405,7 +405,7 @@ function App() {
         <div className="topleft">
           <div className="brand">
             <div className="brand-mark" onClick={backToWelcome} title="Back to home">
-              A
+              <img src="/logo.png" alt="TIZINE" draggable={false} />
             </div>
             <button
               className="btn"
@@ -500,18 +500,17 @@ function App() {
                 ) : (
                   <div className="empty-canvas">
                     <div className="empty-box">
-                      <div className="empty-mark">A</div>
-                      <h3>Chưa tạo album</h3>
+                      <div className="empty-mark"><img src="/logo.png" alt="TIZINE" draggable={false} /></div>
                       <p>Vui lòng tạo album để bắt đầu thiết kế.</p>
                       <div className="empty-actions">
                         <button className="btn primary" onClick={() => setShowWizard(true)}>
                           ＋ Tạo album mới
                         </button>
                         <button className="btn" onClick={() => void openProject().catch(() => {})}>
-                          Mở album…
+                          Mở album
                         </button>
                         <button className="btn" onClick={() => void newFromAlbumTemplate().catch(() => {})}>
-                          Từ mẫu…
+                          Từ mẫu
                         </button>
                       </div>
                       {(() => {
