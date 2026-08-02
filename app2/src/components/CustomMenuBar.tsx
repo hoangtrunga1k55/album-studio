@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
-import { loadRecents } from "../store/project";
+import { loadRecents, forgetRecent } from "../store/project";
 import "./CustomMenuBar.css";
+
+/** Last path segment (handles both \ and /). */
+const baseName = (p: string) => p.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || p;
+
+/** Prefer a clean project name; fall back to the folder name when the stored
+ *  "name" is actually a path (older recents stored the full path). */
+const displayName = (name: string, path: string) =>
+  name && !/[\\/]/.test(name) ? name : baseName(path);
 
 /** Dark HTML menu bar (Windows) — replaces the light Win32 menu so File/View
  *  match the app background. macOS keeps its native menu. */
@@ -12,7 +20,9 @@ export function CustomMenuBar({
   onZoom: (id: string) => void;
 }) {
   const [open, setOpen] = useState<"file" | "view" | null>(null);
+  const [tick, setTick] = useState(0); // bump to re-read recents after a remove
   const recents = open === "file" ? loadRecents() : [];
+  void tick;
 
   useEffect(() => {
     if (!open) return;
@@ -59,14 +69,28 @@ export function CustomMenuBar({
             <div className="cmenu-empty">(Empty)</div>
           ) : (
             recents.slice(0, 8).map((r) => (
-              <button
+              <div
                 key={r.path}
-                className="cmenu-item"
+                className="cmenu-recent-row"
                 title={r.path}
                 onClick={fire(() => onFile("recent:" + r.path))}
               >
-                <span className="cmenu-recent">{r.name}</span>
-              </button>
+                <span className="cmenu-recent-info">
+                  <span className="cmenu-recent-name">{displayName(r.name, r.path)}</span>
+                  <span className="cmenu-recent-path">{r.path}</span>
+                </span>
+                <button
+                  className="cmenu-recent-x"
+                  title="Remove from list"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    forgetRecent(r.path);
+                    setTick((n) => n + 1);
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
             ))
           )}
           <div className="cmenu-sep" />

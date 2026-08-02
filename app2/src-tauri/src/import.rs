@@ -197,6 +197,83 @@ pub async fn get_export_image(path: String) -> Result<String, String> {
     encode_jpeg_data_uri(&img, 3200, 92)
 }
 
+/// Re-read one image from disk and rebuild its metadata (thumbnail, size, B&W).
+/// Used by the "Edit in Photoshop" round-trip: after the user saves in an
+/// external editor the file bytes change, so the app refreshes this image.
+#[tauri::command]
+pub async fn reload_image(path: String) -> Result<ImageMeta, String> {
+    process_one(&path)
+}
+
+/// File modification time in epoch milliseconds — polled to detect an external
+/// save (Photoshop) so the app can refresh the image automatically.
+#[tauri::command]
+pub fn file_mtime_ms(path: String) -> Result<f64, String> {
+    use std::time::UNIX_EPOCH;
+    let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    let modified = meta.modified().map_err(|e| e.to_string())?;
+    let dur = modified.duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?;
+    Ok(dur.as_secs_f64() * 1000.0)
+}
+
+/// Open an image in an external editor (Photoshop). On macOS we try known
+/// Photoshop app names in turn, falling back to the OS default handler; on
+/// Windows/Linux we hand off to the default app for the file type.
+#[tauri::command]
+pub fn open_in_editor(path: String) -> Result<(), String> {
+    use std::process::Command;
+
+    if !Path::new(&path).exists() {
+        return Err(format!("File not found: {path}"));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // Newest first; `open -a <app>` returns non-zero if the app is missing.
+        const APPS: &[&str] = &[
+            "Adobe Photoshop 2025",
+            "Adobe Photoshop 2024",
+            "Adobe Photoshop 2023",
+            "Adobe Photoshop",
+        ];
+        for app in APPS {
+            let ok = Command::new("open")
+                .args(["-a", app, &path])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            if ok {
+                return Ok(());
+            }
+        }
+        // No Photoshop found → open with the default app so the user still edits.
+        Command::new("open")
+            .arg(&path)
+            .status()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // `cmd /C start "" <path>` opens with the default associated program.
+        Command::new("cmd")
+            .args(["/C", "start", "", &path])
+            .status()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    {
+        Command::new("xdg-open")
+            .arg(&path)
+            .status()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+}
+
 /// Decode any supported image to pixels, with EXIF orientation applied.
 fn decode_image(fp: &str) -> Result<DynamicImage, String> {
     let path = Path::new(fp);

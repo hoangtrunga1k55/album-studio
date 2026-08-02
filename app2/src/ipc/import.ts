@@ -99,6 +99,28 @@ export function getDisplayImageSync(path: string): string | undefined {
   return displayReady.get(path);
 }
 
+/** Drop the cached decode for a path so the next getDisplayImage re-reads the
+ *  file from disk (used after an external Photoshop edit changes the bytes). */
+export function invalidateDisplayImage(path: string): void {
+  displayCache.delete(path);
+  displayReady.delete(path);
+}
+
+/** Re-read an image from disk and rebuild its metadata (thumbnail, size, B&W). */
+export function reloadImage(path: string): Promise<ImageMeta> {
+  return invoke<ImageMeta>("reload_image", { path });
+}
+
+/** File modification time (epoch ms) — polled to detect an external save. */
+export function fileMtimeMs(path: string): Promise<number> {
+  return invoke<number>("file_mtime_ms", { path });
+}
+
+/** Open an image in an external editor (Photoshop, else the default app). */
+export function openInEditor(path: string): Promise<void> {
+  return invoke<void>("open_in_editor", { path });
+}
+
 /** Warm the cache for a set of photos (e.g. the neighbouring spreads) so
  *  switching spreads shows sharp images immediately. Fire-and-forget. */
 export function prefetchDisplayImages(paths: string[]): void {

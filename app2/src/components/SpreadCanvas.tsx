@@ -23,6 +23,7 @@ import { ensureTypoDeco, getTypo, type Typo } from "../engine/typos";
 import { ensureElementImage, getElement, type Element } from "../engine/elements";
 import { useLibrary } from "../store/library";
 import { readLayoutBgPath } from "../ipc/library";
+import { editInPhotoshop } from "../flows/externalEdit";
 import {
   orderKeys,
   pagesOf,
@@ -971,6 +972,8 @@ function Slot(props: {
     img ? getDisplayImageSync(img.path) : undefined
   );
   const drag = useRef<{ cx: number; cy: number; panX: number; panY: number } | null>(null);
+  // bumped after an external (Photoshop) edit → re-decode instead of reusing cache
+  const imgVersion = useAlbum((s) => (img ? s.imageVersions[img.path] ?? 0 : 0));
 
   useEffect(() => {
     if (!img) {
@@ -987,7 +990,7 @@ function Slot(props: {
     return () => {
       live = false;
     };
-  }, [img?.path]);
+  }, [img?.path, imgVersion]);
 
   const [display] = useImage(uri ?? "");
   // thumbnail (already in memory) stands in while the sharp version decodes
@@ -1119,9 +1122,16 @@ function Slot(props: {
       onMouseLeave={onUp}
       onDblClick={(e) => {
         if (!img) return;
-        // a photo's double-click = crop mode; don't also enter layout mode
         e.cancelBubble = true;
         e.evt.stopPropagation();
+        // From PREVIEW a photo's double-click enters layout-edit + selects the
+        // frame (blue) — NOT crop. Crop (yellow pan-inside) is only reachable
+        // once already in layout-edit, via a second double-click.
+        if (!useAlbum.getState().spreadSelected) {
+          useAlbum.getState().selectSpread();
+          onSelect();
+          return;
+        }
         onEnterCrop();
       }}
       onContextMenu={(e) => {
@@ -2985,6 +2995,24 @@ export function SpreadCanvas() {
       )}
       {menu?.kind === "slot" && (
         <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => { e.stopPropagation(); menuClosedAt.current = Date.now(); }}>
+          {(() => {
+            const imgId = spreads[currentIndex]?.imageIds[menu.slot];
+            const path = imgId ? images.find((im) => im.id === imgId)?.path : undefined;
+            if (!path) return null;
+            return (
+              <>
+                <button
+                  onClick={() => {
+                    void editInPhotoshop(path).catch((err) => alert("Couldn't open image editor: " + String(err)));
+                    setMenu(null);
+                  }}
+                >
+                  ✎ Edit in Photoshop
+                </button>
+                <div className="ctx-sep" />
+              </>
+            );
+          })()}
           <button onClick={() => { useAlbum.getState().setAsBackground(menu.slot); setMenu(null); }}>
             Set as background (full-bleed)
           </button>

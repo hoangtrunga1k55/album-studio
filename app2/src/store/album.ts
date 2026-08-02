@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { ImageMeta } from "../ipc/import";
+import { reloadImage, invalidateDisplayImage } from "../ipc/import";
 import {
   getTemplate,
   nearestSlotCount,
@@ -507,6 +508,12 @@ interface AlbumState {
   importing: boolean;
   setImporting: (v: boolean) => void;
   clearImages: () => void;
+  /** Bumped per image path after an external (Photoshop) edit so canvas nodes
+   *  re-decode the file instead of reusing the cached image. */
+  imageVersions: Record<string, number>;
+  /** Re-read one photo from disk (new thumbnail + display) after it was saved
+   *  in an external editor; updates its ImageMeta and bumps its version. */
+  refreshImage: (path: string) => Promise<void>;
   /** Remove imported photos from the album (files on disk untouched):
    *  slots empty out, backgrounds drop, ratings/labels forgotten. */
   removeImages: (ids: string[]) => void;
@@ -830,6 +837,17 @@ export const useAlbum = create<AlbumState>((set) => ({
   importing: false,
   setImporting: (importing) => set({ importing }),
   clearImages: () => set({ images: [] }),
+
+  imageVersions: {},
+  refreshImage: async (path) => {
+    const meta = await reloadImage(path).catch(() => null);
+    if (!meta) return;
+    invalidateDisplayImage(path);
+    set((s) => ({
+      images: s.images.map((im) => (im.path === path ? meta : im)),
+      imageVersions: { ...s.imageVersions, [path]: (s.imageVersions[path] ?? 0) + 1 },
+    }));
+  },
 
   removeImages: (ids) =>
     set((s) => {
@@ -1779,6 +1797,9 @@ export const useAlbum = create<AlbumState>((set) => ({
       selectedElement: null,
       swapSource: null,
       multiSel: [],
+      // reset any leftover crop/pan mode — clicking a photo must not carry a
+      // stale yellow crop border into layout-edit (start clean on the frame).
+      cropSlot: null,
       // canvas selection owns the keyboard now — tray selection would steal
       // Delete (xoá spread bị "câm" khi khay còn ảnh đang chọn)
       selectedPhotos: selectedSlot !== null ? [] : s.selectedPhotos,
@@ -1795,6 +1816,7 @@ export const useAlbum = create<AlbumState>((set) => ({
       swapSource: null,
       multiSel: [],
       selectedPhotos: [],
+      cropSlot: null, // entering layout-edit never starts in crop (no stale yellow)
     }),
   /** Esc / panel ✕: drop every selection AND leave layout mode. */
   clearSelection: () =>
