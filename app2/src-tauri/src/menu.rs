@@ -7,6 +7,7 @@
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Runtime};
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn build_menu<R: Runtime>(
     handle: &AppHandle<R>,
     recents: &[(String, String)],
@@ -109,9 +110,17 @@ pub fn build_menu<R: Runtime>(
 }
 
 /// Frontend pushes its recents (localStorage) → rebuild the whole menu.
+/// macOS only — Windows has no native menu bar (kept the dark UI clean).
 #[tauri::command]
 pub fn update_recent_menu(app: AppHandle, recents: Vec<(String, String)>) -> Result<(), String> {
-    let menu = build_menu(&app, &recents).map_err(|e| e.to_string())?;
-    app.set_menu(menu).map_err(|e| e.to_string())?;
+    #[cfg(target_os = "macos")]
+    {
+        let menu = build_menu(&app, &recents).map_err(|e| e.to_string())?;
+        app.set_menu(menu).map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (&app, &recents);
+    }
     Ok(())
 }

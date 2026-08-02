@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getTemplate, spreadCmFor } from "../engine/templates";
+import { getTemplate, spreadCmFor, parseSizeCm } from "../engine/templates";
 import { getTypo } from "../engine/typos";
 import { PhotoNavigator } from "./PhotoNavigator";
 import { spreadLabel, useAlbum } from "../store/album";
@@ -425,6 +425,11 @@ function PhotoEditSections({
 export function PropertiesPanel() {
   const spreads = useAlbum((s) => s.spreads);
   const currentIndex = useAlbum((s) => s.currentIndex);
+  const albumSize = useAlbum((s) => s.size);
+  // gap/padding are fractions of the page height — show them in POINTS to match
+  // the New Album wizard (Gap / Photo border are pt).
+  const pageCmH = parseSizeCm(albumSize)?.h ?? 0;
+  const fracToPt = (frac: number) => Math.round((frac * pageCmH * 72) / 2.54);
   const images = useAlbum((s) => s.images);
   const selectedSlot = useAlbum((s) => s.selectedSlot);
   const selectedText = useAlbum((s) => s.selectedText);
@@ -920,8 +925,8 @@ export function PropertiesPanel() {
             onChange={(e) => setMargin(parseFloat(e.target.value))}
             style={{ flex: 1 }}
           />
-          <span style={{ width: 30, textAlign: "right", fontSize: 11 }}>
-            {Math.round((spread?.margin ?? 0) * 1000) / 10}
+          <span style={{ width: 44, textAlign: "right", fontSize: 11 }}>
+            {fracToPt(spread?.margin ?? 0)} pt
           </span>
         </div>
         <div className="prop-row" style={{ marginBottom: 8 }}>
@@ -935,8 +940,8 @@ export function PropertiesPanel() {
             onChange={(e) => useAlbum.getState().setPadding(parseFloat(e.target.value))}
             style={{ flex: 1 }}
           />
-          <span style={{ width: 30, textAlign: "right", fontSize: 11 }}>
-            {Math.round((spread?.padding ?? 0) * 1000) / 10}
+          <span style={{ width: 44, textAlign: "right", fontSize: 11 }}>
+            {fracToPt(spread?.padding ?? 0)} pt
           </span>
         </div>
         <button

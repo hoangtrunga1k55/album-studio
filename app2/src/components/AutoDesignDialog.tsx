@@ -81,11 +81,8 @@ export function AutoDesignDialog({ onClose }: { onClose: () => void }) {
   // Content spreads that already carry a layout (e.g. from an album template)
   // → offer "pour photos into the existing slots" instead of new layouts.
   const contentSpreads = spreads.filter((sp) => !sp.isCover).length;
-  const anyPhotos = spreads.some((sp) => sp.imageIds.some(Boolean));
-  // Default to fill when the album has empty pre-built spreads (template case).
-  const [mode, setMode] = useState<"build" | "fill">(
-    contentSpreads > 0 && !anyPhotos ? "fill" : "build"
-  );
+  // Always open on the first tab (New layouts).
+  const [mode, setMode] = useState<"build" | "fill">("build");
 
   const [source, setSource] = useState<Source>("all");
   const [order, setOrder] = useState<Order>("date");

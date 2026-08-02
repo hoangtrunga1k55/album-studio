@@ -14,20 +14,20 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init());
 
-    // Native menu bar on BOTH platforms (SmartAlbums-style File/View):
-    // accelerators are handled by the OS so Vietnamese IMEs can't eat them;
-    // the webview just receives "menu-cmd" / "zoom-cmd" events.
-    let builder = builder
-        .menu(|handle| menu::build_menu(handle, &[]))
-        .on_menu_event(|app, event| {
-            use tauri::Emitter;
-            let id = event.id().as_ref();
-            if id.starts_with("zoom_") {
-                let _ = app.emit("zoom-cmd", id.to_string());
-            } else if id.starts_with("file_") || id.starts_with("recent:") || id.starts_with("app_") {
-                let _ = app.emit("menu-cmd", id.to_string());
-            }
-        });
+    // macOS: native app/menu bar (⌘ accelerators + clipboard items). Windows
+    // uses RegisterHotKey below + the in-app top bar, so the native menu strip
+    // (which renders light and clashes with the dark UI) is skipped there.
+    let builder = builder.on_menu_event(|app, event| {
+        use tauri::Emitter;
+        let id = event.id().as_ref();
+        if id.starts_with("zoom_") {
+            let _ = app.emit("zoom-cmd", id.to_string());
+        } else if id.starts_with("file_") || id.starts_with("recent:") || id.starts_with("app_") {
+            let _ = app.emit("menu-cmd", id.to_string());
+        }
+    });
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(|handle| menu::build_menu(handle, &[]));
 
     // Windows: same guarantee via RegisterHotKey — registered ONLY while the
     // window has focus (blur unregisters), so other apps keep their keys.
