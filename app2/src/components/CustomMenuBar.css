@@ -58,41 +58,55 @@
   font-size: 11px;
   font-family: inherit;
 }
-/* two-line recent entry: name (bold) + path (dim, tail-truncated) + remove ✕ */
+/* Open Recent → flyout submenu (macOS-style) */
+.cmenu-sub {
+  position: relative;
+}
+.cmenu-sub.open {
+  background: var(--bg-3);
+}
+.cmenu-caret {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+.cmenu-flyout {
+  position: absolute;
+  top: -5px;
+  left: 100%;
+  margin-left: 3px;
+  min-width: 200px;
+  max-width: 300px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  box-shadow: var(--sh-pop);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* recent entry: name + remove ✕ on hover */
 .cmenu-recent-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px 6px 10px;
+  padding: 7px 8px 7px 10px;
   border-radius: 6px;
   cursor: pointer;
 }
 .cmenu-recent-row:hover {
   background: var(--bg-3);
 }
-.cmenu-recent-info {
+.cmenu-recent-name {
   flex: 1 1 auto;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.cmenu-recent-name {
   font-size: 12.5px;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.cmenu-recent-path {
-  font-size: 10.5px;
-  color: var(--text-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  /* keep the informative tail (album folder) visible; ellipsis at the start */
-  direction: rtl;
-  text-align: left;
 }
 .cmenu-recent-x {
   flex: 0 0 auto;

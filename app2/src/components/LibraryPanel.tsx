@@ -39,9 +39,18 @@ export function LibraryPanel() {
   const applyTemplate = useAlbum((s) => s.applyTemplate);
   const addTypo = useAlbum((s) => s.addTypo);
   const addElement = useAlbum((s) => s.addElement);
+  const hasAlbum = useAlbum((s) => s.size !== null && s.spreads.length > 0);
   const [elBusy, setElBusy] = useState(false);
 
   const pickKind = (k: Kind) => setKind(k);
+
+  /** Inserting into a spread needs an album — guard so a click before creating
+   *  one shows a friendly message instead of breaking the canvas. */
+  function requireAlbum(): boolean {
+    if (hasAlbum) return true;
+    alert("Vui lòng tạo album trước khi thêm layout / typo / element.");
+    return false;
+  }
 
   /** Element library has no Settings entry — load its folder from here. */
   async function loadElements() {
@@ -59,6 +68,7 @@ export function LibraryPanel() {
   }
 
   async function pickLayout(item: LayoutItem) {
+    if (!requireAlbum()) return;
     const t = await ensureLibraryTemplate(item);
     if (t) applyTemplate(t.id);
   }
@@ -105,6 +115,7 @@ export function LibraryPanel() {
             className="kho-cell"
             title={t.category ?? ""}
             onClick={() => {
+              if (!requireAlbum()) return;
               void ensureTypoDeco(t.id);
               addTypo(t.id, 0.34, 0.4);
             }}
@@ -121,6 +132,7 @@ export function LibraryPanel() {
           className="kho-cell checker"
           title={e.name}
           onClick={() => {
+            if (!requireAlbum()) return;
             void ensureElementImage(e.id);
             addElement(e.id, 0.4, 0.4);
           }}
